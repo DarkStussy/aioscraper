@@ -1,0 +1,66 @@
+[project]
+name = "aioscraper"
+version = "0.1.0"
+authors = [{ name = "darkstussy" }, ]
+description = "Async framework for building modular and scalable web scrapers."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp[speedups]~=3.11.16",
+    "aiojobs~=1.4.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[project.urls]
+Homepage = "https://github.com/darkstussy/aioscraper"
+Issues = "https://github.com/darkstussy/aioscraper/issues"
+
+[project.optional-dependencies]
+dev = [
+    "flake8~=7.1.2",
+    "black~=25.1.0",
+    "pyright~=1.1.399",
+    "aiohttp[speedups]~=3.11.16",
+    "aiojobs~=1.4.0",
+]
+test = [
+    "pytest~=8.3.5",
+    "pytest-asyncio~=0.26.0",
+    "aresponses~=3.0.0"
+]
+
+[tool.black]
+line-length = 120
+include = '\.pyi?$'
+exclude = '''
+    /(
+        \.eggs/|
+        \.git/|
+        \.hg/|
+        \.mypy_cache/|
+        \.tox/|
+        \.venv/|
+        \venv/|
+        _build/|
+        buck-out/|
+        build/|
+        dist/
+    )'''
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = [
+    "tests",
+]
+asyncio_default_fixture_loop_scope = "function"
