@@ -1,0 +1,67 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/tests.yml"
+      - "aioscraper/**"
+      - "tests/**"
+      - ".flake8"
+      - "pyproject.toml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/tests.yml"
+      - "aioscraper/**"
+      - "tests/**"
+      - ".flake8"
+      - "pyproject.toml"
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        python-version:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }} on ${{ matrix.os }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          pip install -e .[dev,test]
+
+      - name: Lint code
+        run: |
+          flake8 --count --show-source --statistics
+          black --check --diff aioscraper tests
+          pyright aioscraper tests
+
+      - name: Run tests
+        run: |
+          pytest -v
