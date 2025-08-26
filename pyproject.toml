@@ -6,7 +6,7 @@ description = "Async framework for building modular and scalable web scrapers."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "aiohttp[speedups]~=3.11.16",
+    "aiohttp[speedups]~=3.12.15",
     "aiojobs~=1.4.0",
 ]
 classifiers = [
