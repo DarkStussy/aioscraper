@@ -1,6 +1,6 @@
 [project]
 name = "aioscraper"
-version = "0.1.0"
+version = "0.2.0"
 authors = [{ name = "darkstussy" }, ]
 description = "Async framework for building modular and scalable web scrapers."
 readme = "README.md"
@@ -28,15 +28,15 @@ Issues = "https://github.com/darkstussy/aioscraper/issues"
 
 [project.optional-dependencies]
 dev = [
-    "flake8~=7.1.2",
+    "flake8~=7.3.0",
     "black~=25.1.0",
-    "pyright~=1.1.399",
-    "aiohttp[speedups]~=3.11.16",
+    "pyright~=1.1.404",
+    "aiohttp[speedups]~=3.12.15",
     "aiojobs~=1.4.0",
 ]
 test = [
-    "pytest~=8.3.5",
-    "pytest-asyncio~=0.26.0",
+    "pytest~=8.4.1",
+    "pytest-asyncio~=1.1.0",
     "aresponses~=3.0.0"
 ]
 
