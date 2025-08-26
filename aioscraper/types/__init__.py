@@ -1,4 +1,4 @@
-from .middleware import RequestMiddleware, ResponseMiddleware
+from .middleware import RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware
 from .pipeline import BaseItem, Pipeline
 from .session import (
     QueryParams,
@@ -23,5 +23,6 @@ __all__ = [
     "BaseItem",
     "Pipeline",
     "RequestMiddleware",
+    "RequestExceptionMiddleware",
     "ResponseMiddleware",
 ]

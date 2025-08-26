@@ -18,6 +18,22 @@ class RequestMiddleware(Protocol):
     async def __call__(self, request: Request, params: RequestParams) -> None: ...
 
 
+class RequestExceptionMiddleware(Protocol):
+    """
+    Protocol defining the interface for request exception middleware.
+
+    A request exception middleware is a callable that can handle exceptions that occur during a request.
+    It receives the original request and parameters and the exception as input for processing.
+
+    Args:
+        request (Request): The original request object that caused the exception
+        params (RequestParams): The parameters associated with the request
+        exc (Exception): The exception object that was raised
+    """
+
+    async def __call__(self, request: Request, params: RequestParams, exc: Exception) -> None: ...
+
+
 class ResponseMiddleware(Protocol):
     """
     Protocol defining the interface for response middleware.

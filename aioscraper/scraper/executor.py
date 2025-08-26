@@ -10,11 +10,12 @@ from .base import BaseScraper
 
 from .request_manager import RequestManager
 from ..config import Config
+from ..exceptions import AIOScrapperException
 from ..helpers import get_func_kwargs
 from ..pipeline import BasePipeline
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session.aiohttp import AiohttpSession
-from ..types import RequestMiddleware, ResponseMiddleware
+from ..types import RequestSender, RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware
 
 
 class AIOScraper:
@@ -38,13 +39,14 @@ class AIOScraper:
         dependencies: dict[str, Any] | None = None,
         logger: Logger | None = None,
     ) -> None:
-        self._start_time = time.time()
+        self._start_time: float | None = None
         self._config = config or Config()
         self._logger = logger or getLogger("aioscraper")
 
         self._scrapers = scrapers
         self._request_outer_middlewares = []
         self._request_inner_middlewares = []
+        self._request_exception_middlewares = []
         self._response_middlewares = []
 
         self._pipelines: dict[str, list[BasePipeline]] = {}
@@ -79,8 +81,16 @@ class AIOScraper:
             srv_kwargs={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
             request_outer_middlewares=self._request_outer_middlewares,
             request_inner_middlewares=self._request_inner_middlewares,
+            request_exception_middlewares=self._request_exception_middlewares,
             response_middlewares=self._response_middlewares,
         )
+
+    @property
+    def send_request(self) -> RequestSender:
+        if self._start_time is None:
+            raise AIOScrapperException("AIOScraper not started yet")
+
+        return self._request_manager.sender
 
     def add_pipeline(self, name: str, pipeline: BasePipeline) -> None:
         """
@@ -111,6 +121,14 @@ class AIOScraper:
         """
         self._request_inner_middlewares.extend(middlewares)
 
+    def add_request_exception_middlewares(self, *middlewares: RequestExceptionMiddleware) -> None:
+        """
+        Add request exception middlewares.
+
+        These middlewares are executed when an exception occurs during the request processing.
+        """
+        self._request_exception_middlewares.extend(middlewares)
+
     def add_response_middlewares(self, *middlewares: ResponseMiddleware) -> None:
         """
         Add response middlewares.
@@ -132,6 +150,8 @@ class AIOScraper:
 
     async def start(self) -> None:
         "Start the scraping process"
+        self._start_time = time.time()
+
         await self._pipeline_dispatcher.initialize()
         self._request_manager.listen_queue()
 
@@ -150,6 +170,10 @@ class AIOScraper:
     async def _shutdown(self) -> bool:
         "Internal method to handle graceful shutdown of the scraper"
         status = False
+
+        if self._start_time is None:
+            return status
+
         execution_timeout = (
             max(self._config.execution.timeout - (time.time() - self._start_time), 0.1)
             if self._config.execution.timeout

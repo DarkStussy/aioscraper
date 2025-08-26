@@ -15,6 +15,7 @@ from ..types import (
     Request,
     RequestParams,
     RequestMiddleware,
+    RequestExceptionMiddleware,
     ResponseMiddleware,
     RequestSender,
 )
@@ -105,6 +106,7 @@ class RequestManager:
         srv_kwargs: dict[str, Any],
         request_outer_middlewares: list[RequestMiddleware],
         request_inner_middlewares: list[RequestMiddleware],
+        request_exception_middlewares: list[RequestExceptionMiddleware],
         response_middlewares: list[ResponseMiddleware],
     ) -> None:
         self._logger = logger
@@ -117,6 +119,7 @@ class RequestManager:
         self._srv_kwargs = {"send_request": self._request_sender, **srv_kwargs}
         self._request_outer_middlewares = request_outer_middlewares
         self._request_inner_middlewares = request_inner_middlewares
+        self._request_exception_middlewares = request_exception_middlewares
         self._response_middlewares = response_middlewares
         self._task: asyncio.Task | None = None
 
@@ -152,6 +155,9 @@ class RequestManager:
                     **get_cb_kwargs(params.callback, srv_kwargs=self._srv_kwargs, cb_kwargs=params.cb_kwargs),
                 )
         except Exception as exc:
+            for exception_middleware in self._request_exception_middlewares:
+                await exception_middleware(request, params, exc)
+
             await self._handle_client_exception(
                 params,
                 client_exc=RequestException(src=exc, url=full_url, method=request.method),

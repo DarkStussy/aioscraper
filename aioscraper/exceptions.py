@@ -1,4 +1,10 @@
-class ClientException(Exception):
+class AIOScrapperException(Exception):
+    "Base scraper exception"
+
+    ...
+
+
+class ClientException(AIOScrapperException):
     "Base exception class for all client-related errors"
 
     ...
@@ -44,7 +50,7 @@ class RequestException(ClientException):
         return f"[{self.src.__class__.__name__}]: {self.method} {self.url}: {self.src}"
 
 
-class PipelineException(Exception):
+class PipelineException(AIOScrapperException):
     "Base exception class for all pipeline-related errors"
 
     ...
