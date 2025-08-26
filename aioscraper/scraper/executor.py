@@ -25,8 +25,9 @@ class AIOScraper:
     managing requests, handling middleware, and processing data through pipelines.
 
     Args:
-        scraper (list[BasesScraper]): List of scraper instances to be executed.
+        scrapers (list[BaseScraper]): List of scraper instances to be executed.
         config (Config | None): Configuration object. Defaults to None.
+        dependencies (dict[str, Any] | None): Additional dependencies to be passed to scrapers. Defaults to None.
         logger (Logger | None): Logger instance. Defaults to None.
     """
 
@@ -34,6 +35,7 @@ class AIOScraper:
         self,
         scrapers: list[BaseScraper],
         config: Config | None = None,
+        dependencies: dict[str, Any] | None = None,
         logger: Logger | None = None,
     ) -> None:
         self._start_time = time.time()
@@ -47,6 +49,8 @@ class AIOScraper:
 
         self._pipelines: dict[str, list[BasePipeline]] = {}
         self._pipeline_dispatcher = PipelineDispatcher(self._logger.getChild("pipeline"), pipelines=self._pipelines)
+
+        self._dependencies = dependencies or {}
 
         def _exception_handler(_, context: dict[str, Any]):
             if "job" in context:
@@ -72,7 +76,7 @@ class AIOScraper:
             queue=self._request_queue,
             delay=self._config.session.request.delay,
             shutdown_timeout=self._config.execution.shutdown_timeout,
-            srv_kwargs={"pipeline": self._pipeline_dispatcher.put_item},
+            srv_kwargs={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
             request_outer_middlewares=self._request_outer_middlewares,
             request_inner_middlewares=self._request_inner_middlewares,
             response_middlewares=self._response_middlewares,
@@ -131,12 +135,16 @@ class AIOScraper:
         await self._pipeline_dispatcher.initialize()
         self._request_manager.listen_queue()
 
-        scraper_args = {"send_request": self._request_manager.sender, "pipeline": self._pipeline_dispatcher.put_item}
+        scraper_kwargs = {
+            "send_request": self._request_manager.sender,
+            "pipeline": self._pipeline_dispatcher.put_item,
+            **self._dependencies,
+        }
         for scraper in self._scrapers:
-            await scraper.initialize(**get_func_kwargs(scraper.initialize, scraper_args))
+            await scraper.initialize(**get_func_kwargs(scraper.initialize, scraper_kwargs))
 
         await asyncio.gather(
-            *[scraper.start(**get_func_kwargs(scraper.start, scraper_args)) for scraper in self._scrapers]
+            *[scraper.start(**get_func_kwargs(scraper.start, scraper_kwargs)) for scraper in self._scrapers]
         )
 
     async def _shutdown(self) -> bool:
@@ -177,10 +185,10 @@ class AIOScraper:
         if shutdown:
             await self.shutdown()
 
-        scraper_args = {"pipeline": self._pipeline_dispatcher.put_item}
+        scraper_kwargs = {"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies}
         try:
             for scraper in self._scrapers:
-                await scraper.close(**get_func_kwargs(scraper.close, scraper_args))
+                await scraper.close(**get_func_kwargs(scraper.close, scraper_kwargs))
         finally:
             await self._scheduler.close()
             await self._request_manager.close()
