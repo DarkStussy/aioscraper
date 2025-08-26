@@ -11,7 +11,7 @@ from .base import BaseScraper
 from .request_manager import RequestManager
 from ..config import Config
 from ..exceptions import AIOScrapperException
-from ..helpers import get_func_kwargs
+from ..helpers import get_func_kwargs, execute_coroutines
 from ..pipeline import BasePipeline
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session.aiohttp import AiohttpSession
@@ -151,8 +151,6 @@ class AIOScraper:
     async def start(self) -> None:
         "Start the scraping process"
         self._start_time = time.time()
-
-        await self._pipeline_dispatcher.initialize()
         self._request_manager.listen_queue()
 
         scraper_kwargs = {
@@ -160,9 +158,6 @@ class AIOScraper:
             "pipeline": self._pipeline_dispatcher.put_item,
             **self._dependencies,
         }
-        for scraper in self._scrapers:
-            await scraper.initialize(**get_func_kwargs(scraper.initialize, scraper_kwargs))
-
         await asyncio.gather(
             *[scraper.start(**get_func_kwargs(scraper.start, scraper_kwargs)) for scraper in self._scrapers]
         )
@@ -206,14 +201,18 @@ class AIOScraper:
         Args:
             shutdown (bool, optional): Whether to perform shutdown before closing. Defaults to True.
         """
-        if shutdown:
-            await self.shutdown()
-
-        scraper_kwargs = {"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies}
         try:
-            for scraper in self._scrapers:
-                await scraper.close(**get_func_kwargs(scraper.close, scraper_kwargs))
+            await self.shutdown() if shutdown else await self._request_manager.shutdown(force=True)
         finally:
-            await self._scheduler.close()
-            await self._request_manager.close()
-            await self._pipeline_dispatcher.close()
+            scraper_kwargs = {"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies}
+            await execute_coroutines(
+                self._logger,
+                *[scraper.close(**get_func_kwargs(scraper.close, scraper_kwargs)) for scraper in self._scrapers],
+            )
+
+            await execute_coroutines(
+                self._logger,
+                self._scheduler.close(),
+                self._request_manager.close(),
+                self._pipeline_dispatcher.close(),
+            )

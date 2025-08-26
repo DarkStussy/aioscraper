@@ -1,5 +1,6 @@
 import inspect
-from typing import Callable, Any
+from logging import Logger
+from typing import Callable, Any, Coroutine
 
 
 def get_func_kwargs(func: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -14,3 +15,11 @@ def get_cb_kwargs(callback: Callable, srv_kwargs: dict[str, Any], cb_kwargs: dic
         cb_kwargs = {}
 
     return get_func_kwargs(callback, cb_kwargs | srv_kwargs)
+
+
+async def execute_coroutines(logger: Logger, *coroutines: Coroutine) -> Any:
+    for coroutine in coroutines:
+        try:
+            await coroutine
+        except Exception as exc:
+            logger.exception(exc)

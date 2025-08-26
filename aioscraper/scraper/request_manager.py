@@ -197,7 +197,10 @@ class RequestManager:
         """
         await self._queue.put(None)
         if self._task is not None:
-            await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task
+            try:
+                await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
 
     async def close(self) -> None:
         """Close the underlying session."""

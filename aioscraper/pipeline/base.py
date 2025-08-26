@@ -18,15 +18,6 @@ class BasePipeline(abc.ABC, Generic[ItemType]):
         """
         ...
 
-    async def initialize(self) -> None:
-        """
-        Initialize the pipeline.
-
-        This method is called before the pipeline starts processing items.
-        It can be overridden to perform any necessary setup operations.
-        """
-        ...
-
     async def close(self) -> None:
         """
         Close the pipeline.

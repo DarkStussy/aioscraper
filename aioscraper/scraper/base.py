@@ -18,15 +18,6 @@ class BaseScraper(abc.ABC):
         """
         ...
 
-    async def initialize(self, *args, **kwargs) -> None:
-        """
-        Initializes the scraper.
-
-        This method is called before starting the scraper It should be used to initialize any
-        necessary state or resources required by the scraper.
-        """
-        ...
-
     async def close(self, *args, **kwargs) -> None:
         """
         Closes the scraper.

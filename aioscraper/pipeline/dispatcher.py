@@ -30,15 +30,6 @@ class PipelineDispatcher:
             for pipeline in pipelines:
                 yield pipeline
 
-    async def initialize(self) -> None:
-        """
-        Initializes all pipelines.
-
-        Calls the initialize() method for each pipeline in the system.
-        """
-        for pipeline in self._get_pipelines():
-            await pipeline.initialize()
-
     async def close(self) -> None:
         """
         Closes all pipelines.
