@@ -10,7 +10,6 @@ from .base import BaseScraper
 
 from .request_manager import RequestManager
 from ..config import Config
-from ..exceptions import AIOScrapperException
 from ..helpers import get_func_kwargs, execute_coroutines
 from ..pipeline import BasePipeline
 from ..pipeline.dispatcher import PipelineDispatcher
@@ -87,9 +86,6 @@ class AIOScraper:
 
     @property
     def send_request(self) -> RequestSender:
-        if self._start_time is None:
-            raise AIOScrapperException("AIOScraper not started yet")
-
         return self._request_manager.sender
 
     def add_pipeline(self, name: str, pipeline: BasePipeline) -> None:
