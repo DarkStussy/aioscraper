@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from typing import Union, Mapping, Any, Callable, Awaitable, TypedDict, Protocol
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 QueryParams = Mapping[str, Union[str, int, float]]
 
@@ -47,7 +47,12 @@ class Request:
     @property
     def full_url(self) -> str:
         "Returns the complete URL including query parameters"
-        return f"{self.url}{urlencode(self.params or {})}"
+
+        if not self.params:
+            return self.url
+
+        url_parts = urlparse(self.url)
+        return url_parts._replace(query=urlencode(dict(parse_qsl(url_parts.query)) | dict(self.params))).geturl()
 
 
 @dataclass(slots=True)
@@ -107,6 +112,17 @@ class Response:
         content_type (str | None): Content type of the response
     """
 
+    __slots__ = (
+        "_url",
+        "_method",
+        "_params",
+        "_status",
+        "_headers",
+        "_cookies",
+        "_content",
+        "_content_type",
+    )
+
     def __init__(
         self,
         url: str,
@@ -127,13 +143,20 @@ class Response:
         self._content = content
         self._content_type = content_type
 
+    def __repr__(self) -> str:
+        return f"Response[{self._method} {self.full_url}]"
+
     @property
     def url(self) -> str:
         return self._url
 
     @property
     def full_url(self) -> str:
-        return f"{self.url}{urlencode(self.params or {})}"
+        if not self.params:
+            return self.url
+
+        url_parts = urlparse(self.url)
+        return url_parts._replace(query=urlencode(dict(parse_qsl(url_parts.query)) | dict(self.params))).geturl()
 
     @property
     def method(self) -> str:
