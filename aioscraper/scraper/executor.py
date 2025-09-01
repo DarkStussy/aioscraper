@@ -14,7 +14,7 @@ from .._helpers.func import get_func_kwargs
 from .._helpers.asyncio import execute_coroutines
 from ..pipeline import BasePipeline, ItemType
 from ..pipeline.dispatcher import PipelineDispatcher
-from ..session.aiohttp import AiohttpSession
+from ..session import AiohttpSession
 from ..types import RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware, MiddlewareType
 
 

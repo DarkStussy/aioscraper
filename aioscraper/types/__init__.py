@@ -11,7 +11,7 @@ from .session import (
     Response,
 )
 
-__all__ = [
+__all__ = (
     "QueryParams",
     "Cookies",
     "Headers",
@@ -26,4 +26,4 @@ __all__ = [
     "RequestExceptionMiddleware",
     "ResponseMiddleware",
     "MiddlewareType",
-]
+)

@@ -6,7 +6,7 @@ from typing import Coroutine
 
 from ..exceptions import HTTPException, RequestException, ClientException
 from .._helpers.func import get_cb_kwargs
-from ..session.base import BaseSession
+from ..session import BaseSession
 from ..types import (
     QueryParams,
     Cookies,
