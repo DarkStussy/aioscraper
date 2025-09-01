@@ -8,12 +8,11 @@ from ..types import Response, Request
 class AiohttpSession(BaseSession):
     "Implementation of HTTP session using aiohttp"
 
-    def __init__(self, timeout: float | None = None, ssl: bool | None = None, **kwargs) -> None:
+    def __init__(self, timeout: float | None = None, ssl: bool | None = None) -> None:
         super().__init__(timeout, ssl)
         self._session = ClientSession(
             timeout=ClientTimeout(total=timeout),
             connector=TCPConnector(ssl=ssl) if ssl is not None else None,
-            **kwargs,
         )
 
     async def make_request(self, request: Request) -> Response:

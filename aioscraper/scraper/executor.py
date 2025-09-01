@@ -2,7 +2,7 @@ import asyncio
 import time
 from logging import Logger, getLogger
 from types import TracebackType
-from typing import Type, Any
+from typing import Type, Any, cast
 
 from aiojobs import Scheduler
 
@@ -10,11 +10,12 @@ from .base import BaseScraper
 
 from .request_manager import RequestManager
 from ..config import Config
-from ..helpers import get_func_kwargs, execute_coroutines
-from ..pipeline import BasePipeline
+from .._helpers.func import get_func_kwargs
+from .._helpers.asyncio import execute_coroutines
+from ..pipeline import BasePipeline, ItemType
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session.aiohttp import AiohttpSession
-from ..types import RequestSender, RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware
+from ..types import RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware, MiddlewareType
 
 
 class AIOScraper:
@@ -43,17 +44,17 @@ class AIOScraper:
         self._logger = logger or getLogger("aioscraper")
 
         self._scrapers = scrapers
-        self._request_outer_middlewares = []
-        self._request_inner_middlewares = []
-        self._request_exception_middlewares = []
-        self._response_middlewares = []
+        self._request_outer_middlewares: list[RequestMiddleware] = []
+        self._request_inner_middlewares: list[RequestMiddleware] = []
+        self._request_exception_middlewares: list[RequestExceptionMiddleware] = []
+        self._response_middlewares: list[ResponseMiddleware] = []
 
-        self._pipelines: dict[str, list[BasePipeline]] = {}
+        self._pipelines: dict[str, list[BasePipeline[Any]]] = {}
         self._pipeline_dispatcher = PipelineDispatcher(self._logger.getChild("pipeline"), pipelines=self._pipelines)
 
         self._dependencies = dependencies or {}
 
-        def _exception_handler(_, context: dict[str, Any]):
+        def _exception_handler(_: Scheduler, context: dict[str, Any]):
             if "job" in context:
                 self._logger.error(f'{context["message"]}: {context["exception"]}', extra={"context": context})
             else:
@@ -84,11 +85,14 @@ class AIOScraper:
             response_middlewares=self._response_middlewares,
         )
 
-    @property
-    def send_request(self) -> RequestSender:
-        return self._request_manager.sender
+        self._all_dependencies: dict[str, Any] = {
+            "logger": self._logger,
+            "send_request": self._request_manager.sender,
+            "pipeline": self._pipeline_dispatcher.put_item,
+            **self._dependencies,
+        }
 
-    def add_pipeline(self, name: str, pipeline: BasePipeline) -> None:
+    def add_pipeline(self, name: str, pipeline: BasePipeline[ItemType]) -> None:
         """
         Add a pipeline to process scraped data.
 
@@ -101,37 +105,52 @@ class AIOScraper:
         else:
             self._pipelines[name].append(pipeline)
 
-    def add_outer_request_middlewares(self, *middlewares: RequestMiddleware) -> None:
+    def _add_middlewares(
+        self,
+        storage: list[MiddlewareType],
+        middlewares: tuple[Type[MiddlewareType] | MiddlewareType, ...],
+    ) -> None:
+        for middleware in middlewares:
+            if isinstance(middleware, type):
+                instance = middleware(**get_func_kwargs(middleware.__init__, self._all_dependencies))
+                storage.append(cast(MiddlewareType, instance))
+            else:
+                storage.append(middleware)
+
+    def add_outer_request_middlewares(self, *middlewares: Type[RequestMiddleware] | RequestMiddleware) -> None:
         """
         Add outer request middlewares.
 
         These middlewares are executed before the request is sent to the scheduler.
         """
-        self._request_outer_middlewares.extend(middlewares)
+        self._add_middlewares(self._request_outer_middlewares, middlewares)
 
-    def add_inner_request_middlewares(self, *middlewares: RequestMiddleware) -> None:
+    def add_inner_request_middlewares(self, *middlewares: Type[RequestMiddleware] | RequestMiddleware) -> None:
         """
         Add inner request middlewares.
 
         These middlewares are executed after the request is scheduled but before it is sent.
         """
-        self._request_inner_middlewares.extend(middlewares)
+        self._add_middlewares(self._request_inner_middlewares, middlewares)
 
-    def add_request_exception_middlewares(self, *middlewares: RequestExceptionMiddleware) -> None:
+    def add_request_exception_middlewares(
+        self,
+        *middlewares: Type[RequestExceptionMiddleware] | RequestExceptionMiddleware,
+    ) -> None:
         """
         Add request exception middlewares.
 
         These middlewares are executed when an exception occurs during the request processing.
         """
-        self._request_exception_middlewares.extend(middlewares)
+        self._add_middlewares(self._request_exception_middlewares, middlewares)
 
-    def add_response_middlewares(self, *middlewares: ResponseMiddleware) -> None:
+    def add_response_middlewares(self, *middlewares: Type[ResponseMiddleware] | ResponseMiddleware) -> None:
         """
         Add response middlewares.
 
         These middlewares are executed after receiving the response.
         """
-        self._response_middlewares.extend(middlewares)
+        self._add_middlewares(self._response_middlewares, middlewares)
 
     async def __aenter__(self) -> "AIOScraper":
         return self
@@ -149,13 +168,8 @@ class AIOScraper:
         self._start_time = time.time()
         self._request_manager.listen_queue()
 
-        scraper_kwargs = {
-            "send_request": self._request_manager.sender,
-            "pipeline": self._pipeline_dispatcher.put_item,
-            **self._dependencies,
-        }
         await asyncio.gather(
-            *[scraper.start(**get_func_kwargs(scraper.start, scraper_kwargs)) for scraper in self._scrapers]
+            *[scraper.start(**get_func_kwargs(scraper.start, self._all_dependencies)) for scraper in self._scrapers]
         )
 
     async def _shutdown(self) -> bool:

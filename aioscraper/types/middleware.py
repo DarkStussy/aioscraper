@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol, TypeVar
 
 from .session import Request, RequestParams, Response
 
@@ -22,16 +22,24 @@ class RequestExceptionMiddleware(Protocol):
     """
     Protocol defining the interface for request exception middleware.
 
-    A request exception middleware is a callable that can handle exceptions that occur during a request.
-    It receives the original request and parameters and the exception as input for processing.
+    A request exception middleware is a callable that can handle exceptions
+    that occur during a request. It receives the original request, parameters,
+    and the exception as input for processing.
 
     Args:
-        request (Request): The original request object that caused the exception
-        params (RequestParams): The parameters associated with the request
-        exc (Exception): The exception object that was raised
+        request (Request): The original request object that caused the exception.
+        params (RequestParams): The parameters associated with the request.
+        exc (Exception): The exception object that was raised.
+
+    Returns:
+        bool | None: If `True` is returned, it indicates that the exception
+        has been handled, and any subsequent exception middleware (and the
+        request's `errback`) will be skipped. If `None` is returned,
+        processing continues to the next exception middleware or the
+        request's `errback`.
     """
 
-    async def __call__(self, request: Request, params: RequestParams, exc: Exception) -> None: ...
+    async def __call__(self, request: Request, params: RequestParams, exc: Exception) -> bool | None: ...
 
 
 class ResponseMiddleware(Protocol):
@@ -47,3 +55,6 @@ class ResponseMiddleware(Protocol):
     """
 
     async def __call__(self, params: RequestParams, response: Response) -> None: ...
+
+
+MiddlewareType = TypeVar("MiddlewareType", RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware)

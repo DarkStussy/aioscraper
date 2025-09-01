@@ -5,7 +5,7 @@ from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
 from ..exceptions import HTTPException, RequestException, ClientException
-from ..helpers import get_cb_kwargs
+from .._helpers.func import get_cb_kwargs
 from ..session.base import BaseSession
 from ..types import (
     QueryParams,
@@ -30,7 +30,7 @@ class _PRPRequest:
     request_params: RequestParams = field(compare=False)
 
 
-_RequestQueue = asyncio.PriorityQueue[_PRPRequest]
+_RequestQueue = asyncio.PriorityQueue[_PRPRequest | None]
 
 
 def _get_request_sender(queue: _RequestQueue) -> RequestSender:
@@ -39,9 +39,9 @@ def _get_request_sender(queue: _RequestQueue) -> RequestSender:
     async def sender(
         url: str,
         method: str = "GET",
-        callback: Callable[..., Awaitable] | None = None,
+        callback: Callable[..., Awaitable[Any]] | None = None,
         cb_kwargs: dict[str, Any] | None = None,
-        errback: Callable[..., Awaitable] | None = None,
+        errback: Callable[..., Awaitable[Any]] | None = None,
         params: QueryParams | None = None,
         data: Any = None,
         json_data: Any = None,
@@ -99,7 +99,7 @@ class RequestManager:
         self,
         logger: Logger,
         session: BaseSession,
-        schedule_request: Callable[[Coroutine], Awaitable],
+        schedule_request: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
         queue: _RequestQueue,
         delay: float,
         shutdown_timeout: float,
@@ -116,12 +116,12 @@ class RequestManager:
         self._delay = delay
         self._shutdown_timeout = shutdown_timeout
         self._request_sender = _get_request_sender(queue)
-        self._srv_kwargs = {"send_request": self._request_sender, **srv_kwargs}
+        self._srv_kwargs: dict[str, Any] = {"send_request": self._request_sender, **srv_kwargs}
         self._request_outer_middlewares = request_outer_middlewares
         self._request_inner_middlewares = request_inner_middlewares
         self._request_exception_middlewares = request_exception_middlewares
         self._response_middlewares = response_middlewares
-        self._task: asyncio.Task | None = None
+        self._task: asyncio.Task[None] | None = None
 
     @property
     def sender(self) -> RequestSender:
@@ -156,7 +156,8 @@ class RequestManager:
                 )
         except Exception as exc:
             for exception_middleware in self._request_exception_middlewares:
-                await exception_middleware(request, params, exc)
+                if await exception_middleware(request, params, exc):
+                    return
 
             await self._handle_client_exception(
                 params,
@@ -195,7 +196,7 @@ class RequestManager:
         Args:
             force (bool): If True, force shutdown after timeout
         """
-        await self._queue.put(None)  # type: ignore
+        await self._queue.put(None)
         if self._task is not None:
             try:
                 await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task

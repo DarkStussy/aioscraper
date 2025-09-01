@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import Generator
+from typing import Any, Generator
 
 from .base import BasePipeline, BaseItem
 from ..exceptions import PipelineException
@@ -8,7 +8,7 @@ from ..exceptions import PipelineException
 class PipelineDispatcher:
     "A class for managing and dispatching items through processing pipelines"
 
-    def __init__(self, logger: Logger, pipelines: dict[str, list[BasePipeline]]) -> None:
+    def __init__(self, logger: Logger, pipelines: dict[str, list[BasePipeline[Any]]]) -> None:
         self._logger = logger
         self._pipelines = pipelines
 
@@ -25,7 +25,7 @@ class PipelineDispatcher:
 
         return item
 
-    def _get_pipelines(self) -> Generator[BasePipeline, None, None]:
+    def _get_pipelines(self) -> Generator[BasePipeline[Any], None, None]:
         for pipelines in self._pipelines.values():
             for pipeline in pipelines:
                 yield pipeline

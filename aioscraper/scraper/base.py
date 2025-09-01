@@ -1,4 +1,5 @@
 import abc
+from typing import Any
 
 
 class BaseScraper(abc.ABC):
@@ -10,7 +11,7 @@ class BaseScraper(abc.ABC):
     """
 
     @abc.abstractmethod
-    async def start(self, *args, **kwargs) -> None:
+    async def start(self, *args: Any, **kwargs: Any) -> None:
         """
         Starts the scraper.
 
@@ -18,7 +19,7 @@ class BaseScraper(abc.ABC):
         """
         ...
 
-    async def close(self, *args, **kwargs) -> None:
+    async def close(self, *args: Any, **kwargs: Any) -> None:
         """
         Closes the scraper.
 

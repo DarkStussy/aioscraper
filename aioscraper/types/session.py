@@ -66,9 +66,9 @@ class RequestParams:
         errback (Callable[..., Awaitable] | None): Async error callback function
     """
 
-    callback: Callable[..., Awaitable] | None = None
+    callback: Callable[..., Awaitable[Any]] | None = None
     cb_kwargs: dict[str, Any] | None = None
-    errback: Callable[..., Awaitable] | None = None
+    errback: Callable[..., Awaitable[Any]] | None = None
 
 
 class RequestSender(Protocol):
@@ -82,9 +82,9 @@ class RequestSender(Protocol):
         self,
         url: str,
         method: str = "GET",
-        callback: Callable[..., Awaitable] | None = None,
+        callback: Callable[..., Awaitable[Any]] | None = None,
         cb_kwargs: dict[str, Any] | None = None,
-        errback: Callable[..., Awaitable] | None = None,
+        errback: Callable[..., Awaitable[Any]] | None = None,
         params: QueryParams | None = None,
         data: Any = None,
         json_data: Any = None,
