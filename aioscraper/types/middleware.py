@@ -1,4 +1,4 @@
-from typing import Any, Protocol, TypeVar
+from typing import Protocol, TypeVar
 
 from .session import Request, RequestParams, Response
 
