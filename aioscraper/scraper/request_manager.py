@@ -30,7 +30,7 @@ class _PRPRequest:
     request_params: RequestParams = field(compare=False)
 
 
-_RequestQueue = asyncio.PriorityQueue[_PRPRequest | None]
+_RequestQueue = asyncio.PriorityQueue[_PRPRequest]
 
 
 def _get_request_sender(queue: _RequestQueue) -> RequestSender:
@@ -196,7 +196,7 @@ class RequestManager:
         Args:
             force (bool): If True, force shutdown after timeout
         """
-        await self._queue.put(None)
+        await self._queue.put(None)  # type: ignore
         if self._task is not None:
             try:
                 await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task
