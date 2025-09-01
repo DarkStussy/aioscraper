@@ -21,34 +21,7 @@ on:
       - "pyproject.toml"
 
 jobs:
-  lint:
-    name: Lint code
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: pyproject.toml
-
-      - name: Install dependencies
-        run: |
-          pip install -e .[dev]
-
-      - name: Lint code
-        run: |
-          flake8 --count --show-source --statistics
-          black --check --diff aioscraper tests
-          pyright aioscraper tests
-
   tests:
-    needs: lint
-    name: Run tests
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +55,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e .[dev,test]
+
+      - name: Lint code
+        run: |
+          flake8 aioscraper --count --show-source --statistics
+          pyright aioscraper
+          black --check --diff aioscraper tests
 
       - name: Run tests
         run: |
