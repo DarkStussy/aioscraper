@@ -182,6 +182,10 @@ class Response:
     def content_type(self) -> str | None:
         return self._content_type
 
+    @property
+    def ok(self) -> bool:
+        return 400 > self.status
+
     def bytes(self) -> bytes:
         return self._content
 
