@@ -54,7 +54,7 @@ class ResponseMiddleware(Protocol):
         response (Response): The response object to be processed
     """
 
-    async def __call__(self, params: RequestParams, response: Response) -> None: ...
+    async def __call__(self, request: Request, params: RequestParams, response: Response) -> None: ...
 
 
 MiddlewareType = TypeVar("MiddlewareType", RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware)

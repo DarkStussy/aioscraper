@@ -137,7 +137,7 @@ class RequestManager:
 
             response = await self._session.make_request(request)
             for response_middleware in self._response_middlewares:
-                await response_middleware(params, response)
+                await response_middleware(request, params, response)
 
             if response.status >= 400:
                 await self._handle_client_exception(

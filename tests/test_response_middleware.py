@@ -2,14 +2,14 @@ import pytest
 from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper, BaseScraper
-from aioscraper.types import Response, RequestSender, RequestParams
+from aioscraper.types import Response, Request, RequestSender, RequestParams
 
 
 class ResponseMiddleware:
     def __init__(self) -> None:
         self.response_data = None
 
-    async def __call__(self, params: RequestParams, response: Response) -> None:
+    async def __call__(self, request: Request, params: RequestParams, response: Response) -> None:
         self.response_data = response.json()
 
 
