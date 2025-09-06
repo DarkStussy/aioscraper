@@ -1,13 +1,13 @@
 import json
 from dataclasses import dataclass
-from typing import Union, Mapping, Any, Callable, Awaitable, TypedDict, Protocol
+from typing import MutableMapping, Any, Callable, Awaitable, TypedDict, Protocol
 from urllib.parse import parse_qsl, urlencode, urlparse
 
-QueryParams = Mapping[str, Union[str, int, float]]
+QueryParams = MutableMapping[str, str | int | float]
 
-Cookies = Mapping[str, str]
+Cookies = MutableMapping[str, str]
 
-Headers = Mapping[str, str]
+Headers = MutableMapping[str, str]
 
 
 class BasicAuth(TypedDict):

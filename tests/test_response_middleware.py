@@ -2,7 +2,15 @@ import pytest
 from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper, BaseScraper
-from aioscraper.types import RequestSender, Response
+from aioscraper.types import Response, RequestSender, RequestParams
+
+
+class ResponseMiddleware:
+    def __init__(self) -> None:
+        self.response_data = None
+
+    async def __call__(self, params: RequestParams, response: Response) -> None:
+        self.response_data = response.json()
 
 
 class Scraper(BaseScraper):
@@ -17,13 +25,16 @@ class Scraper(BaseScraper):
 
 
 @pytest.mark.asyncio
-async def test_success(aresponses: ResponsesMockServer):
+async def test_response_middleware(aresponses: ResponsesMockServer):
     response_data = {"status": "OK"}
     aresponses.add("api.test.com", "/v1", "GET", response=response_data)  # type: ignore
 
+    middleware = ResponseMiddleware()
     scraper = Scraper()
     async with AIOScraper([scraper]) as executor:
+        executor.add_response_middlewares(middleware)
         await executor.start()
 
     assert scraper.response_data == response_data
+    assert middleware.response_data == response_data
     aresponses.assert_plan_strictly_followed()

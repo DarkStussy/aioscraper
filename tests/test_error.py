@@ -7,7 +7,7 @@ from aioscraper.types import RequestSender
 
 
 class Scraper(BaseScraper):
-    def __init__(self):
+    def __init__(self) -> None:
         self.status = None
         self.response_data = None
 
@@ -22,8 +22,10 @@ class Scraper(BaseScraper):
 
 @pytest.mark.asyncio
 async def test_error(aresponses: ResponsesMockServer):
+    response_data = "Internal Server Error"
+
     def handle_request(request):
-        return aresponses.Response(status=500, text="Internal Server Error")
+        return aresponses.Response(status=500, text=response_data)
 
     aresponses.add("api.test.com", "/v1", "GET", response=handle_request)  # pyright: ignore
 
@@ -32,5 +34,5 @@ async def test_error(aresponses: ResponsesMockServer):
         await executor.start()
 
     assert scraper.status == 500
-    assert scraper.response_data == "Internal Server Error"
+    assert scraper.response_data == response_data
     aresponses.assert_plan_strictly_followed()
