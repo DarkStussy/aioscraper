@@ -14,9 +14,8 @@ from ..types import (
     BasicAuth,
     Request,
     RequestParams,
-    RequestMiddleware,
-    RequestExceptionMiddleware,
-    ResponseMiddleware,
+    Middleware,
+    ExceptionMiddleware,
     RequestSender,
 )
 
@@ -89,7 +88,7 @@ class RequestManager:
         queue (_RequestQueue): Priority queue for requests.
         delay (float): Delay between requests in seconds.
         shutdown_timeout (float): Timeout for graceful shutdown.
-        srv_kwargs (dict): Additional service arguments.
+        dependencies (dict): Additional dependencies to request.
         request_outer_middlewares (list[RequestMiddleware]): Middleware to run before queue processing.
         request_inner_middlewares (list[RequestMiddleware]): Middleware to run before request execution.
         response_middlewares (list[ResponseMiddleware]): Middleware to run after response received.
@@ -103,11 +102,11 @@ class RequestManager:
         queue: _RequestQueue,
         delay: float,
         shutdown_timeout: float,
-        srv_kwargs: dict[str, Any],
-        request_outer_middlewares: list[RequestMiddleware],
-        request_inner_middlewares: list[RequestMiddleware],
-        request_exception_middlewares: list[RequestExceptionMiddleware],
-        response_middlewares: list[ResponseMiddleware],
+        dependencies: dict[str, Any],
+        request_outer_middlewares: list[Middleware],
+        request_inner_middlewares: list[Middleware],
+        request_exception_middlewares: list[ExceptionMiddleware],
+        response_middlewares: list[Middleware],
     ) -> None:
         self._logger = logger
         self._session = session
@@ -116,7 +115,7 @@ class RequestManager:
         self._delay = delay
         self._shutdown_timeout = shutdown_timeout
         self._request_sender = _get_request_sender(queue)
-        self._srv_kwargs: dict[str, Any] = {"send_request": self._request_sender, **srv_kwargs}
+        self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}
         self._request_outer_middlewares = request_outer_middlewares
         self._request_inner_middlewares = request_inner_middlewares
         self._request_exception_middlewares = request_exception_middlewares
@@ -133,11 +132,23 @@ class RequestManager:
         self._logger.debug(f"request: {request.method} {full_url}")
         try:
             for inner_middleware in self._request_inner_middlewares:
-                await inner_middleware(request, params)
+                await inner_middleware(
+                    **get_cb_kwargs(
+                        inner_middleware,
+                        kwargs={"request": request, "request_params": params},
+                        deps=self._dependencies,
+                    )
+                )
 
             response = await self._session.make_request(request)
             for response_middleware in self._response_middlewares:
-                await response_middleware(request, params, response)
+                await response_middleware(
+                    **get_cb_kwargs(
+                        response_middleware,
+                        kwargs={"request": request, "request_params": params, "response": response},
+                        deps=self._dependencies,
+                    )
+                )
 
             if response.status >= 400:
                 await self._handle_client_exception(
@@ -152,11 +163,18 @@ class RequestManager:
             elif params.callback is not None:
                 await params.callback(
                     response,
-                    **get_cb_kwargs(params.callback, srv_kwargs=self._srv_kwargs, cb_kwargs=params.cb_kwargs),
+                    **get_cb_kwargs(params.callback, kwargs=params.cb_kwargs, deps=self._dependencies),
                 )
         except Exception as exc:
             for exception_middleware in self._request_exception_middlewares:
-                if await exception_middleware(request, params, exc):
+                if await exception_middleware(
+                    exc,
+                    **get_cb_kwargs(
+                        exception_middleware,
+                        kwargs={"request": request, "request_params": params},
+                        deps=self._dependencies,
+                    ),
+                ):
                     return
 
             await self._handle_client_exception(
@@ -171,7 +189,7 @@ class RequestManager:
         try:
             await params.errback(
                 client_exc,
-                **get_cb_kwargs(params.errback, srv_kwargs=self._srv_kwargs, cb_kwargs=params.cb_kwargs),
+                **get_cb_kwargs(params.errback, kwargs=params.cb_kwargs, deps=self._dependencies),
             )
         except Exception as exc:
             self._logger.exception(exc)
@@ -184,7 +202,13 @@ class RequestManager:
         """Process requests from the queue with configured delay."""
         while (r := (await self._queue.get())) is not None:
             for outer_middleware in self._request_outer_middlewares:
-                await outer_middleware(r.request, r.request_params)
+                await outer_middleware(
+                    **get_cb_kwargs(
+                        outer_middleware,
+                        kwargs={"request": r.request, "request_params": r.request_params},
+                        deps=self._dependencies,
+                    )
+                )
 
             await self._schedule_request(self._send_request(r.request, r.request_params))
             await asyncio.sleep(self._delay)
