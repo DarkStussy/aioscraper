@@ -41,7 +41,7 @@ class RequestException(ClientException):
         method (str): The HTTP method used for the request
     """
 
-    def __init__(self, src: Exception | str, url: str, method: str) -> None:
+    def __init__(self, src: Exception, url: str, method: str) -> None:
         self.src = src
         self.url = url
         self.method = method
