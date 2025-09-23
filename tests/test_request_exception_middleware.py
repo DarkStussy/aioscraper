@@ -2,15 +2,14 @@ import pytest
 from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper, BaseScraper
-from aioscraper.types import Request, Response, RequestParams, RequestSender
+from aioscraper.types import Response, RequestSender
 
 
 class RequestExceptionMiddleware:
     def __init__(self) -> None:
         self.exc_handled = False
 
-    async def __call__(self, request: Request, params: RequestParams, exc: Exception) -> bool | None:
-        print(exc)
+    async def __call__(self, exc: Exception) -> bool | None:
         self.exc_handled = True
         return True
 

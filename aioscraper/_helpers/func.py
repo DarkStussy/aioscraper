@@ -6,15 +6,11 @@ def get_func_kwargs(func: Callable[..., Any], kwargs: dict[str, Any]) -> dict[st
     return {param: kwargs[param] for param in inspect.signature(func).parameters.keys() if param in kwargs}
 
 
-def get_cb_kwargs(
-    callback: Callable[..., Any],
-    srv_kwargs: dict[str, Any],
-    cb_kwargs: dict[str, Any] | None,
-) -> dict[str, Any]:
-    if cb_kwargs is None and not srv_kwargs:
+def get_cb_kwargs(cb: Callable[..., Any], kwargs: dict[str, Any] | None, deps: dict[str, Any]) -> dict[str, Any]:
+    if kwargs is None and not deps:
         return {}
 
-    if cb_kwargs is None:
-        cb_kwargs = {}
+    if kwargs is None:
+        kwargs = {}
 
-    return get_func_kwargs(callback, cb_kwargs | srv_kwargs)
+    return get_func_kwargs(cb, kwargs | deps)

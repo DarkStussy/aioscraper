@@ -9,11 +9,11 @@ class RequestMiddleware:
     def __init__(self, mw_type: str) -> None:
         self.mw_type = mw_type
 
-    async def __call__(self, request: Request, params: RequestParams) -> None:
-        if params.cb_kwargs is not None:
-            params.cb_kwargs[f"from_{self.mw_type}_middleware"] = True
+    async def __call__(self, request: Request, request_params: RequestParams) -> None:
+        if request_params.cb_kwargs is not None:
+            request_params.cb_kwargs[f"from_{self.mw_type}_middleware"] = True
         else:
-            params.cb_kwargs = {f"from_{self.mw_type}_middleware": True}
+            request_params.cb_kwargs = {f"from_{self.mw_type}_middleware": True}
 
 
 class Scraper(BaseScraper):

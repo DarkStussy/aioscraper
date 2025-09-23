@@ -2,7 +2,7 @@ import asyncio
 import time
 from logging import Logger, getLogger
 from types import TracebackType
-from typing import Type, Any, cast
+from typing import Type, Any
 
 from aiojobs import Scheduler
 
@@ -15,7 +15,7 @@ from .._helpers.asyncio import execute_coroutines
 from ..pipeline import BasePipeline, ItemType
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session import AiohttpSession
-from ..types import RequestMiddleware, RequestExceptionMiddleware, ResponseMiddleware, MiddlewareType
+from ..types import Middleware, ExceptionMiddleware
 
 
 class AIOScraper:
@@ -44,10 +44,10 @@ class AIOScraper:
         self._logger = logger or getLogger("aioscraper")
 
         self._scrapers = scrapers
-        self._request_outer_middlewares: list[RequestMiddleware] = []
-        self._request_inner_middlewares: list[RequestMiddleware] = []
-        self._request_exception_middlewares: list[RequestExceptionMiddleware] = []
-        self._response_middlewares: list[ResponseMiddleware] = []
+        self._request_outer_middlewares: list[Middleware] = []
+        self._request_inner_middlewares: list[Middleware] = []
+        self._request_exception_middlewares: list[ExceptionMiddleware] = []
+        self._response_middlewares: list[Middleware] = []
 
         self._pipelines: dict[str, list[BasePipeline[Any]]] = {}
         self._pipeline_dispatcher = PipelineDispatcher(self._logger.getChild("pipeline"), pipelines=self._pipelines)
@@ -78,7 +78,7 @@ class AIOScraper:
             queue=self._request_queue,
             delay=self._config.session.request.delay,
             shutdown_timeout=self._config.execution.shutdown_timeout,
-            srv_kwargs={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
+            dependencies={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
             request_outer_middlewares=self._request_outer_middlewares,
             request_inner_middlewares=self._request_inner_middlewares,
             request_exception_middlewares=self._request_exception_middlewares,
@@ -105,52 +105,37 @@ class AIOScraper:
         else:
             self._pipelines[name].append(pipeline)
 
-    def _add_middlewares(
-        self,
-        storage: list[MiddlewareType],
-        middlewares: tuple[Type[MiddlewareType] | MiddlewareType, ...],
-    ) -> None:
-        for middleware in middlewares:
-            if isinstance(middleware, type):
-                instance = middleware(**get_func_kwargs(middleware.__init__, self._all_dependencies))
-                storage.append(cast(MiddlewareType, instance))
-            else:
-                storage.append(middleware)
-
-    def add_outer_request_middlewares(self, *middlewares: Type[RequestMiddleware] | RequestMiddleware) -> None:
+    def add_outer_request_middlewares(self, *middlewares: Middleware) -> None:
         """
         Add outer request middlewares.
 
         These middlewares are executed before the request is sent to the scheduler.
         """
-        self._add_middlewares(self._request_outer_middlewares, middlewares)
+        self._request_outer_middlewares.extend(middlewares)
 
-    def add_inner_request_middlewares(self, *middlewares: Type[RequestMiddleware] | RequestMiddleware) -> None:
+    def add_inner_request_middlewares(self, *middlewares: Middleware) -> None:
         """
         Add inner request middlewares.
 
         These middlewares are executed after the request is scheduled but before it is sent.
         """
-        self._add_middlewares(self._request_inner_middlewares, middlewares)
+        self._request_inner_middlewares.extend(middlewares)
 
-    def add_request_exception_middlewares(
-        self,
-        *middlewares: Type[RequestExceptionMiddleware] | RequestExceptionMiddleware,
-    ) -> None:
+    def add_request_exception_middlewares(self, *middlewares: ExceptionMiddleware) -> None:
         """
         Add request exception middlewares.
 
         These middlewares are executed when an exception occurs during the request processing.
         """
-        self._add_middlewares(self._request_exception_middlewares, middlewares)
+        self._request_exception_middlewares.extend(middlewares)
 
-    def add_response_middlewares(self, *middlewares: Type[ResponseMiddleware] | ResponseMiddleware) -> None:
+    def add_response_middlewares(self, *middlewares: Middleware) -> None:
         """
         Add response middlewares.
 
         These middlewares are executed after receiving the response.
         """
-        self._add_middlewares(self._response_middlewares, middlewares)
+        self._response_middlewares.extend(middlewares)
 
     async def __aenter__(self) -> "AIOScraper":
         return self
