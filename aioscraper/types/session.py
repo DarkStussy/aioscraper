@@ -64,11 +64,13 @@ class RequestParams:
         callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
         cb_kwargs (dict[str, Any] | None): Keyword arguments for the callback function
         errback (Callable[..., Awaitable] | None): Async error callback function
+        settings (dict[str, Any] | None): Additional settings for the request
     """
 
     callback: Callable[..., Awaitable[Any]] | None = None
     cb_kwargs: dict[str, Any] | None = None
     errback: Callable[..., Awaitable[Any]] | None = None
+    settings: dict[str, Any] | None = None
 
 
 class RequestSender(Protocol):
@@ -85,6 +87,7 @@ class RequestSender(Protocol):
         callback: Callable[..., Awaitable[Any]] | None = None,
         cb_kwargs: dict[str, Any] | None = None,
         errback: Callable[..., Awaitable[Any]] | None = None,
+        settings: dict[str, Any] | None = None,
         params: QueryParams | None = None,
         data: Any = None,
         json_data: Any = None,

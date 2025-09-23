@@ -42,6 +42,7 @@ def _get_request_sender(queue: _RequestQueue) -> RequestSender:
         callback: Callable[..., Awaitable[Any]] | None = None,
         cb_kwargs: dict[str, Any] | None = None,
         errback: Callable[..., Awaitable[Any]] | None = None,
+        settings: dict[str, Any] | None = None,
         params: QueryParams | None = None,
         data: Any = None,
         json_data: Any = None,
@@ -71,6 +72,7 @@ def _get_request_sender(queue: _RequestQueue) -> RequestSender:
                     callback=callback,
                     cb_kwargs=cb_kwargs,
                     errback=errback,
+                    settings=settings,
                 ),
             )
         )
