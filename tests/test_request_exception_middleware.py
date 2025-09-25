@@ -35,9 +35,9 @@ async def test_request_exception_middleware(aresponses: ResponsesMockServer):
 
     scraper = Scraper()
     middleware = RequestExceptionMiddleware()
-    async with AIOScraper([scraper]) as executor:
-        executor.add_request_exception_middlewares(middleware)
-        await executor.start()
+    async with AIOScraper([scraper]) as s:
+        s.add_request_exception_middlewares(middleware)
+        await s.start()
 
     assert middleware.exc_handled is True
     assert scraper.exc_handled is False

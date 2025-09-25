@@ -22,8 +22,8 @@ async def test_success(aresponses: ResponsesMockServer):
     aresponses.add("api.test.com", "/v1", "GET", response=response_data)  # type: ignore
 
     scraper = Scraper()
-    async with AIOScraper([scraper]) as executor:
-        await executor.start()
+    async with AIOScraper([scraper]) as s:
+        await s.start()
 
     assert scraper.response_data == response_data
     aresponses.assert_plan_strictly_followed()

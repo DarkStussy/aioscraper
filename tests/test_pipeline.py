@@ -52,11 +52,11 @@ async def test_pipeline(aresponses: ResponsesMockServer):
 
     aresponses.add("api.test.com", "/v1", "GET", response=item.pipeline_name)  # type: ignore
 
-    async with AIOScraper([Scraper()]) as executor:
-        executor.add_pipeline(item.pipeline_name, pipeline)
-        executor.add_pipeline_pre_processing_middlewares(pre_processing_middleware)
-        executor.add_pipeline_post_processing_middlewares(post_processing_middleware)
-        await executor.start()
+    async with AIOScraper([Scraper()]) as s:
+        s.add_pipeline(item.pipeline_name, pipeline)
+        s.add_pipeline_pre_processing_middlewares(pre_processing_middleware)
+        s.add_pipeline_post_processing_middlewares(post_processing_middleware)
+        await s.start()
 
     aresponses.assert_plan_strictly_followed()
 
