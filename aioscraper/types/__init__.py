@@ -1,8 +1,5 @@
-from .middleware import (
-    Middleware,
-    ExceptionMiddleware,
-)
-from .pipeline import BaseItem, Pipeline
+from .middleware import Middleware, ExceptionMiddleware
+from .pipeline import BaseItem, Pipeline, PipelineMiddleware
 from .session import (
     QueryParams,
     Cookies,
@@ -25,6 +22,7 @@ __all__ = (
     "Response",
     "BaseItem",
     "Pipeline",
+    "PipelineMiddleware",
     "Middleware",
     "ExceptionMiddleware",
 )

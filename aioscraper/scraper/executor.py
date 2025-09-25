@@ -15,7 +15,7 @@ from .._helpers.asyncio import execute_coroutines
 from ..pipeline import BasePipeline, ItemType
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session import AiohttpSession
-from ..types import Middleware, ExceptionMiddleware
+from ..types import Middleware, ExceptionMiddleware, PipelineMiddleware
 
 
 class AIOScraper:
@@ -104,6 +104,22 @@ class AIOScraper:
             self._pipelines[name] = [pipeline]
         else:
             self._pipelines[name].append(pipeline)
+
+    def add_pipeline_pre_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
+        """
+        Add pipeline pre-processing middlewares.
+
+        These middlewares are executed before processing an item in the pipeline.
+        """
+        self._pipeline_dispatcher.add_pre_processing_middlewares(*middlewares)
+
+    def add_pipeline_post_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
+        """
+        Add pipeline post-processing middlewares.
+
+        These middlewares are executed after processing an item in the pipeline.
+        """
+        self._pipeline_dispatcher.add_post_processing_middlewares(*middlewares)
 
     def add_outer_request_middlewares(self, *middlewares: Middleware) -> None:
         """

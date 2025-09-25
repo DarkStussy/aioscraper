@@ -1,6 +1,8 @@
 from logging import Logger
 from typing import Any, Generator, Mapping, Sequence
 
+from aioscraper.types.pipeline import PipelineMiddleware
+
 from .base import BasePipeline, BaseItem
 from ..exceptions import PipelineException
 
@@ -11,10 +13,22 @@ class PipelineDispatcher:
     def __init__(self, logger: Logger, pipelines: Mapping[str, Sequence[BasePipeline[Any]]]) -> None:
         self._logger = logger
         self._pipelines = pipelines
+        self._pre_processing_middlewares = []
+        self._post_processing_middlewares = []
+
+    def add_pre_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
+        self._pre_processing_middlewares.extend(middlewares)
+
+    def add_post_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
+        self._post_processing_middlewares.extend(middlewares)
 
     async def put_item(self, item: BaseItem) -> BaseItem:
         "Processes an item by passing it through the appropriate pipelines"
         self._logger.debug(f"pipeline item received: {item}")
+
+        for middleware in self._pre_processing_middlewares:
+            await middleware(item)
+
         try:
             pipelines = self._pipelines[item.pipeline_name]
         except KeyError:
@@ -22,6 +36,9 @@ class PipelineDispatcher:
 
         for pipeline in pipelines:
             await pipeline.put_item(item)
+
+        for middleware in self._post_processing_middlewares:
+            await middleware(item)
 
         return item
 

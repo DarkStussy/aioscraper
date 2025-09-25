@@ -5,7 +5,7 @@ from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper, BaseScraper
 from aioscraper.exceptions import PipelineException
-from aioscraper.types import Pipeline, RequestSender, Response
+from aioscraper.types import Pipeline, RequestSender, Response, BaseItem
 from aioscraper.pipeline import BasePipeline
 from aioscraper.pipeline.dispatcher import PipelineDispatcher
 
@@ -13,6 +13,7 @@ from aioscraper.pipeline.dispatcher import PipelineDispatcher
 @dataclass
 class Item:
     pipeline_name: str
+    is_processed: bool = False
 
 
 class RealPipeline(BasePipeline[Item]):
@@ -25,6 +26,16 @@ class RealPipeline(BasePipeline[Item]):
 
     async def close(self) -> None:
         self.closed = True
+
+
+async def pre_processing_middleware(item: BaseItem) -> None:
+    assert item.pipeline_name == "test"
+
+
+async def post_processing_middleware(item: BaseItem) -> None:
+    assert item.pipeline_name == "test"
+    if isinstance(item, Item):
+        item.is_processed = True
 
 
 class Scraper(BaseScraper):
@@ -44,12 +55,15 @@ async def test_pipeline(aresponses: ResponsesMockServer):
 
     async with AIOScraper([Scraper()]) as executor:
         executor.add_pipeline(item.pipeline_name, pipeline)
+        executor.add_pipeline_pre_processing_middlewares(pre_processing_middleware)
+        executor.add_pipeline_post_processing_middlewares(post_processing_middleware)
         await executor.start()
 
     aresponses.assert_plan_strictly_followed()
 
     assert len(pipeline.items) == 1
     assert pipeline.items[0].pipeline_name == item.pipeline_name
+    assert pipeline.items[0].is_processed
     assert pipeline.closed
 
 
