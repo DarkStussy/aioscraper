@@ -1,6 +1,6 @@
 from logging import getLogger
 from types import TracebackType
-from typing import Self, Type, Any
+from typing import Type, Any
 
 from .executor import ScraperExecutor
 from ..config import Config
@@ -112,7 +112,7 @@ class AIOScraper:
         """
         self._response_middlewares.extend(middlewares)
 
-    async def __aenter__(self) -> Self:
+    async def __aenter__(self) -> "AIOScraper":
         return self
 
     async def __aexit__(
