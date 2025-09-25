@@ -36,7 +36,7 @@ from aioscraper import AIOScraper
 from aioscraper.types import Response, RequestSender
 
 
-async def scrapper(send_request: RequestSender) -> None:
+async def scraper(send_request: RequestSender) -> None:
     await send_request(url="https://example.com", callback=handle_response)
 
 
@@ -44,7 +44,7 @@ async def handle_response(response: Response) -> None: ...
 
 
 async def main():
-    async with AIOScraper(scrapers=[scrapper]) as scraper:
+    async with AIOScraper(scrapers=[scraper]) as scraper:
         await scraper.start()
 
 
