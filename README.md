@@ -32,26 +32,25 @@ pip install aioscraper
 ```python
 import asyncio
 
-from aioscraper import BaseScraper, AIOScraper
+from aioscraper import AIOScraper
 from aioscraper.types import Response, RequestSender
 
 
-class Scraper(BaseScraper):
-    async def start(self, send_request: RequestSender) -> None:
-        await send_request(url="https://example.com", callback=self.parse)
+async def scrapper(send_request: RequestSender) -> None:
+    await send_request(url="https://example.com", callback=handle_response)
 
-    async def parse(self, response: Response) -> None:
-        # handle response
-        pass
+
+async def handle_response(response: Response) -> None: ...
 
 
 async def main():
-    async with AIOScraper(scrapers=[Scraper()]) as scraper:
+    async with AIOScraper(scrapers=[scrapper]) as scraper:
         await scraper.start()
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 ```
 
 ## License
