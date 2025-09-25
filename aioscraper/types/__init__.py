@@ -1,5 +1,6 @@
 from .middleware import Middleware, ExceptionMiddleware
 from .pipeline import BaseItem, Pipeline, PipelineMiddleware
+from .scraper import Scraper
 from .session import (
     QueryParams,
     Cookies,
@@ -12,6 +13,7 @@ from .session import (
 )
 
 __all__ = (
+    "Scraper",
     "QueryParams",
     "Cookies",
     "Headers",

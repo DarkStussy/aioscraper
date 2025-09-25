@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
-from logging import Logger
+from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
@@ -18,6 +18,8 @@ from ..types import (
     ExceptionMiddleware,
     RequestSender,
 )
+
+logger = getLogger(__name__)
 
 
 @dataclass(slots=True, order=True)
@@ -84,7 +86,6 @@ class RequestManager:
     Manages HTTP requests with priority queuing and middleware support.
 
     Attributes:
-        logger (Logger): Logger instance.
         session (BaseSession): HTTP session.
         schedule_request (Callable[[Coroutine], Awaitable]): Function to schedule request processing.
         queue (_RequestQueue): Priority queue for requests.
@@ -98,7 +99,6 @@ class RequestManager:
 
     def __init__(
         self,
-        logger: Logger,
         session: BaseSession,
         schedule_request: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
         queue: _RequestQueue,
@@ -110,7 +110,6 @@ class RequestManager:
         request_exception_middlewares: list[ExceptionMiddleware],
         response_middlewares: list[Middleware],
     ) -> None:
-        self._logger = logger
         self._session = session
         self._schedule_request = schedule_request
         self._queue = queue
@@ -131,7 +130,7 @@ class RequestManager:
 
     async def _send_request(self, request: Request, params: RequestParams) -> None:
         full_url = request.full_url
-        self._logger.debug(f"request: {request.method} {full_url}")
+        logger.debug(f"request: {request.method} {full_url}")
         try:
             for inner_middleware in self._request_inner_middlewares:
                 await inner_middleware(
@@ -194,7 +193,7 @@ class RequestManager:
                 **get_cb_kwargs(params.errback, kwargs=params.cb_kwargs, deps=self._dependencies),
             )
         except Exception as exc:
-            self._logger.exception(exc)
+            logger.exception(exc)
 
     def listen_queue(self) -> None:
         """Start listening to the request queue."""

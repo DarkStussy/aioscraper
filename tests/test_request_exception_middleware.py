@@ -1,7 +1,7 @@
 import pytest
 from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper, BaseScraper
+from aioscraper import AIOScraper
 from aioscraper.types import Response, RequestSender
 
 
@@ -14,12 +14,12 @@ class RequestExceptionMiddleware:
         return True
 
 
-class Scraper(BaseScraper):
+class Scraper:
     def __init__(self) -> None:
         self.response_data = None
         self.exc_handled = False
 
-    async def start(self, send_request: RequestSender) -> None:
+    async def __call__(self, send_request: RequestSender) -> None:
         await send_request(url="https://api.test.com/v1", callback=self.parse, errback=self.error)
 
     async def parse(self, response: Response) -> None:

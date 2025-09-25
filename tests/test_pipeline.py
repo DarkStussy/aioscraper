@@ -1,9 +1,8 @@
 import pytest
 from dataclasses import dataclass
-from unittest.mock import MagicMock
 from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper, BaseScraper
+from aioscraper import AIOScraper
 from aioscraper.exceptions import PipelineException
 from aioscraper.types import Pipeline, RequestSender, Response, BaseItem
 from aioscraper.pipeline import BasePipeline
@@ -38,8 +37,8 @@ async def post_processing_middleware(item: BaseItem) -> None:
         item.is_processed = True
 
 
-class Scraper(BaseScraper):
-    async def start(self, send_request: RequestSender) -> None:
+class Scraper:
+    async def __call__(self, send_request: RequestSender) -> None:
         await send_request(url="https://api.test.com/v1", callback=self.parse)
 
     async def parse(self, response: Response, pipeline: Pipeline) -> None:
@@ -70,7 +69,7 @@ async def test_pipeline(aresponses: ResponsesMockServer):
 @pytest.mark.asyncio
 async def test_pipeline_dispatcher_not_found():
     mock_item = Item("test")
-    dispatcher = PipelineDispatcher(MagicMock(), {})
+    dispatcher = PipelineDispatcher({})
 
     with pytest.raises(PipelineException):
         await dispatcher.put_item(mock_item)

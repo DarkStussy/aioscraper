@@ -1,4 +1,3 @@
-from .base import BaseScraper
-from .executor import AIOScraper
+from .scraper import AIOScraper
 
-__all__ = ("BaseScraper", "AIOScraper")
+__all__ = ("AIOScraper",)

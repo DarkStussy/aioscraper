@@ -1,15 +1,15 @@
 import pytest
 from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper, BaseScraper
+from aioscraper import AIOScraper
 from aioscraper.types import RequestSender, Response
 
 
-class Scraper(BaseScraper):
+class Scraper:
     def __init__(self) -> None:
         self.response_data = None
 
-    async def start(self, send_request: RequestSender) -> None:
+    async def __call__(self, send_request: RequestSender) -> None:
         await send_request(url="https://api.test.com/v1", callback=self.parse)
 
     async def parse(self, response: Response) -> None:
