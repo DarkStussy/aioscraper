@@ -1,10 +1,9 @@
 from logging import getLogger
 from typing import Any, Generator, Mapping, Sequence
 
-from aioscraper.types.pipeline import PipelineMiddleware
-
 from .base import BasePipeline, BaseItem
 from ..exceptions import PipelineException
+from ..types.pipeline import PipelineMiddleware
 
 logger = getLogger(__name__)
 

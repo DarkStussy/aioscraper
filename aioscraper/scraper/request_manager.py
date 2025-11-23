@@ -4,10 +4,9 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
-from aioscraper._helpers.asyncio import handle_coroutine_error
-
 from ..exceptions import HTTPException, RequestException, ClientException, StopMiddlewareProcessing
 from .._helpers.func import get_cb_kwargs
+from .._helpers.asyncio import execute_coroutine
 from ..session import BaseSession
 from ..types import (
     QueryParams,
@@ -214,7 +213,7 @@ class RequestManager:
                     )
                 )
 
-            await self._schedule_request(handle_coroutine_error(self._send_request(r.request, r.request_params)))
+            await self._schedule_request(execute_coroutine(self._send_request(r.request, r.request_params)))
             await asyncio.sleep(self._delay)
 
     async def shutdown(self, force: bool = False) -> None:

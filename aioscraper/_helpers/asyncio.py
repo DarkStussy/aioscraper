@@ -12,7 +12,7 @@ async def execute_coroutines(*coroutines: Coroutine[Any, Any, None]) -> None:
             logger.exception(exc)
 
 
-async def handle_coroutine_error(coroutine: Coroutine[Any, Any, None]):
+async def execute_coroutine(coroutine: Coroutine[Any, Any, None]):
     try:
         await coroutine
     except Exception as exc:
