@@ -37,7 +37,7 @@ async def test_request_middleware(aresponses: ResponsesMockServer):
     aresponses.add("api.test.com", "/v1", "GET", response=response_data)  # type: ignore
 
     scraper = Scraper()
-    async with AIOScraper([scraper]) as s:
+    async with AIOScraper(scraper) as s:
         s.add_outer_request_middlewares(RequestMiddleware("outer"))
         s.add_inner_request_middlewares(RequestMiddleware("inner"))
         await s.start()

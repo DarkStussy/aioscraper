@@ -30,7 +30,7 @@ async def test_error(aresponses: ResponsesMockServer):
     aresponses.add("api.test.com", "/v1", "GET", response=handle_request)  # pyright: ignore
 
     scraper = Scraper()
-    async with AIOScraper([scraper]) as s:
+    async with AIOScraper(scraper) as s:
         await s.start()
 
     assert scraper.status == 500

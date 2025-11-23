@@ -2,6 +2,7 @@ import pytest
 from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper
+from aioscraper.exceptions import StopMiddlewareProcessing
 from aioscraper.types import Response, RequestSender
 
 
@@ -9,9 +10,9 @@ class RequestExceptionMiddleware:
     def __init__(self) -> None:
         self.exc_handled = False
 
-    async def __call__(self, exc: Exception) -> bool | None:
+    async def __call__(self, exc: Exception) -> None:
         self.exc_handled = True
-        return True
+        raise StopMiddlewareProcessing
 
 
 class Scraper:
@@ -35,7 +36,7 @@ async def test_request_exception_middleware(aresponses: ResponsesMockServer):
 
     scraper = Scraper()
     middleware = RequestExceptionMiddleware()
-    async with AIOScraper([scraper]) as s:
+    async with AIOScraper(scraper) as s:
         s.add_request_exception_middlewares(middleware)
         await s.start()
 

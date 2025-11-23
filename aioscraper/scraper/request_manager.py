@@ -4,7 +4,9 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
-from ..exceptions import HTTPException, RequestException, ClientException
+from aioscraper._helpers.asyncio import handle_coroutine_error
+
+from ..exceptions import HTTPException, RequestException, ClientException, StopMiddlewareProcessing
 from .._helpers.func import get_cb_kwargs
 from ..session import BaseSession
 from ..types import (
@@ -15,7 +17,6 @@ from ..types import (
     Request,
     RequestParams,
     Middleware,
-    ExceptionMiddleware,
     RequestSender,
 )
 
@@ -107,7 +108,7 @@ class RequestManager:
         dependencies: dict[str, Any],
         request_outer_middlewares: list[Middleware],
         request_inner_middlewares: list[Middleware],
-        request_exception_middlewares: list[ExceptionMiddleware],
+        request_exception_middlewares: list[Middleware],
         response_middlewares: list[Middleware],
     ) -> None:
         self._session = session
@@ -168,14 +169,16 @@ class RequestManager:
                 )
         except Exception as exc:
             for exception_middleware in self._request_exception_middlewares:
-                if await exception_middleware(
-                    exc,
-                    **get_cb_kwargs(
-                        exception_middleware,
-                        kwargs={"request": request, "request_params": params},
-                        deps=self._dependencies,
-                    ),
-                ):
+                try:
+                    await exception_middleware(
+                        exc,
+                        **get_cb_kwargs(
+                            exception_middleware,
+                            kwargs={"request": request, "request_params": params},
+                            deps=self._dependencies,
+                        ),
+                    )
+                except StopMiddlewareProcessing:
                     return
 
             await self._handle_client_exception(
@@ -211,7 +214,7 @@ class RequestManager:
                     )
                 )
 
-            await self._schedule_request(self._send_request(r.request, r.request_params))
+            await self._schedule_request(handle_coroutine_error(self._send_request(r.request, r.request_params)))
             await asyncio.sleep(self._delay)
 
     async def shutdown(self, force: bool = False) -> None:

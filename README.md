@@ -44,8 +44,8 @@ async def handle_response(response: Response) -> None: ...
 
 
 async def main():
-    async with AIOScraper(scrapers=[scraper]) as scraper:
-        await scraper.start()
+    async with AIOScraper(scraper) as s:
+        await s.start()
 
 
 if __name__ == "__main__":

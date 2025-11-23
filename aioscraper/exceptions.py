@@ -54,3 +54,9 @@ class PipelineException(AIOScrapperException):
     "Base exception class for all pipeline-related errors"
 
     ...
+
+
+class StopMiddlewareProcessing(AIOScrapperException):
+    "Stoppable exception for pipeline exception middlewares"
+
+    ...

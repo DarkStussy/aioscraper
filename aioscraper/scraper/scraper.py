@@ -6,7 +6,7 @@ from .executor import ScraperExecutor
 from ..config import Config
 from ..pipeline import BasePipeline, ItemType
 from ..pipeline.dispatcher import PipelineDispatcher
-from ..types import Scraper, Middleware, ExceptionMiddleware, PipelineMiddleware
+from ..types import Scraper, Middleware, PipelineMiddleware
 
 logger = getLogger(__name__)
 
@@ -26,19 +26,19 @@ class AIOScraper:
 
     def __init__(
         self,
-        scrapers: list[Scraper] | None = None,
+        *scrapers: Scraper,
         config: Config | None = None,
         dependencies: dict[str, Any] | None = None,
     ) -> None:
         self._start_time: float | None = None
         self._config = config or Config()
 
-        self._scrapers = scrapers or []
+        self._scrapers = [*scrapers]
         self._dependencies = dependencies or {}
 
         self._request_outer_middlewares: list[Middleware] = []
         self._request_inner_middlewares: list[Middleware] = []
-        self._request_exception_middlewares: list[ExceptionMiddleware] = []
+        self._request_exception_middlewares: list[Middleware] = []
         self._response_middlewares: list[Middleware] = []
 
         self._pipelines: dict[str, list[BasePipeline[Any]]] = {}
@@ -96,7 +96,7 @@ class AIOScraper:
         """
         self._request_inner_middlewares.extend(middlewares)
 
-    def add_request_exception_middlewares(self, *middlewares: ExceptionMiddleware) -> None:
+    def add_request_exception_middlewares(self, *middlewares: Middleware) -> None:
         """
         Add request exception middlewares.
 

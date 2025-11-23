@@ -11,7 +11,7 @@ from .._helpers.func import get_func_kwargs
 from .._helpers.asyncio import execute_coroutines
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session import AiohttpSession
-from ..types import Scraper, Middleware, ExceptionMiddleware
+from ..types import Scraper, Middleware
 
 logger = getLogger(__name__)
 
@@ -31,7 +31,7 @@ class ScraperExecutor:
         dependencies: dict[str, Any],
         request_outer_middlewares: list[Middleware],
         request_inner_middlewares: list[Middleware],
-        request_exception_middlewares: list[ExceptionMiddleware],
+        request_exception_middlewares: list[Middleware],
         response_middlewares: list[Middleware],
         pipeline_dispatcher: PipelineDispatcher,
     ) -> None:
