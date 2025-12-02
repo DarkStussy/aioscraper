@@ -21,12 +21,6 @@
 pip install aioscraper
 ```
 
-## Requirements
-
-- Python 3.10 or higher
-- aiohttp
-- aiojobs
-
 ## Quick Start
 
 ```python
@@ -52,6 +46,46 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 ```
+
+## Benchmarks
+
+Below are benchmarks comparing `aioscraper` and `scrapy` on a local JSON server.
+
+The scripts used for these tests are available in [this Gist](https://gist.github.com/DarkStussy/7afd89d65a289d3d7128c9b74c68a76a).
+
+### Benchmark 1
+* Path: `/json?size=10`
+* Total requests: 10,000
+* Total items: 100,000
+
+| Library    | Elapsed time | Requests per second | Items per second |
+|------------|--------------|-------------------|----------------|
+| aioscraper | 1.9 sec      | 5,263.2           | 52,631.6       |
+| scrapy     | 26.8 sec     | 373.1             | 3,731.3        |
+
+---
+
+### Benchmark 2
+* Path: `/json?size=100`
+* Total requests: 10,000
+* Total items: 1,000,000
+
+| Library    | Elapsed time | Requests per second | Items per second |
+|------------|--------------|-------------------|----------------|
+| aioscraper | 3.1 sec      | 3,225.8           | 322,580.6      |
+| scrapy     | 205.8 sec    | 48.6              | 4,859.1        |
+
+---
+
+### Benchmark 3
+* Path: `/json?size=10&t=0.1`
+* Total requests: 10,000
+* Total items: 100,000
+
+| Library    | Elapsed time | Requests per second | Items per second |
+|------------|--------------|-------------------|----------------|
+| aioscraper | 16.1 sec     | 621.1             | 6,211.2        |
+| scrapy     | 129.9 sec    | 77.0              | 769.8          |
 
 ## License
 
