@@ -15,14 +15,14 @@
 - 🔄 Priority-based request queue management
 - 🛡️ Built-in error handling
 
-## Installation
+## Basic usage
 
+Install
 ```bash
 pip install aioscraper
 ```
 
-## Quick Start
-
+Example of fetching data.
 ```python
 import asyncio
 
@@ -34,7 +34,8 @@ async def scraper(send_request: SendRequest) -> None:
     await send_request(Request(url="https://example.com", callback=handle_response))
 
 
-async def handle_response(response: Response) -> None: ...
+async def handle_response(response: Response) -> None:
+    print(f"Fetched {response.url} with status {response.status}")
 
 
 async def main():
