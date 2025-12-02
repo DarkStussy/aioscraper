@@ -2,7 +2,7 @@ import pytest
 from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper
-from aioscraper.types import Response, RequestSender
+from aioscraper.types import Request, SendRequest, Response
 
 
 class ResponseMiddleware:
@@ -17,8 +17,8 @@ class Scraper:
     def __init__(self) -> None:
         self.response_data = None
 
-    async def __call__(self, send_request: RequestSender) -> None:
-        await send_request(url="https://api.test.com/v1", callback=self.parse)
+    async def __call__(self, send_request: SendRequest) -> None:
+        await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
 
     async def parse(self, response: Response) -> None:
         self.response_data = response.json()

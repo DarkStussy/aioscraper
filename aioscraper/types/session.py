@@ -1,12 +1,13 @@
 import json
 from dataclasses import dataclass
-from typing import MutableMapping, Any, Callable, Awaitable, TypedDict, Protocol
-from urllib.parse import parse_qsl, urlencode, urlparse
+from typing import MutableMapping, Any, Callable, Awaitable, TypedDict
+
+from yarl import URL
+
+from .._helpers.http import get_encoding
 
 QueryParams = MutableMapping[str, str | int | float]
-
 Cookies = MutableMapping[str, str]
-
 Headers = MutableMapping[str, str]
 
 
@@ -15,13 +16,13 @@ class BasicAuth(TypedDict):
     password: str
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, kw_only=True)
 class Request:
     """
     Represents an HTTP request with all its parameters.
 
     Attributes:
-        url (str): The target URL for the request
+        url (str | URL): The target URL for the request
         method (str): HTTP method (GET, POST, etc.)
         params (QueryParams | None): URL query parameters
         data (Any): Request body data
@@ -31,10 +32,18 @@ class Request:
         auth (BasicAuth | None): Basic authentication credentials
         proxy (str | None): Proxy URL
         timeout (float | None): Request timeout in seconds
+        allow_redirects (bool): Whether to follow HTTP redirects
+        max_redirects (int): Maximum number of redirects to follow
+
+        priority (int): Priority of the request
+        callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
+        cb_kwargs (dict[str, Any] | None): Keyword arguments for the callback function
+        errback (Callable[..., Awaitable] | None): Async error callback function
+        settings (dict[str, Any] | None): Additional settings for the request
     """
 
     url: str
-    method: str
+    method: str = "GET"
     params: QueryParams | None = None
     data: Any = None
     json_data: Any = None
@@ -43,131 +52,65 @@ class Request:
     auth: BasicAuth | None = None
     proxy: str | None = None
     timeout: float | None = None
+    allow_redirects: bool = True
+    max_redirects: int = 10
 
-    @property
-    def full_url(self) -> str:
-        "Returns the complete URL including query parameters"
-
-        if not self.params:
-            return self.url
-
-        url_parts = urlparse(self.url)
-        return url_parts._replace(query=urlencode(dict(parse_qsl(url_parts.query)) | dict(self.params))).geturl()
-
-
-@dataclass(slots=True)
-class RequestParams:
-    """
-    Parameters for request callbacks and error handling.
-
-    Attributes:
-        callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
-        cb_kwargs (dict[str, Any] | None): Keyword arguments for the callback function
-        errback (Callable[..., Awaitable] | None): Async error callback function
-        settings (dict[str, Any] | None): Additional settings for the request
-    """
-
+    # not http params
+    priority: int = 0
     callback: Callable[..., Awaitable[Any]] | None = None
     cb_kwargs: dict[str, Any] | None = None
     errback: Callable[..., Awaitable[Any]] | None = None
     settings: dict[str, Any] | None = None
 
+    def build_url(self) -> URL:
+        url = URL(self.url)
+        if self.params:
+            url.update_query(self.params)
 
-class RequestSender(Protocol):
-    """
-    Protocol defining the interface for request senders.
+        return url
 
-    This protocol defines the required interface for classes that send HTTP requests.
-    """
 
-    async def __call__(
-        self,
-        url: str,
-        method: str = "GET",
-        callback: Callable[..., Awaitable[Any]] | None = None,
-        cb_kwargs: dict[str, Any] | None = None,
-        errback: Callable[..., Awaitable[Any]] | None = None,
-        settings: dict[str, Any] | None = None,
-        params: QueryParams | None = None,
-        data: Any = None,
-        json_data: Any = None,
-        cookies: Cookies | None = None,
-        headers: Headers | None = None,
-        proxy: str | None = None,
-        auth: BasicAuth | None = None,
-        timeout: float | None = None,
-        priority: int = 0,
-    ) -> None: ...
+SendRequest = Callable[[Request], Awaitable[None]]
 
 
 class Response:
-    """
-    Represents an HTTP response with all its components.
-
-    Attributes:
-        url (str): The URL that was requested
-        method (str): The HTTP method used
-        params (QueryParams | None): Query parameters used in the request
-        status (int): HTTP status code
-        headers (Headers): Response headers
-        cookies (Cookies): Response cookies
-        content (bytes): Raw response content
-        content_type (str | None): Content type of the response
-    """
+    "Represents an HTTP response with all its components"
 
     __slots__ = (
         "_url",
         "_method",
-        "_params",
         "_status",
         "_headers",
         "_cookies",
         "_content",
-        "_content_type",
     )
 
     def __init__(
         self,
         url: str,
         method: str,
-        params: QueryParams | None,
         status: int,
         headers: Headers,
         cookies: Cookies,
         content: bytes,
-        content_type: str | None,
     ) -> None:
         self._url = url
         self._method = method
-        self._params = params
         self._status = status
         self._headers = headers
         self._cookies = cookies
         self._content = content
-        self._content_type = content_type
 
     def __repr__(self) -> str:
-        return f"Response[{self._method} {self.full_url}]"
+        return f"Response[{self._method} {self.url}]"
 
     @property
     def url(self) -> str:
         return self._url
 
     @property
-    def full_url(self) -> str:
-        if not self.params:
-            return self.url
-
-        url_parts = urlparse(self.url)
-        return url_parts._replace(query=urlencode(dict(parse_qsl(url_parts.query)) | dict(self.params))).geturl()
-
-    @property
     def method(self) -> str:
         return self._method
-
-    @property
-    def params(self) -> QueryParams | None:
-        return self._params
 
     @property
     def status(self) -> int:
@@ -182,18 +125,33 @@ class Response:
         return self._cookies
 
     @property
-    def content_type(self) -> str | None:
-        return self._content_type
-
-    @property
     def ok(self) -> bool:
+        "Returns ``True`` if ``status`` is less than ``400``, ``False`` if not"
         return 400 > self.status
 
-    def bytes(self) -> bytes:
+    @property
+    def content(self) -> bytes:
         return self._content
 
-    def json(self) -> Any:
-        return json.loads(self._content)
+    def text(self, encoding: str | None = "utf-8", errors: str = "strict") -> str:
+        "Read response payload and decode"
+        if encoding is None:
+            encoding = get_encoding(self.headers.get("Content-Type", ""))
 
-    def text(self, encoding: str = "utf-8") -> str:
-        return self._content.decode(encoding)
+        return self._content.decode(encoding, errors=errors)
+
+    def json(
+        self,
+        *,
+        encoding: str | None = None,
+        loads: Callable[[str], Any] = json.loads,
+    ) -> Any:
+        "Read and decodes JSON response"
+        stripped_content = self._content.strip()
+        if not stripped_content:
+            return None
+
+        if encoding is None:
+            encoding = get_encoding(self.headers.get("Content-Type", ""))
+
+        return loads(stripped_content.decode(encoding))

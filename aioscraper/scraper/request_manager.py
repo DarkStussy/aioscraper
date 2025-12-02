@@ -9,74 +9,30 @@ from .._helpers.func import get_cb_kwargs
 from .._helpers.asyncio import execute_coroutine
 from ..session import BaseSession
 from ..types import (
-    QueryParams,
-    Cookies,
-    Headers,
-    BasicAuth,
     Request,
-    RequestParams,
     Middleware,
-    RequestSender,
+    SendRequest,
 )
 
 logger = getLogger(__name__)
 
 
 @dataclass(slots=True, order=True)
-class _PRPRequest:
+class _PRequest:
     "Priority Request Pair - Internal class for managing prioritized requests"
 
     priority: int
     request: Request = field(compare=False)
-    request_params: RequestParams = field(compare=False)
 
 
-_RequestQueue = asyncio.PriorityQueue[_PRPRequest]
+_RequestQueue = asyncio.PriorityQueue[_PRequest]
 
 
-def _get_request_sender(queue: _RequestQueue) -> RequestSender:
+def _get_request_sender(queue: _RequestQueue) -> SendRequest:
     "Creates a request sender function that adds requests to the priority queue"
 
-    async def sender(
-        url: str,
-        method: str = "GET",
-        callback: Callable[..., Awaitable[Any]] | None = None,
-        cb_kwargs: dict[str, Any] | None = None,
-        errback: Callable[..., Awaitable[Any]] | None = None,
-        settings: dict[str, Any] | None = None,
-        params: QueryParams | None = None,
-        data: Any = None,
-        json_data: Any = None,
-        cookies: Cookies | None = None,
-        headers: Headers | None = None,
-        proxy: str | None = None,
-        auth: BasicAuth | None = None,
-        timeout: float | None = None,
-        priority: int = 0,
-    ) -> None:
-        await queue.put(
-            _PRPRequest(
-                priority=priority,
-                request=Request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    data=data,
-                    json_data=json_data,
-                    cookies=cookies,
-                    headers=headers,
-                    auth=auth,
-                    proxy=proxy,
-                    timeout=timeout,
-                ),
-                request_params=RequestParams(
-                    callback=callback,
-                    cb_kwargs=cb_kwargs,
-                    errback=errback,
-                    settings=settings,
-                ),
-            )
-        )
+    async def sender(request: Request) -> None:
+        await queue.put(_PRequest(priority=request.priority, request=request))
 
     return sender
 
@@ -124,75 +80,69 @@ class RequestManager:
         self._task: asyncio.Task[None] | None = None
 
     @property
-    def sender(self) -> RequestSender:
+    def sender(self) -> SendRequest:
         "Get the request sender function"
         return self._request_sender
 
-    async def _send_request(self, request: Request, params: RequestParams) -> None:
-        full_url = request.full_url
-        logger.debug(f"request: {request.method} {full_url}")
+    async def _send_request(self, request: Request) -> None:
         try:
             for inner_middleware in self._request_inner_middlewares:
                 await inner_middleware(
-                    **get_cb_kwargs(
-                        inner_middleware,
-                        kwargs={"request": request, "request_params": params},
-                        deps=self._dependencies,
-                    )
+                    **get_cb_kwargs(inner_middleware, kwargs={"request": request}, deps=self._dependencies)
                 )
 
+            url = request.build_url()
+            logger.debug(f"send request: {request.method} {url}")
+
             response = await self._session.make_request(request)
+
             for response_middleware in self._response_middlewares:
                 await response_middleware(
                     **get_cb_kwargs(
                         response_middleware,
-                        kwargs={"request": request, "request_params": params, "response": response},
+                        kwargs={"request": request, "response": response},
                         deps=self._dependencies,
                     )
                 )
 
             if response.status >= 400:
                 await self._handle_client_exception(
-                    params,
+                    request,
                     client_exc=HTTPException(
                         status_code=response.status,
                         message=response.text(),
-                        url=full_url,
+                        url=str(url),
                         method=response.method,
                     ),
                 )
-            elif params.callback is not None:
-                await params.callback(
+            elif request.callback is not None:
+                await request.callback(
                     response,
-                    **get_cb_kwargs(params.callback, kwargs=params.cb_kwargs, deps=self._dependencies),
+                    **get_cb_kwargs(request.callback, kwargs=request.cb_kwargs, deps=self._dependencies),
                 )
         except Exception as exc:
             for exception_middleware in self._request_exception_middlewares:
                 try:
                     await exception_middleware(
                         exc,
-                        **get_cb_kwargs(
-                            exception_middleware,
-                            kwargs={"request": request, "request_params": params},
-                            deps=self._dependencies,
-                        ),
+                        **get_cb_kwargs(exception_middleware, kwargs={"request": request}, deps=self._dependencies),
                     )
                 except StopMiddlewareProcessing:
                     return
 
             await self._handle_client_exception(
-                params,
-                client_exc=RequestException(src=exc, url=full_url, method=request.method),
+                request,
+                client_exc=RequestException(src=exc, url=str(request.build_url()), method=request.method),
             )
 
-    async def _handle_client_exception(self, params: RequestParams, client_exc: ClientException) -> None:
-        if params.errback is None:
+    async def _handle_client_exception(self, request: Request, client_exc: ClientException) -> None:
+        if request.errback is None:
             raise client_exc
 
         try:
-            await params.errback(
+            await request.errback(
                 client_exc,
-                **get_cb_kwargs(params.errback, kwargs=params.cb_kwargs, deps=self._dependencies),
+                **get_cb_kwargs(request.errback, kwargs=request.cb_kwargs, deps=self._dependencies),
             )
         except Exception as exc:
             logger.exception(exc)
@@ -206,14 +156,10 @@ class RequestManager:
         while (r := (await self._queue.get())) is not None:
             for outer_middleware in self._request_outer_middlewares:
                 await outer_middleware(
-                    **get_cb_kwargs(
-                        outer_middleware,
-                        kwargs={"request": r.request, "request_params": r.request_params},
-                        deps=self._dependencies,
-                    )
+                    **get_cb_kwargs(outer_middleware, kwargs={"request": r.request}, deps=self._dependencies)
                 )
 
-            await self._schedule_request(execute_coroutine(self._send_request(r.request, r.request_params)))
+            await self._schedule_request(execute_coroutine(self._send_request(r.request)))
             await asyncio.sleep(self._delay)
 
     async def shutdown(self, force: bool = False) -> None:

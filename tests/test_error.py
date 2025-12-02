@@ -3,7 +3,7 @@ from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper
 from aioscraper.exceptions import ClientException, HTTPException
-from aioscraper.types import RequestSender
+from aioscraper.types import Request, SendRequest
 
 
 class Scraper:
@@ -11,8 +11,8 @@ class Scraper:
         self.status = None
         self.response_data = None
 
-    async def __call__(self, send_request: RequestSender) -> None:
-        await send_request(url="https://api.test.com/v1", errback=self.errback)
+    async def __call__(self, send_request: SendRequest) -> None:
+        await send_request(Request(url="https://api.test.com/v1", errback=self.errback))
 
     async def errback(self, exc: ClientException) -> None:
         if isinstance(exc, HTTPException):

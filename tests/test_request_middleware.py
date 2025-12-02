@@ -2,18 +2,18 @@ import pytest
 from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper
-from aioscraper.types import Request, Response, RequestParams, RequestSender
+from aioscraper.types import Request, Response, SendRequest
 
 
 class RequestMiddleware:
     def __init__(self, mw_type: str) -> None:
         self.mw_type = mw_type
 
-    async def __call__(self, request: Request, request_params: RequestParams) -> None:
-        if request_params.cb_kwargs is not None:
-            request_params.cb_kwargs[f"from_{self.mw_type}_middleware"] = True
+    async def __call__(self, request: Request) -> None:
+        if request.cb_kwargs is not None:
+            request.cb_kwargs[f"from_{self.mw_type}_middleware"] = True
         else:
-            request_params.cb_kwargs = {f"from_{self.mw_type}_middleware": True}
+            request.cb_kwargs = {f"from_{self.mw_type}_middleware": True}
 
 
 class Scraper:
@@ -22,8 +22,8 @@ class Scraper:
         self.from_outer_middleware = None
         self.from_inner_middleware = None
 
-    async def __call__(self, send_request: RequestSender) -> None:
-        await send_request(url="https://api.test.com/v1", callback=self.parse)
+    async def __call__(self, send_request: SendRequest) -> None:
+        await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
 
     async def parse(self, response: Response, from_outer_middleware: str, from_inner_middleware: str) -> None:
         self.response_data = response.json()

@@ -4,7 +4,7 @@ from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper
 from aioscraper.exceptions import PipelineException
-from aioscraper.types import Pipeline, RequestSender, Response, BaseItem
+from aioscraper.types import Pipeline, Request, SendRequest, Response, BaseItem
 from aioscraper.pipeline import BasePipeline
 from aioscraper.pipeline.dispatcher import PipelineDispatcher
 
@@ -38,8 +38,8 @@ async def post_processing_middleware(item: BaseItem) -> None:
 
 
 class Scraper:
-    async def __call__(self, send_request: RequestSender) -> None:
-        await send_request(url="https://api.test.com/v1", callback=self.parse)
+    async def __call__(self, send_request: SendRequest) -> None:
+        await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
 
     async def parse(self, response: Response, pipeline: Pipeline) -> None:
         await pipeline(Item(response.text()))

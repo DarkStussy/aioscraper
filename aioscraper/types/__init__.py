@@ -6,8 +6,7 @@ from .session import (
     Headers,
     BasicAuth,
     Request,
-    RequestParams,
-    RequestSender,
+    SendRequest,
     Response,
 )
 
@@ -18,8 +17,7 @@ __all__ = (
     "Headers",
     "BasicAuth",
     "Request",
-    "RequestParams",
-    "RequestSender",
+    "SendRequest",
     "Response",
     "BaseItem",
     "Pipeline",

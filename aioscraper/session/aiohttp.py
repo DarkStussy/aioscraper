@@ -31,16 +31,15 @@ class AiohttpSession(BaseSession):
                 else None
             ),
             timeout=ClientTimeout(total=request.timeout) if request.timeout is not None else None,
+            allow_redirects=request.allow_redirects,
         ) as response:
             return Response(
-                url=request.url,
+                url=str(response.url),
                 method=request.method,
-                params=request.params,
                 status=response.status,
                 headers=dict(response.headers),
                 cookies={k: f"{v.key}={v.value}" for k, v in response.cookies.items()},
                 content=await response.read(),
-                content_type=response.headers.get("Content-Type"),
             )
 
     async def close(self) -> None:

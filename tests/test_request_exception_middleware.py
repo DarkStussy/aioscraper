@@ -3,7 +3,7 @@ from aresponses import ResponsesMockServer
 
 from aioscraper import AIOScraper
 from aioscraper.exceptions import StopMiddlewareProcessing
-from aioscraper.types import Response, RequestSender
+from aioscraper.types import Request, SendRequest, Response
 
 
 class RequestExceptionMiddleware:
@@ -20,8 +20,8 @@ class Scraper:
         self.response_data = None
         self.exc_handled = False
 
-    async def __call__(self, send_request: RequestSender) -> None:
-        await send_request(url="https://api.test.com/v1", callback=self.parse, errback=self.error)
+    async def __call__(self, send_request: SendRequest) -> None:
+        await send_request(Request(url="https://api.test.com/v1", callback=self.parse, errback=self.error))
 
     async def parse(self, response: Response) -> None:
         raise Exception("Test Exception")
