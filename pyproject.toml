@@ -1,12 +1,12 @@
 [project]
 name = "aioscraper"
-version = "0.6.1"
+version = "0.7.0"
 authors = [{ name = "darkstussy" }, ]
 description = "Async framework for building modular and scalable web scrapers."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "aiohttp[speedups]~=3.12.15",
+    "aiohttp[speedups]~=3.13.2",
     "aiojobs~=1.4.0",
 ]
 classifiers = [

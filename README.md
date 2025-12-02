@@ -33,11 +33,11 @@ pip install aioscraper
 import asyncio
 
 from aioscraper import AIOScraper
-from aioscraper.types import Response, RequestSender
+from aioscraper.types import Request, SendRequest, Response
 
 
-async def scraper(send_request: RequestSender) -> None:
-    await send_request(url="https://example.com", callback=handle_response)
+async def scraper(send_request: SendRequest) -> None:
+    await send_request(Request(url="https://example.com", callback=handle_response))
 
 
 async def handle_response(response: Response) -> None: ...
