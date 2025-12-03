@@ -29,7 +29,7 @@ exclude_patterns = []
 
 # HTML conf
 html_theme = "furo"
-html_favicon = "static/aioscraper.png"
+html_favicon = "static/aioscraper_favicon.png"
 html_theme_options = {
     "light_logo": "aioscraper.png",
     "dark_logo": "aioscraper.png",

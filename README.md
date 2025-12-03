@@ -1,5 +1,7 @@
 # aioscraper
 
+![aioscraper logo](docs/static/aioscraper.png)
+
 **Asynchronous framework for building modular and scalable web scrapers.**
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
