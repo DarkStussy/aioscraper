@@ -99,5 +99,6 @@ Copyright (c) 2025 darkstussy
 ## Links
 
 - [PyPI](https://pypi.org/project/aioscraper)
+- [Documentation](https://aioscraper.readthedocs.io)
 - [GitHub](https://github.com/darkstussy/aioscraper)
 - [Issues](https://github.com/darkstussy/aioscraper/issues)
