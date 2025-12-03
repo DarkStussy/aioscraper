@@ -10,12 +10,14 @@
 
 ## Features
 
-- 🚀 Fully asynchronous architecture powered by `aiohttp` and `aiojobs`
-- 🔧 Modular system with middleware support
-- 📦 Pipeline data processing
-- ⚙️ Flexible configuration
-- 🔄 Priority-based request queue management
-- 🛡️ Built-in error handling
+- Fully asynchronous architecture powered by `aiohttp` and `aiojobs`
+- Modular system with middleware support
+- Pipeline data processing
+- Flexible configuration
+- Priority-based request queue management
+- Built-in error handling
+
+📓 [Documentation](https://aioscraper.readthedocs.io)
 
 ## Basic usage
 
@@ -95,10 +97,3 @@ The scripts used for these tests are available in [this Gist](https://gist.githu
 MIT License
 
 Copyright (c) 2025 darkstussy
-
-## Links
-
-- [PyPI](https://pypi.org/project/aioscraper)
-- [Documentation](https://aioscraper.readthedocs.io)
-- [GitHub](https://github.com/darkstussy/aioscraper)
-- [Issues](https://github.com/darkstussy/aioscraper/issues)
