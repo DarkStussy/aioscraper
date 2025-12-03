@@ -1,0 +1,4 @@
+sphinx==8.1.*
+sphinx-autodocgen==1.4
+furo==2025.9.*
+sphinx-design==0.6.1

@@ -4,7 +4,7 @@ from ..types import Request, Response
 
 
 class BaseSession(abc.ABC):
-    "Base abstract class for HTTP session"
+    "Base abstract class for HTTP session."
 
     def __init__(self, timeout: float | None = None, ssl: bool | None = None) -> None:
         self._timeout = timeout
@@ -16,10 +16,10 @@ class BaseSession(abc.ABC):
         Execute an HTTP request.
 
         Args:
-            request (Request): Request object containing all necessary parameters.
+            request (Request): Request object containing all necessary parameters
 
         Returns:
-            Response: Response object containing the result of the request execution.
+            Response: Response object containing the result of the request execution
         """
         ...
 

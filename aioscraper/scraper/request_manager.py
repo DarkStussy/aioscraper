@@ -8,18 +8,14 @@ from ..exceptions import HTTPException, RequestException, ClientException, StopM
 from .._helpers.func import get_cb_kwargs
 from .._helpers.asyncio import execute_coroutine
 from ..session import BaseSession
-from ..types import (
-    Request,
-    Middleware,
-    SendRequest,
-)
+from ..types import Request, Middleware, SendRequest
 
 logger = getLogger(__name__)
 
 
 @dataclass(slots=True, order=True)
 class _PRequest:
-    "Priority Request Pair - Internal class for managing prioritized requests"
+    "Priority Request Pair - Internal class for managing prioritized requests."
 
     priority: int
     request: Request = field(compare=False)
@@ -29,7 +25,7 @@ _RequestQueue = asyncio.PriorityQueue[_PRequest]
 
 
 def _get_request_sender(queue: _RequestQueue) -> SendRequest:
-    "Creates a request sender function that adds requests to the priority queue"
+    "Creates a request sender function that adds requests to the priority queue."
 
     async def sender(request: Request) -> None:
         await queue.put(_PRequest(priority=request.priority, request=request))
@@ -41,16 +37,16 @@ class RequestManager:
     """
     Manages HTTP requests with priority queuing and middleware support.
 
-    Attributes:
-        session (BaseSession): HTTP session.
-        schedule_request (Callable[[Coroutine], Awaitable]): Function to schedule request processing.
-        queue (_RequestQueue): Priority queue for requests.
-        delay (float): Delay between requests in seconds.
-        shutdown_timeout (float): Timeout for graceful shutdown.
-        dependencies (dict): Additional dependencies to request.
-        request_outer_middlewares (list[RequestMiddleware]): Middleware to run before queue processing.
-        request_inner_middlewares (list[RequestMiddleware]): Middleware to run before request execution.
-        response_middlewares (list[ResponseMiddleware]): Middleware to run after response received.
+    Args:
+        session (BaseSession): HTTP session
+        schedule_request (Callable[[Coroutine], Awaitable]): Function to schedule request processing
+        queue (_RequestQueue): Priority queue for requests
+        delay (float): Delay between requests in seconds
+        shutdown_timeout (float): Timeout for graceful shutdown
+        dependencies (dict): Additional dependencies to request
+        request_outer_middlewares (list[RequestMiddleware]): Middleware to run before queue processing
+        request_inner_middlewares (list[RequestMiddleware]): Middleware to run before request execution
+        response_middlewares (list[ResponseMiddleware]): Middleware to run after response received
     """
 
     def __init__(
@@ -81,7 +77,6 @@ class RequestManager:
 
     @property
     def sender(self) -> SendRequest:
-        "Get the request sender function"
         return self._request_sender
 
     async def _send_request(self, request: Request) -> None:

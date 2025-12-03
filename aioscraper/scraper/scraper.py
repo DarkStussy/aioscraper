@@ -19,9 +19,9 @@ class AIOScraper:
     managing requests, handling middleware, and processing data through pipelines.
 
     Args:
-        scrapers (list[BaseScraper]): List of scraper instances to be executed.
-        config (Config | None): Configuration object. Defaults to None.
-        dependencies (dict[str, Any] | None): Additional dependencies to be passed to scrapers. Defaults to None.
+        scrapers (tuple[BaseScraper, ...]): List of scraper instances to be executed
+        config (Config | None): Configuration object
+        dependencies (dict[str, Any] | None): Additional dependencies to be passed to scrapers
     """
 
     def __init__(
@@ -47,7 +47,6 @@ class AIOScraper:
         self._executor: ScraperExecutor | None = None
 
     def register(self, scraper: Scraper) -> Scraper:
-        "Register a scraper"
         self._scrapers.append(scraper)
         return scraper
 
@@ -56,8 +55,8 @@ class AIOScraper:
         Add a pipeline to process scraped data.
 
         Args:
-            name (str): Name identifier for the pipeline.
-            pipeline (BasePipeline): Pipeline instance to be added.
+            name (str): Name identifier for the pipeline
+            pipeline (BasePipeline): Pipeline instance to be added
         """
         if name not in self._pipelines:
             self._pipelines[name] = [pipeline]

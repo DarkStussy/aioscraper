@@ -66,7 +66,7 @@ class ScraperExecutor:
         )
 
     async def run(self) -> None:
-        "Start the scraping process"
+        "Start the scraping process."
         self._start_time = time.time()
         self._request_manager.listen_queue()
 
@@ -78,7 +78,7 @@ class ScraperExecutor:
         await asyncio.gather(*[scraper(**get_func_kwargs(scraper, scraper_kwargs)) for scraper in self._scrapers])
 
     async def _shutdown(self) -> bool:
-        "Internal method to handle graceful shutdown of the scraper"
+        "Internal method to handle graceful shutdown of the scraper."
         status = False
 
         if self._start_time is None:
@@ -105,7 +105,7 @@ class ScraperExecutor:
         return status
 
     async def shutdown(self) -> None:
-        "Initiate the shutdown process for the scraper"
+        "Initiate the shutdown process for the scraper."
         force = await self._shutdown()
         await self._request_manager.shutdown(force)
 
@@ -114,7 +114,7 @@ class ScraperExecutor:
         Close all resources and cleanup.
 
         Args:
-            shutdown (bool, optional): Whether to perform shutdown before closing. Defaults to True.
+            shutdown (bool): Whether to perform shutdown before closing
         """
         try:
             await self.shutdown() if shutdown else await self._request_manager.shutdown(force=True)

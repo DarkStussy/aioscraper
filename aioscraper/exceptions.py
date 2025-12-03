@@ -1,11 +1,11 @@
 class AIOScrapperException(Exception):
-    "Base scraper exception"
+    "Base scraper exception."
 
     ...
 
 
 class ClientException(AIOScrapperException):
-    "Base exception class for all client-related errors"
+    "Base exception class for all client-related errors."
 
     ...
 
@@ -14,7 +14,7 @@ class HTTPException(ClientException):
     """
     Exception raised when an HTTP request fails with a specific status code.
 
-    Attributes:
+    Args:
         status_code (int): The HTTP status code of the failed request
         message (str | None): Optional error message describing the failure
         url (str): The URL that was being accessed
@@ -35,7 +35,7 @@ class RequestException(ClientException):
     """
     Exception raised when a request fails due to network or connection issues.
 
-    Attributes:
+    Args:
         src (Exception | str): The original exception or error message that caused the failure
         url (str): The URL that was being accessed
         method (str): The HTTP method used for the request
@@ -51,12 +51,12 @@ class RequestException(ClientException):
 
 
 class PipelineException(AIOScrapperException):
-    "Base exception class for all pipeline-related errors"
+    "Base exception class for all pipeline-related errors."
 
     ...
 
 
 class StopMiddlewareProcessing(AIOScrapperException):
-    "Stoppable exception for pipeline exception middlewares"
+    "Stoppable exception for pipeline exception middlewares."
 
     ...

@@ -7,7 +7,7 @@ ItemType = TypeVar("ItemType", bound=BaseItem)
 
 
 class BasePipeline(abc.ABC, Generic[ItemType]):
-    "Base abstract class for implementing data processing pipelines"
+    "Base abstract class for implementing data processing pipelines."
 
     @abc.abstractmethod
     async def put_item(self, item: ItemType) -> None:

@@ -6,7 +6,7 @@ from ..types import Response, Request
 
 
 class AiohttpSession(BaseSession):
-    "Implementation of HTTP session using aiohttp"
+    "Implementation of HTTP session using aiohttp."
 
     def __init__(self, timeout: float | None = None, ssl: bool | None = None) -> None:
         super().__init__(timeout, ssl)

@@ -21,7 +21,7 @@ class Request:
     """
     Represents an HTTP request with all its parameters.
 
-    Attributes:
+    Args:
         url (str | URL): The target URL for the request
         method (str): HTTP method (GET, POST, etc.)
         params (QueryParams | None): URL query parameters

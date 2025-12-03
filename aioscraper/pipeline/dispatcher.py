@@ -9,7 +9,7 @@ logger = getLogger(__name__)
 
 
 class PipelineDispatcher:
-    "A class for managing and dispatching items through processing pipelines"
+    "A class for managing and dispatching items through processing pipelines."
 
     def __init__(self, pipelines: Mapping[str, Sequence[BasePipeline[Any]]]) -> None:
         self._pipelines = pipelines
@@ -23,7 +23,7 @@ class PipelineDispatcher:
         self._post_processing_middlewares.extend(middlewares)
 
     async def put_item(self, item: BaseItem) -> BaseItem:
-        "Processes an item by passing it through the appropriate pipelines"
+        "Processes an item by passing it through the appropriate pipelines."
         logger.debug(f"pipeline item received: {item}")
 
         for middleware in self._pre_processing_middlewares:
