@@ -13,26 +13,31 @@ What it does
 .. code-block:: python
 
     from contextlib import asynccontextmanager
-    from typing import Any, Self
+    from typing import Iterable, Self
     from aioscraper import AIOScraper
     from aioscraper.types import Request, SendRequest, Response
+
 
     class DbClient:
         @classmethod
         async def create(cls) -> Self:
             return cls()
 
-        async def save(self, data: Any):
-            print("saved:", data)
+        async def get(self) -> Iterable[int]:
+            return list(range(3))
 
         async def close(self):
             print("db client closed")
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://httpbin.org/get", callback=handle_response))
 
-    async def handle_response(response: Response, db_client: DbClient):
-        await db_client.save(response.json())
+    async def scrape(send_request: SendRequest, db_client: DbClient):
+        for i in await db_client.get():
+            await send_request(Request(url=f"https://example.com/?i={i}", callback=handle_response))
+
+
+    async def handle_response(response: Response):
+        print(f"[{response.status}] {response.url}")
+
 
     @asynccontextmanager
     async def lifespan(scraper: AIOScraper):
@@ -45,6 +50,7 @@ What it does
             yield
         finally:
             await db_client.close()
+
 
 Notes
 -----

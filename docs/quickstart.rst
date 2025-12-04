@@ -24,7 +24,7 @@ Save as ``scraper.py``:
        for i in range(1, 4):
            await send_request(
                Request(
-                   url=f"https://httpbin.org/get?i={i}",
+                   url=f"https://example.com/?i={i}",
                    callback=handle_response,
                    cb_kwargs={"i": i},
                )
