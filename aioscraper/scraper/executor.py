@@ -50,13 +50,10 @@ class ScraperExecutor:
 
         self._request_queue = asyncio.PriorityQueue()
         self._request_manager = RequestManager(
-            session=AiohttpSession(
-                timeout=self._config.session.request.timeout,
-                ssl=self._config.session.request.ssl,
-            ),
+            session=AiohttpSession(timeout=self._config.session.timeout, ssl=self._config.session.ssl),
             schedule_request=self._scheduler.spawn,
             queue=self._request_queue,
-            delay=self._config.session.request.delay,
+            delay=self._config.session.delay,
             shutdown_timeout=self._config.execution.shutdown_timeout,
             dependencies={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
             request_outer_middlewares=request_outer_middlewares,
@@ -70,12 +67,19 @@ class ScraperExecutor:
         self._start_time = time.time()
         self._request_manager.listen_queue()
 
-        scraper_kwargs = {
-            "send_request": self._request_manager.sender,
-            "pipeline": self._pipeline_dispatcher.put_item,
-            **self._dependencies,
-        }
-        await asyncio.gather(*[scraper(**get_func_kwargs(scraper, scraper_kwargs)) for scraper in self._scrapers])
+        await asyncio.gather(
+            *[
+                scraper(
+                    **get_func_kwargs(
+                        scraper,
+                        send_request=self._request_manager.sender,
+                        pipeline=self._pipeline_dispatcher.put_item,
+                        **self._dependencies,
+                    )
+                )
+                for scraper in self._scrapers
+            ]
+        )
 
     async def _shutdown(self) -> bool:
         "Internal method to handle graceful shutdown of the scraper."

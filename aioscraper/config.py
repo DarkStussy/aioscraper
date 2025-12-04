@@ -3,9 +3,8 @@ from dataclasses import dataclass
 
 
 @dataclass(slots=True, frozen=True)
-class RequestConfig:
-    """
-    Configuration for HTTP requests.
+class SessionConfig:
+    """Configuration for session.
 
     Args:
         timeout (int): Request timeout in seconds
@@ -13,16 +12,9 @@ class RequestConfig:
         ssl (bool): Whether to use SSL for requests
     """
 
-    timeout: int = 60
+    timeout: float = 60.0
     delay: float = 0.0
     ssl: bool = True
-
-
-@dataclass(slots=True, frozen=True)
-class SessionConfig:
-    "Configuration for HTTP session."
-
-    request: RequestConfig = RequestConfig()
 
 
 @dataclass(slots=True, frozen=True)

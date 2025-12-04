@@ -11,7 +11,6 @@ Configuration
 
 .. autoclass:: aioscraper.config.Config
 .. autoclass:: aioscraper.config.SessionConfig
-.. autoclass:: aioscraper.config.RequestConfig
 .. autoclass:: aioscraper.config.SchedulerConfig
 .. autoclass:: aioscraper.config.ExecutionConfig
 
@@ -46,9 +45,8 @@ Execution
 Exceptions
 ----------
 
-.. autoclass:: aioscraper.exceptions.AIOScrapperException
+.. autoclass:: aioscraper.exceptions.AIOScraperException
 .. autoclass:: aioscraper.exceptions.ClientException
 .. autoclass:: aioscraper.exceptions.HTTPException
-.. autoclass:: aioscraper.exceptions.RequestException
 .. autoclass:: aioscraper.exceptions.PipelineException
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing

@@ -2,8 +2,8 @@ from .pipeline import BaseItem, Pipeline, PipelineMiddleware
 from .scraper import Scraper, Middleware
 from .session import (
     QueryParams,
-    Cookies,
-    Headers,
+    RequestCookies,
+    RequestHeaders,
     BasicAuth,
     Request,
     SendRequest,
@@ -13,8 +13,8 @@ from .session import (
 __all__ = (
     "Scraper",
     "QueryParams",
-    "Cookies",
-    "Headers",
+    "RequestCookies",
+    "RequestHeaders",
     "BasicAuth",
     "Request",
     "SendRequest",

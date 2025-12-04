@@ -1,3 +1,3 @@
-from .scraper import AIOScraper
+from .core import AIOScraper
 
 __all__ = ("AIOScraper",)

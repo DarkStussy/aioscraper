@@ -11,7 +11,7 @@ Installation
    pip install aioscraper
 
 
-Example:
+Example
 -----------
 
 .. code-block:: python

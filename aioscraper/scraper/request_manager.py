@@ -4,9 +4,10 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
-from ..exceptions import HTTPException, RequestException, ClientException, StopMiddlewareProcessing
-from .._helpers.func import get_cb_kwargs
+from ..exceptions import HTTPException, StopMiddlewareProcessing
 from .._helpers.asyncio import execute_coroutine
+from .._helpers.func import get_func_kwargs
+from .._helpers.http import parse_url
 from ..session import BaseSession
 from ..types import Request, Middleware, SendRequest
 
@@ -82,28 +83,22 @@ class RequestManager:
     async def _send_request(self, request: Request) -> None:
         try:
             for inner_middleware in self._request_inner_middlewares:
-                await inner_middleware(
-                    **get_cb_kwargs(inner_middleware, kwargs={"request": request}, deps=self._dependencies)
-                )
+                await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
 
-            url = request.build_url()
+            url = parse_url(request.url, request.params)
             logger.debug(f"send request: {request.method} {url}")
 
             response = await self._session.make_request(request)
 
             for response_middleware in self._response_middlewares:
                 await response_middleware(
-                    **get_cb_kwargs(
-                        response_middleware,
-                        kwargs={"request": request, "response": response},
-                        deps=self._dependencies,
-                    )
+                    **get_func_kwargs(response_middleware, request=request, response=response, **self._dependencies)
                 )
 
             if response.status >= 400:
-                await self._handle_client_exception(
+                await self._handle_exception(
                     request,
-                    client_exc=HTTPException(
+                    exc=HTTPException(
                         status_code=response.status,
                         message=response.text(),
                         url=str(url),
@@ -112,32 +107,39 @@ class RequestManager:
                 )
             elif request.callback is not None:
                 await request.callback(
-                    response,
-                    **get_cb_kwargs(request.callback, kwargs=request.cb_kwargs, deps=self._dependencies),
+                    **get_func_kwargs(
+                        request.callback,
+                        request=request,
+                        response=response,
+                        **request.cb_kwargs,
+                        **self._dependencies,
+                    ),
                 )
         except Exception as exc:
             for exception_middleware in self._request_exception_middlewares:
                 try:
                     await exception_middleware(
                         exc,
-                        **get_cb_kwargs(exception_middleware, kwargs={"request": request}, deps=self._dependencies),
+                        **get_func_kwargs(exception_middleware, request=request, **self._dependencies),
                     )
                 except StopMiddlewareProcessing:
                     return
 
-            await self._handle_client_exception(
-                request,
-                client_exc=RequestException(src=exc, url=str(request.build_url()), method=request.method),
-            )
+            await self._handle_exception(request, exc)
 
-    async def _handle_client_exception(self, request: Request, client_exc: ClientException) -> None:
+    async def _handle_exception(self, request: Request, exc: Exception) -> None:
         if request.errback is None:
-            raise client_exc
+            raise exc
 
         try:
             await request.errback(
-                client_exc,
-                **get_cb_kwargs(request.errback, kwargs=request.cb_kwargs, deps=self._dependencies),
+                **get_func_kwargs(
+                    request.errback,
+                    request=request,
+                    exc=exc,
+                    **request.cb_kwargs,
+                    **self._dependencies,
+                ),
             )
         except Exception as exc:
             logger.exception(exc)
@@ -150,9 +152,7 @@ class RequestManager:
         """Process requests from the queue with configured delay."""
         while (r := (await self._queue.get())) is not None:
             for outer_middleware in self._request_outer_middlewares:
-                await outer_middleware(
-                    **get_cb_kwargs(outer_middleware, kwargs={"request": r.request}, deps=self._dependencies)
-                )
+                await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
 
             await self._schedule_request(execute_coroutine(self._send_request(r.request)))
             await asyncio.sleep(self._delay)

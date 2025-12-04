@@ -40,6 +40,9 @@ test = [
     "aresponses~=3.0.0"
 ]
 
+[project.scripts]
+aioscraper = "aioscraper.cli:main"
+
 [tool.black]
 line-length = 120
 include = '\.pyi?$'

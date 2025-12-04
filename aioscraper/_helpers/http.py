@@ -1,25 +1,11 @@
-def get_encoding(content_type: str) -> str:
-    parts = content_type.split(";")
-    params = parts[1:]
-    items_to_strip = "\"' "
+from yarl import URL
 
-    for param in params:
-        param = param.strip()
-        if not param:
-            continue
+from ..types import QueryParams
 
-        if "=" not in param:
-            continue
 
-        key, value = param.split("=", 1)
-        key = key.strip(items_to_strip).lower()
-        value = value.strip(items_to_strip)
+def parse_url(url: str, params: QueryParams | None) -> URL:
+    parsed_url = URL(url)
+    if params:
+        parsed_url.update_query(params)
 
-        if key == "charset":
-            try:
-                "".encode(value)
-                return value
-            except LookupError:
-                return "utf-8"
-
-    return "utf-8"
+    return parsed_url

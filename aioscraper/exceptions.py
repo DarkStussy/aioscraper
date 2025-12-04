@@ -1,10 +1,10 @@
-class AIOScrapperException(Exception):
+class AIOScraperException(Exception):
     "Base scraper exception."
 
     ...
 
 
-class ClientException(AIOScrapperException):
+class ClientException(AIOScraperException):
     "Base exception class for all client-related errors."
 
     ...
@@ -31,32 +31,13 @@ class HTTPException(ClientException):
         return f"{self.method} {self.url}: {self.status_code}: {self.message}"
 
 
-class RequestException(ClientException):
-    """
-    Exception raised when a request fails due to network or connection issues.
-
-    Args:
-        src (Exception | str): The original exception or error message that caused the failure
-        url (str): The URL that was being accessed
-        method (str): The HTTP method used for the request
-    """
-
-    def __init__(self, src: Exception, url: str, method: str) -> None:
-        self.src = src
-        self.url = url
-        self.method = method
-
-    def __str__(self) -> str:
-        return f"[{self.src.__class__.__name__}]: {self.method} {self.url}: {self.src}"
-
-
-class PipelineException(AIOScrapperException):
+class PipelineException(AIOScraperException):
     "Base exception class for all pipeline-related errors."
 
     ...
 
 
-class StopMiddlewareProcessing(AIOScrapperException):
+class StopMiddlewareProcessing(AIOScraperException):
     "Stoppable exception for pipeline exception middlewares."
 
     ...

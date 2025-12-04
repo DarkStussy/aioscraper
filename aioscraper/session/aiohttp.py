@@ -25,8 +25,22 @@ class AiohttpSession(BaseSession):
             cookies=request.cookies,
             headers=request.headers,
             proxy=request.proxy,
+            proxy_auth=(
+                BasicAuth(
+                    login=request.proxy_auth["username"],
+                    password=request.proxy_auth.get("password", ""),
+                    encoding=request.proxy_auth.get("encoding", "latin1"),
+                )
+                if request.proxy_auth is not None
+                else None
+            ),
+            proxy_headers=request.proxy_headers,
             auth=(
-                BasicAuth(login=request.auth["username"], password=request.auth["password"])
+                BasicAuth(
+                    login=request.auth["username"],
+                    password=request.auth.get("password", ""),
+                    encoding=request.auth.get("encoding", "latin1"),
+                )
                 if request.auth is not None
                 else None
             ),
@@ -37,8 +51,8 @@ class AiohttpSession(BaseSession):
                 url=str(response.url),
                 method=request.method,
                 status=response.status,
-                headers=dict(response.headers),
-                cookies={k: f"{v.key}={v.value}" for k, v in response.cookies.items()},
+                headers=response.headers,
+                cookies=response.cookies,
                 content=await response.read(),
             )
 

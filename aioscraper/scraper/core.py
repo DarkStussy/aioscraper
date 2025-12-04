@@ -24,17 +24,12 @@ class AIOScraper:
         dependencies (dict[str, Any] | None): Additional dependencies to be passed to scrapers
     """
 
-    def __init__(
-        self,
-        *scrapers: Scraper,
-        config: Config | None = None,
-        dependencies: dict[str, Any] | None = None,
-    ) -> None:
+    def __init__(self, *scrapers: Scraper, config: Config | None = None) -> None:
         self._start_time: float | None = None
         self._config = config or Config()
 
         self._scrapers = [*scrapers]
-        self._dependencies = dependencies or {}
+        self._dependencies: dict[str, Any] = {}
 
         self._request_outer_middlewares: list[Middleware] = []
         self._request_inner_middlewares: list[Middleware] = []
@@ -49,6 +44,9 @@ class AIOScraper:
     def register(self, scraper: Scraper) -> Scraper:
         self._scrapers.append(scraper)
         return scraper
+
+    def register_dependencies(self, **kwargs: Any) -> None:
+        self._dependencies.update(kwargs)
 
     def add_pipeline(self, name: str, pipeline: BasePipeline[ItemType]) -> None:
         """
