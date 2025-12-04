@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Callable, Awaitable, Any
@@ -20,7 +21,7 @@ class _PRequest:
     "Priority Request Pair - Internal class for managing prioritized requests."
 
     priority: int
-    request: Request = field(compare=False)
+    request: Request | None = field(compare=False)
 
 
 _RequestQueue = asyncio.PriorityQueue[_PRequest]
@@ -151,26 +152,29 @@ class RequestManager:
 
     async def _listen_queue(self) -> None:
         """Process requests from the queue with configured delay."""
-        while (r := (await self._queue.get())) is not None:
+        while True:
+            r = await self._queue.get()
+            if r.request is None:
+                if r.priority == sys.maxsize:
+                    logger.info("shutdown request manager")
+                    break
+
+                continue
+
             for outer_middleware in self._request_outer_middlewares:
-                await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
+                try:
+                    await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
+                except Exception as e:
+                    logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
 
             await self._schedule_request(execute_coroutine(self._send_request(r.request)))
             await asyncio.sleep(self._delay)
 
-    async def shutdown(self, force: bool = False) -> None:
-        """
-        Shutdown the request manager.
-
-        Args:
-            force (bool): If True, force shutdown after timeout
-        """
-        await self._queue.put(None)  # type: ignore
+    async def shutdown(self) -> None:
+        "Shutdown the request manager."
+        await self._queue.put(_PRequest(priority=sys.maxsize, request=None))
         if self._task is not None:
-            try:
-                await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
+            await self._task
 
     async def close(self) -> None:
         """Close the underlying session."""
