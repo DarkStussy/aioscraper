@@ -17,4 +17,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Number of pending requests to maintain",
     )
+    parser.add_argument(
+        "--uvloop",
+        action="store_true",
+        help="Run scraper using uvloop event loop policy (requires uvloop to be installed)",
+    )
     return parser.parse_args(args=argv)
