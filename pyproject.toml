@@ -4,14 +4,13 @@ version = "0.7.1"
 authors = [{ name = "darkstussy" }, ]
 description = "Async framework for building modular and scalable web scrapers."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "aiohttp[speedups]~=3.13.2",
     "aiojobs~=1.4.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
