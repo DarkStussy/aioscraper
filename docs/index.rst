@@ -6,6 +6,7 @@ aioscraper
    :caption: Contents:
 
    overview
+   cli
 
 .. toctree::
    :maxdepth: 2

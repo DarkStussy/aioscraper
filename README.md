@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Version](https://img.shields.io/github/v/tag/darkstussy/aioscraper?label=version)
 
-## Features
+## Key Features
 
 - Fully asynchronous architecture powered by `aiohttp` and `aiojobs`
 - Modular system with middleware support
@@ -17,39 +17,41 @@
 - Priority-based request queue management
 - Built-in error handling
 
-📓 [Documentation](https://aioscraper.readthedocs.io)
+[Documentation](https://aioscraper.readthedocs.io)
 
-## Basic usage
+## Getting started
 
 Install
 ```bash
 pip install aioscraper
 ```
 
-Example of fetching data.
+Create `scraper.py`:
 ```python
-import asyncio
+from contextlib import asynccontextmanager
 
 from aioscraper import AIOScraper
-from aioscraper.types import Request, SendRequest, Response
+from aioscraper.types import Request, Response, SendRequest
 
 
-async def scraper(send_request: SendRequest) -> None:
+async def scrape(send_request: SendRequest):
     await send_request(Request(url="https://example.com", callback=handle_response))
 
 
-async def handle_response(response: Response) -> None:
+async def handle_response(response: Response):
     print(f"Fetched {response.url} with status {response.status}")
 
 
-async def main():
-    async with AIOScraper(scraper) as s:
-        await s.start()
+@asynccontextmanager
+async def lifespan(scraper: AIOScraper):
+    scraper.register(scrape)
+    yield
+    # cleanup some resources...
+```
 
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
+Run it
+```bash
+aioscraper scraper
 ```
 
 ## Benchmarks
@@ -57,40 +59,6 @@ if __name__ == "__main__":
 Below are benchmarks comparing `aioscraper` and `scrapy` on a local JSON server.
 
 The scripts used for these tests are available in [this Gist](https://gist.github.com/DarkStussy/7afd89d65a289d3d7128c9b74c68a76a).
-
-### Benchmark 1
-* Path: `/json?size=10`
-* Total requests: 10,000
-* Total items: 100,000
-
-| Library    | Elapsed time | Requests per second | Items per second |
-|------------|--------------|-------------------|----------------|
-| aioscraper | 1.9 sec      | 5,263.2           | 52,631.6       |
-| scrapy     | 26.8 sec     | 373.1             | 3,731.3        |
-
----
-
-### Benchmark 2
-* Path: `/json?size=100`
-* Total requests: 10,000
-* Total items: 1,000,000
-
-| Library    | Elapsed time | Requests per second | Items per second |
-|------------|--------------|-------------------|----------------|
-| aioscraper | 3.1 sec      | 3,225.8           | 322,580.6      |
-| scrapy     | 205.8 sec    | 48.6              | 4,859.1        |
-
----
-
-### Benchmark 3
-* Path: `/json?size=10&t=0.1`
-* Total requests: 10,000
-* Total items: 100,000
-
-| Library    | Elapsed time | Requests per second | Items per second |
-|------------|--------------|-------------------|----------------|
-| aioscraper | 16.1 sec     | 621.1             | 6,211.2        |
-| scrapy     | 129.9 sec    | 77.0              | 769.8          |
 
 ## License
 

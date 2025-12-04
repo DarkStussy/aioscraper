@@ -14,29 +14,38 @@ Installation
 Example
 -----------
 
+
+Create ``scraper.py``:
+
 .. code-block:: python
 
-   import asyncio
+    from contextlib import asynccontextmanager
 
-   from aioscraper import AIOScraper
-   from aioscraper.types import Request, SendRequest, Response
-
-
-   async def scraper(send_request: SendRequest) -> None:
-       await send_request(Request(url="https://example.com", callback=handle_response))
+    from aioscraper import AIOScraper
+    from aioscraper.types import Request, Response, SendRequest
 
 
-   async def handle_response(response: Response) -> None:
-       print(f"Fetched {response.url} with status {response.status}")
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://example.com", callback=handle_response))
 
 
-   async def main():
-       async with AIOScraper(scraper) as s:
-           await s.start()
+    async def handle_response(response: Response):
+        print(f"Fetched {response.url} with status {response.status}")
 
 
-   if __name__ == "__main__":
-       asyncio.run(main())
+    @asynccontextmanager
+    async def lifespan(scraper: AIOScraper):
+        scraper.register(scrape)
+        yield
+        # cleanup some resources...
+
+Run:
+
+.. code-block:: bash
+
+   aioscraper scraper
+
+See :doc:`cli` for entrypoint patterns and configuration options.
 
 Execution flow
 --------------
