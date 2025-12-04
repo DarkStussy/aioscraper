@@ -7,6 +7,7 @@ aioscraper
 
    overview
    cli
+   benchmarks
 
 .. toctree::
    :maxdepth: 2
