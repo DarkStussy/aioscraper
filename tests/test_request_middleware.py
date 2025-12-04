@@ -10,10 +10,8 @@ class RequestMiddleware:
         self.mw_type = mw_type
 
     async def __call__(self, request: Request) -> None:
-        if request.cb_kwargs is not None:
-            request.cb_kwargs[f"from_{self.mw_type}_middleware"] = True
-        else:
-            request.cb_kwargs = {f"from_{self.mw_type}_middleware": True}
+        request.state[f"from_{self.mw_type}_middleware"] = True
+        request.cb_kwargs[f"from_{self.mw_type}_middleware"] = True
 
 
 class Scraper:
@@ -21,14 +19,22 @@ class Scraper:
         self.response_data = None
         self.from_outer_middleware = None
         self.from_inner_middleware = None
+        self.state: dict[str, bool] | None = None
 
     async def __call__(self, send_request: SendRequest) -> None:
         await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
 
-    async def parse(self, response: Response, from_outer_middleware: str, from_inner_middleware: str) -> None:
+    async def parse(
+        self,
+        response: Response,
+        request: Request,
+        from_outer_middleware: str,
+        from_inner_middleware: str,
+    ) -> None:
         self.response_data = response.json()
         self.from_outer_middleware = from_outer_middleware
         self.from_inner_middleware = from_inner_middleware
+        self.state = dict(request.state)
 
 
 @pytest.mark.asyncio
@@ -45,4 +51,5 @@ async def test_request_middleware(aresponses: ResponsesMockServer):
     assert scraper.response_data == response_data
     assert scraper.from_outer_middleware is True
     assert scraper.from_inner_middleware is True
+    assert scraper.state == {"from_outer_middleware": True, "from_inner_middleware": True}
     aresponses.assert_plan_strictly_followed()

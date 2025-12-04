@@ -7,7 +7,7 @@ from aioscraper.config import PipelineConfig
 from aioscraper.exceptions import PipelineException
 from aioscraper.types import Pipeline, Request, SendRequest, Response
 from aioscraper.pipeline import BasePipeline
-from aioscraper.pipeline.dispatcher import PipelineDispatcher
+from aioscraper.pipeline.dispatcher import PipelineContainer, PipelineDispatcher
 
 
 @dataclass
@@ -76,3 +76,79 @@ async def test_pipeline_dispatcher_not_found():
 
     with pytest.raises(PipelineException):
         await dispatcher.put_item(mock_item)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_dispatcher_not_strict(caplog):
+    mock_item = Item("missing")
+    dispatcher = PipelineDispatcher(PipelineConfig(strict=False), {})
+
+    caplog.set_level("WARNING")
+    result = await dispatcher.put_item(mock_item)
+
+    assert result is mock_item
+    assert "pipelines for item" in caplog.text
+
+
+@dataclass
+class CountItem:
+    pipeline_name: str
+    total: int = 0
+
+
+class OrderPipeline(BasePipeline[CountItem]):
+    def __init__(self, increment: int, audit: list[str], label: str) -> None:
+        self.increment = increment
+        self.audit = audit
+        self.label = label
+        self.closed = False
+
+    async def put_item(self, item: CountItem) -> CountItem:
+        self.audit.append(self.label)
+        item.total += self.increment
+        return item
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_pipeline_multiple_pipelines_order_and_close():
+    audit: list[str] = []
+    first = OrderPipeline(1, audit, "first")
+    second = OrderPipeline(10, audit, "second")
+
+    async def pre_one(item: CountItem) -> CountItem:
+        audit.append("pre1")
+        return item
+
+    async def pre_two(item: CountItem) -> CountItem:
+        audit.append("pre2")
+        return item
+
+    async def post_one(item: CountItem) -> CountItem:
+        audit.append("post1")
+        return item
+
+    async def post_two(item: CountItem) -> CountItem:
+        audit.append("post2")
+        return item
+
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {
+            "count": PipelineContainer(
+                pipelines=[first, second],
+                pre_middlewares=[pre_one, pre_two],
+                post_middlewares=[post_one, post_two],
+            )
+        },
+    )
+
+    result = await dispatcher.put_item(CountItem("count"))
+    await dispatcher.close()
+
+    assert result.total == 11
+    assert audit == ["pre1", "pre2", "first", "second", "post1", "post2"]
+    assert first.closed is True
+    assert second.closed is True

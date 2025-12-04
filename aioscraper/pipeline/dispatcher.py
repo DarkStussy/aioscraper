@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from .base import BasePipeline
 from ..config import PipelineConfig
 from ..exceptions import PipelineException
-from ..types.pipeline import PipelineMiddleware, BaseItem
+from ..types.pipeline import PipelineMiddleware, ItemType
 
 logger = getLogger(__name__)
 
@@ -25,7 +25,7 @@ class PipelineDispatcher:
         self._config = config
         self._pipelines = pipelines
 
-    async def put_item(self, item: BaseItem) -> BaseItem:
+    async def put_item(self, item: ItemType) -> ItemType:
         "Processes an item by passing it through the appropriate pipelines."
         logger.debug(f"pipeline item received: {item}")
 
