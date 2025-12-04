@@ -28,7 +28,7 @@ def _apply_uvloop_policy() -> None:
     try:
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
     except Exception as exc:  # pragma: no cover - platform specific failures
-        raise CLIError("Failed to apply uvloop event loop policy.") from exc
+        raise CLIError("Failed to apply uvloop event loop policy") from exc
 
 
 def main(argv: Sequence[str] | None = None) -> int:

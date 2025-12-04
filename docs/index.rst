@@ -11,6 +11,15 @@ aioscraper
 
 .. toctree::
    :maxdepth: 2
+   :caption: Concepts:
+
+   concepts/callbacks
+   concepts/pipelines
+   concepts/middlewares
+   concepts/config
+
+.. toctree::
+   :maxdepth: 2
    :caption: Reference:
 
    api
