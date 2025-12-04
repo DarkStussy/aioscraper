@@ -170,11 +170,19 @@ class RequestManager:
             await self._schedule_request(execute_coroutine(self._send_request(r.request)))
             await asyncio.sleep(self._delay)
 
-    async def shutdown(self) -> None:
-        "Shutdown the request manager."
+    async def shutdown(self, force: bool = False) -> None:
+        """
+        Shutdown the request manager.
+
+        Args:
+            force (bool): If True, force shutdown after timeout
+        """
         await self._queue.put(_PRequest(priority=sys.maxsize, request=None))
         if self._task is not None:
-            await self._task
+            try:
+                await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
 
     async def close(self) -> None:
         """Close the underlying session."""
