@@ -51,7 +51,7 @@ aioscraper scraper
 
 Below are benchmarks comparing `aioscraper` and `scrapy` on a local JSON server.
 
-The scripts used for these tests are available in [this Gist](https://gist.github.com/DarkStussy/7afd89d65a289d3d7128c9b74c68a76a).
+The scripts used for these tests are available in [this Gist](https://gist.github.com/DarkStussy/dc5d3c2b4029428e990ad44190f4cdbc).
 
 ## License
 
