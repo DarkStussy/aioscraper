@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 from logging import getLogger
+import sys
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
@@ -20,7 +21,7 @@ class _PRequest:
     "Priority Request Pair - Internal class for managing prioritized requests."
 
     priority: int
-    request: Request = field(compare=False)
+    request: Request | None = field(compare=False)
 
 
 _RequestQueue = asyncio.PriorityQueue[_PRequest]
@@ -151,11 +152,25 @@ class RequestManager:
 
     async def _listen_queue(self) -> None:
         """Process requests from the queue with configured delay."""
-        while (r := (await self._queue.get())) is not None:
-            for outer_middleware in self._request_outer_middlewares:
-                await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
+        while True:
+            prequest = await self._queue.get()
+            if prequest.request is None:
+                if prequest.priority == sys.maxsize:
+                    logger.debug("shutdown request manager")
+                    break
 
-            await self._schedule_request(execute_coroutine(self._send_request(r.request)))
+                continue
+
+            for outer_middleware in self._request_outer_middlewares:
+                try:
+                    await outer_middleware(
+                        **get_func_kwargs(outer_middleware, request=prequest.request, **self._dependencies)
+                    )
+                except Exception as e:
+                    logger.exception(e)
+                    continue
+
+            await self._schedule_request(execute_coroutine(self._send_request(prequest.request)))
             await asyncio.sleep(self._delay)
 
     async def shutdown(self, force: bool = False) -> None:
@@ -165,7 +180,7 @@ class RequestManager:
         Args:
             force (bool): If True, force shutdown after timeout
         """
-        await self._queue.put(None)  # type: ignore
+        await self._queue.put(_PRequest(priority=sys.maxsize, request=None))
         if self._task is not None:
             try:
                 await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task

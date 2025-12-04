@@ -61,7 +61,8 @@ def _import_module(module_ref: str) -> ModuleType:
 
 
 def _parse_entrypoint(target: str) -> tuple[str, str | None]:
-    if target.endswith(".py"):
+    target_path = Path(target)
+    if target_path.exists():
         return target, None
 
     module_ref, sep, attr = target.rpartition(":")
