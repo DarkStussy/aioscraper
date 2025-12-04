@@ -3,8 +3,6 @@ Middlewares
 
 Middlewares let you intercept requests, responses and exceptions. Each hook runs at a specific phase.
 
-Hooks
------
 - :meth:`add_outer_request_middlewares <aioscraper.scraper.core.AIOScraper.add_outer_request_middlewares>` — before a request enters the queue (normalize/annotate requests).
 - :meth:`add_inner_request_middlewares <aioscraper.scraper.core.AIOScraper.add_inner_request_middlewares>` — right before HTTP dispatch (headers, auth, tracing).
 - :meth:`add_request_exception_middlewares <aioscraper.scraper.core.AIOScraper.add_request_exception_middlewares>` — whenever sending/handling fails; can stop further handling with :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>`.

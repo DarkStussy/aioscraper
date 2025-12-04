@@ -52,7 +52,6 @@ What it does
             await db_client.close()
 
 
-Notes
------
-- If a module exposes both ``scraper`` and ``lifespan``, the CLI applies ``lifespan(scraper)`` automatically.
-- When you target ``lifespan`` explicitly via ``module:lifespan``, the CLI will create a new scraper for you.
+.. note::
+   - If a module exposes both ``scraper`` and ``lifespan``, the CLI applies ``lifespan(scraper)`` automatically.
+   - When you target ``lifespan`` explicitly via ``module:lifespan``, the CLI will create a new scraper for you.
