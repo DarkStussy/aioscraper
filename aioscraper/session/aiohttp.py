@@ -16,6 +16,7 @@ class AiohttpSession(BaseSession):
         )
 
     async def make_request(self, request: Request) -> Response:
+        "Perform an HTTP request via aiohttp and wrap the result in `Response`."
         async with self._session.request(
             url=request.url,
             method=request.method,

@@ -1,22 +1,18 @@
 import asyncio
 import logging
-from typing import Callable, Sequence, AsyncContextManager
+from typing import Any, Sequence
 
 from ._args import parse_args
-from ._config import build_config
 from .exceptions import CLIError
-from ..config import Config
-from ._entrypoint import handle_lifespan, resolve_lifespan
+from ..config import Config, load_config
+from ._entrypoint import handle_lifespan, resolve_entrypoint
 from ..scraper import AIOScraper
 
 
-async def _run(config: Config, lifespan: Callable[[AIOScraper], AsyncContextManager[None]]) -> None:
-    executor = AIOScraper(config=config)
-    try:
-        async with handle_lifespan(lifespan, executor):
-            await executor.start()
-    finally:
-        await executor.close()
+async def _run_scraper(config: Config, scraper: AIOScraper, lifespan: Any) -> None:
+    async with handle_lifespan(lifespan, scraper):
+        async with scraper:
+            await scraper.start(config)
 
 
 def _apply_uvloop_policy() -> None:
@@ -31,25 +27,17 @@ def _apply_uvloop_policy() -> None:
         raise CLIError("Failed to apply uvloop event loop policy") from exc
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None):
     args = parse_args(argv)
-    config = build_config(args.concurrent_requests, args.pending_requests)
+    config = load_config(args.concurrent_requests, args.pending_requests)
 
     try:
         if args.uvloop:
             _apply_uvloop_policy()
 
-        asyncio.run(_run(config, resolve_lifespan(args.entrypoint)))
-    except CLIError as exc:
-        logging.error(exc)
-        return 1
+        asyncio.run(_run_scraper(config, *resolve_entrypoint(args.entrypoint)))
     except KeyboardInterrupt:
         logging.info("Interrupted, shutting down...")
-    except Exception:
-        logging.exception("Scraper run failed")
-        return 1
-
-    return 0
 
 
 if __name__ == "__main__":

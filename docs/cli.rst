@@ -9,23 +9,33 @@ Run scrapers from the command line without wiring up the event loop yourself.
    pip install aioscraper
    aioscraper scraper
 
+See the minimal code in :doc:`/quickstart`.
+
 Entrypoint contract
 -------------------
 
-The CLI loads a module or file that exposes an async context manager named ``lifespan`` by default. It receives the pre-built :class:`aioscraper.AIOScraper` instance so you can register scrapers, pipelines, and middlewares before execution starts.
+The CLI loads a module (file path or ``module.path``) and optionally a specific attribute using ``module:attr``.
 
-Typical entrypoint flow:
+Entry rules:
 
-- Declare ``lifespan(scraper: AIOScraper)`` as an async context manager.
-- Register scrapers inside the context manager.
-- Optionally add pipelines and middlewares before yielding control.
+- Without ``:attr``: the CLI looks for a ``scraper`` attribute that is an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance. If the module also exposes ``lifespan(scraper)``, the CLI will wrap the scraper with it before starting.
+- With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>`: the CLI uses that instance. If the module exposes ``lifespan``, it will wrap the scraper with it.
+- With ``:attr`` equal to ``lifespan``: the CLI creates a new :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` and passes it into that context manager; register scrapers inside the lifespan.
 
-Launch the CLI with either a file path (``aioscraper scraper.py`` looks for ``lifespan``) or an explicit module and callable (``aioscraper mypkg.scraper:custom_lifespan``).
+Examples:
+
+.. code-block:: bash
+
+   aioscraper scraper                   # uses scraper variable from scraper.py
+   aioscraper mypkg.scraper:custom_app  # uses custom_app AIOScraper instance
+   aioscraper mypkg.setup:lifespan      # uses lifespan(scraper) context manager
+
+For resource setup/teardown around the same scraper instance, provide a ``lifespan(scraper)`` async context manager (see :doc:`/concepts/lifespan`).
 
 Configuration
 -------------
 
-Configuration precedence: CLI flags -> environment variables -> :class:`aioscraper.config.Config` defaults.
+Configuration precedence: CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults.
 
 - ``--concurrent-requests``: Max concurrent requests (overrides ``SCHEDULER_CONCURRENT_REQUESTS``).
 - ``--pending-requests``: Pending requests to keep queued (overrides ``SCHEDULER_PENDING_REQUESTS``).
@@ -42,3 +52,4 @@ Supported environment variables:
 - ``EXECUTION_SHUTDOWN_TIMEOUT``: Graceful shutdown timeout (seconds).
 - ``EXECUTION_SHUTDOWN_CHECK_INTERVAL``: Interval between shutdown checks (seconds).
 - ``EXECUTION_LOG_LEVEL``: Log level name used when timeouts occur (e.g., ``WARNING``, ``ERROR``).
+- ``PIPELINE_STRICT``: Whether to raise when an item references a missing pipeline.

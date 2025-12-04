@@ -1,16 +1,14 @@
 import abc
-from typing import TypeVar, Generic
+from typing import Generic
 
-from ..types import BaseItem
-
-ItemType = TypeVar("ItemType", bound=BaseItem)
+from ..types import ItemType
 
 
 class BasePipeline(abc.ABC, Generic[ItemType]):
     "Base abstract class for implementing data processing pipelines."
 
     @abc.abstractmethod
-    async def put_item(self, item: ItemType) -> None:
+    async def put_item(self, item: ItemType) -> ItemType:
         """
         Process a item.
 

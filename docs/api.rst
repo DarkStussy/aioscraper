@@ -4,7 +4,9 @@ API
 Core
 ----
 
-.. autoclass:: aioscraper.AIOScraper
+.. autoclass:: aioscraper.scraper.core.AIOScraper
+   :members:
+
 
 Configuration
 -------------
@@ -13,6 +15,7 @@ Configuration
 .. autoclass:: aioscraper.config.SessionConfig
 .. autoclass:: aioscraper.config.SchedulerConfig
 .. autoclass:: aioscraper.config.ExecutionConfig
+.. autoclass:: aioscraper.config.PipelineConfig
 
 Types
 -----
@@ -50,3 +53,4 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.HTTPException
 .. autoclass:: aioscraper.exceptions.PipelineException
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing
+.. autoclass:: aioscraper.cli.exceptions.CLIError

@@ -1,3 +1,3 @@
-from .base import BasePipeline, ItemType
+from .base import BasePipeline
 
-__all__ = ("BasePipeline", "ItemType")
+__all__ = ("BasePipeline",)

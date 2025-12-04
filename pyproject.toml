@@ -26,6 +26,9 @@ Homepage = "https://github.com/darkstussy/aioscraper"
 Issues = "https://github.com/darkstussy/aioscraper/issues"
 
 [project.optional-dependencies]
+uvloop = [
+    "uvloop~=0.22.1"
+]
 dev = [
     "flake8~=7.3.0",
     "black~=25.1.0",

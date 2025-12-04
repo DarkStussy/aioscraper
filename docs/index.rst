@@ -1,13 +1,18 @@
 aioscraper
 ==========
 
+Orchestrates asynchronous scrapers, middlewares, and pipelines for high-volume, low-latency web requests.
+
+You define scraping tasks that queue requests. A scheduler dispatches them with your chosen concurrency and priorities. HTTP clients perform the calls and return responses. Callbacks handle those responses and hand items off to pipelines, which process items in order and then shut down cleanly.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   overview
-   cli
+   installation
+   quickstart
    benchmarks
+   cli
 
 .. toctree::
    :maxdepth: 2
@@ -16,6 +21,8 @@ aioscraper
    concepts/callbacks
    concepts/pipelines
    concepts/middlewares
+   concepts/wiring
+   concepts/lifespan
    concepts/config
 
 .. toctree::

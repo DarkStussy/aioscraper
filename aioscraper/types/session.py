@@ -71,7 +71,16 @@ SendRequest = Callable[[Request], Awaitable[Request]]
 
 @dataclass(slots=True, frozen=True, kw_only=True)
 class Response:
-    "Represents an HTTP response with all its components"
+    """Represents an HTTP response with all its components.
+
+    Args:
+        url (str): Final URL of the response
+        method (str): HTTP method used
+        status (int): HTTP status code
+        headers (ResponseHeaders): Response headers
+        cookies (SimpleCookie): Parsed response cookies
+        content (bytes): Raw response body
+    """
 
     url: str
     method: str
@@ -112,6 +121,12 @@ class Response:
         return loads(stripped_content.decode(encoding))
 
     def get_encoding(self) -> str:
+        """
+        Resolve response encoding from the ``Content-Type`` header.
+
+        Returns:
+            str: Detected charset or ``"utf-8"`` as a safe default.
+        """
         content_type = self.headers.get("Content-Type", "")
         parts = content_type.split(";")
         params = parts[1:]

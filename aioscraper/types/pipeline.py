@@ -1,9 +1,12 @@
-from typing import Awaitable, Callable, Protocol
+from typing import Protocol, TypeVar
 
 
 class BaseItem(Protocol):
     @property
     def pipeline_name(self) -> str: ...
+
+
+ItemType = TypeVar("ItemType", bound=BaseItem)
 
 
 class Pipeline(Protocol):
@@ -12,4 +15,5 @@ class Pipeline(Protocol):
     async def __call__(self, item: BaseItem) -> BaseItem: ...
 
 
-PipelineMiddleware = Callable[[BaseItem], Awaitable[None]]
+class PipelineMiddleware(Protocol[ItemType]):
+    async def __call__(self, item: ItemType) -> ItemType: ...

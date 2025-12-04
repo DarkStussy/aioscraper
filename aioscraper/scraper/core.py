@@ -4,9 +4,9 @@ from typing import Type, Any
 
 from .executor import ScraperExecutor
 from ..config import Config
-from ..pipeline import BasePipeline, ItemType
-from ..pipeline.dispatcher import PipelineDispatcher
-from ..types import Scraper, Middleware, PipelineMiddleware
+from ..pipeline import BasePipeline
+from ..pipeline.dispatcher import PipelineContainer, PipelineDispatcher
+from ..types import Scraper, Middleware, PipelineMiddleware, ItemType
 
 logger = getLogger(__name__)
 
@@ -20,14 +20,9 @@ class AIOScraper:
 
     Args:
         scrapers (tuple[BaseScraper, ...]): List of scraper instances to be executed
-        config (Config | None): Configuration object
-        dependencies (dict[str, Any] | None): Additional dependencies to be passed to scrapers
     """
 
-    def __init__(self, *scrapers: Scraper, config: Config | None = None) -> None:
-        self._start_time: float | None = None
-        self._config = config or Config()
-
+    def __init__(self, *scrapers: Scraper) -> None:
         self._scrapers = [*scrapers]
         self._dependencies: dict[str, Any] = {}
 
@@ -36,46 +31,57 @@ class AIOScraper:
         self._request_exception_middlewares: list[Middleware] = []
         self._response_middlewares: list[Middleware] = []
 
-        self._pipelines: dict[str, list[BasePipeline[Any]]] = {}
-        self._pipeline_dispatcher = PipelineDispatcher(self._pipelines)
+        self._pipeline_containers: dict[str, PipelineContainer] = {}
 
         self._executor: ScraperExecutor | None = None
 
     def register(self, scraper: Scraper) -> Scraper:
+        "Register a single scraper callable; returns it for decorator usage."
         self._scrapers.append(scraper)
         return scraper
 
+    def register_all(self, *scrapers: Scraper) -> None:
+        "Register multiple scraper callables at once."
+        self._scrapers.extend(scrapers)
+
     def register_dependencies(self, **kwargs: Any) -> None:
+        "Register shared dependencies to inject into scraper callbacks."
         self._dependencies.update(kwargs)
 
-    def add_pipeline(self, name: str, pipeline: BasePipeline[ItemType]) -> None:
+    def add_pipelines(self, name: str, *pipelines: BasePipeline[ItemType]) -> None:
         """
-        Add a pipeline to process scraped data.
+        Add pipelines to process scraped data.
 
         Args:
             name (str): Name identifier for the pipeline
-            pipeline (BasePipeline): Pipeline instance to be added
+            pipelines (tuple[BasePipeline[ItemType], ...]): Pipeline instances to be added
         """
-        if name not in self._pipelines:
-            self._pipelines[name] = [pipeline]
+        if name not in self._pipeline_containers:
+            self._pipeline_containers[name] = PipelineContainer(pipelines=[*pipelines])
         else:
-            self._pipelines[name].append(pipeline)
+            self._pipeline_containers[name].pipelines.extend(pipelines)
 
-    def add_pipeline_pre_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
+    def add_pipeline_pre_middlewares(self, name: str, *middlewares: PipelineMiddleware[ItemType]) -> None:
         """
         Add pipeline pre-processing middlewares.
 
         These middlewares are executed before processing an item in the pipeline.
         """
-        self._pipeline_dispatcher.add_pre_processing_middlewares(*middlewares)
+        if name not in self._pipeline_containers:
+            self._pipeline_containers[name] = PipelineContainer(pre_middlewares=[*middlewares])
+        else:
+            self._pipeline_containers[name].pre_middlewares.extend(middlewares)
 
-    def add_pipeline_post_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
+    def add_pipeline_post_middlewares(self, name: str, *middlewares: PipelineMiddleware[ItemType]) -> None:
         """
         Add pipeline post-processing middlewares.
 
         These middlewares are executed after processing an item in the pipeline.
         """
-        self._pipeline_dispatcher.add_post_processing_middlewares(*middlewares)
+        if name not in self._pipeline_containers:
+            self._pipeline_containers[name] = PipelineContainer(post_middlewares=[*middlewares])
+        else:
+            self._pipeline_containers[name].post_middlewares.extend(middlewares)
 
     def add_outer_request_middlewares(self, *middlewares: Middleware) -> None:
         """
@@ -120,16 +126,23 @@ class AIOScraper:
     ) -> None:
         await self.close()
 
-    async def start(self) -> None:
+    async def start(self, config: Config | None = None) -> None:
+        """
+        Initialize and run the scraper with the given configuration.
+
+        Args:
+            config (Config | None): Optional configuration; falls back to defaults when not provided.
+        """
+        config = config or Config()
         self._executor = ScraperExecutor(
-            config=self._config,
+            config=config,
             scrapers=self._scrapers,
             dependencies=self._dependencies,
             request_outer_middlewares=self._request_outer_middlewares,
             request_inner_middlewares=self._request_inner_middlewares,
             request_exception_middlewares=self._request_exception_middlewares,
             response_middlewares=self._response_middlewares,
-            pipeline_dispatcher=self._pipeline_dispatcher,
+            pipeline_dispatcher=PipelineDispatcher(config.pipeline, self._pipeline_containers),
         )
         await self._executor.run()
 

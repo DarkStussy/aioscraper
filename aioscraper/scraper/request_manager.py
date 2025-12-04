@@ -118,18 +118,17 @@ class RequestManager:
                     ),
                 )
         except Exception as exc:
-            for exception_middleware in self._request_exception_middlewares:
-                try:
-                    await exception_middleware(
-                        exc,
-                        **get_func_kwargs(exception_middleware, request=request, **self._dependencies),
-                    )
-                except StopMiddlewareProcessing:
-                    return
-
             await self._handle_exception(request, exc)
 
     async def _handle_exception(self, request: Request, exc: Exception) -> None:
+        for exception_middleware in self._request_exception_middlewares:
+            try:
+                await exception_middleware(
+                    **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies)
+                )
+            except StopMiddlewareProcessing:
+                return
+
         if request.errback is None:
             raise exc
 

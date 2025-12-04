@@ -4,7 +4,7 @@ from typing import Sequence
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run aioscraper scrapers from the command line.")
-    parser.add_argument("entrypoint", help="Path to the entrypoint file")
+    parser.add_argument("entrypoint", help="Path to the entrypoint module")
     parser.add_argument(
         "--concurrent-requests",
         type=int,

@@ -1,18 +1,17 @@
 import importlib
 import importlib.util
 import sys
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Optional
+from typing import Any
+
 
 from .exceptions import CLIError
 from ..scraper import AIOScraper
 
-LIFESPAN = Callable[[AIOScraper], AbstractAsyncContextManager[None]]
 
-
-def _resolve_file_path(module_ref: str) -> Optional[Path]:
+def _resolve_file_path(module_ref: str) -> Path | None:
     path_ref = Path(module_ref)
     candidates = [path_ref]
     if path_ref.suffix != ".py":
@@ -61,13 +60,13 @@ def _import_module(module_ref: str) -> ModuleType:
         raise CLIError(f"Cannot find module '{module_ref}'") from exc
 
 
-def _parse_entrypoint(target: str) -> tuple[str, str]:
+def _parse_entrypoint(target: str) -> tuple[str, str | None]:
     if target.endswith(".py"):
-        return target, "lifespan"
+        return target, None
 
     module_ref, sep, attr = target.rpartition(":")
     if not sep:
-        return target, "lifespan"
+        return target, None
     if not module_ref:
         raise CLIError("Entrypoint is missing module path before ':'")
     if not attr:
@@ -76,20 +75,35 @@ def _parse_entrypoint(target: str) -> tuple[str, str]:
     return module_ref, attr
 
 
-def resolve_lifespan(target: str) -> LIFESPAN:
+def _get_attr(module: ModuleType, name: str) -> Any:
+    try:
+        return getattr(module, name)
+    except AttributeError as exc:
+        raise CLIError(f"'{name}' not found in '{module.__name__}'") from exc
+
+
+@asynccontextmanager
+async def _default_lifespan(_):
+    yield
+
+
+def resolve_entrypoint(target: str) -> tuple[AIOScraper, Any]:
     module_ref, attr = _parse_entrypoint(target)
     module = _import_module(module_ref)
+
+    if attr == "lifespan":
+        return AIOScraper(), _get_attr(module, "lifespan")
+
+    scraper = _get_attr(module, attr or "scraper")
+    if not isinstance(scraper, AIOScraper):
+        raise CLIError(f"{scraper} is not instance of AIOScraper")
+
+    return scraper, getattr(module, "lifespan", _default_lifespan)
+
+
+def handle_lifespan(lifespan: Any, scraper: AIOScraper) -> AbstractAsyncContextManager:
     try:
-        lifespan = getattr(module, attr)
-    except AttributeError as exc:
-        raise CLIError(f"'{attr}' not found in '{module_ref}'") from exc
-
-    return lifespan
-
-
-def handle_lifespan(lifespan: Callable[[AIOScraper], Any], executor: AIOScraper) -> AbstractAsyncContextManager:
-    try:
-        obj = lifespan(executor)
+        obj = lifespan(scraper)
     except TypeError as e:
         raise CLIError("`lifespan` must be a asynccontextmanager") from e
 

@@ -1,4 +1,4 @@
-from .pipeline import BaseItem, Pipeline, PipelineMiddleware
+from .pipeline import BaseItem, ItemType, Pipeline, PipelineMiddleware
 from .scraper import Scraper, Middleware
 from .session import (
     QueryParams,
@@ -19,6 +19,7 @@ __all__ = (
     "Request",
     "SendRequest",
     "Response",
+    "ItemType",
     "BaseItem",
     "Pipeline",
     "PipelineMiddleware",

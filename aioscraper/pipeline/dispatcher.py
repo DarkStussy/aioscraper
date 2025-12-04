@@ -1,51 +1,53 @@
 from logging import getLogger
-from typing import Any, Generator, Mapping, Sequence
+from typing import Any, Mapping
 
-from .base import BasePipeline, BaseItem
+from dataclasses import dataclass, field
+
+from .base import BasePipeline
+from ..config import PipelineConfig
 from ..exceptions import PipelineException
-from ..types.pipeline import PipelineMiddleware
+from ..types.pipeline import PipelineMiddleware, BaseItem
 
 logger = getLogger(__name__)
+
+
+@dataclass(slots=True, kw_only=True)
+class PipelineContainer:
+    pipelines: list[BasePipeline[Any]] = field(default_factory=list)
+    pre_middlewares: list[PipelineMiddleware[Any]] = field(default_factory=list)
+    post_middlewares: list[PipelineMiddleware[Any]] = field(default_factory=list)
 
 
 class PipelineDispatcher:
     "A class for managing and dispatching items through processing pipelines."
 
-    def __init__(self, pipelines: Mapping[str, Sequence[BasePipeline[Any]]]) -> None:
+    def __init__(self, config: PipelineConfig, pipelines: Mapping[str, PipelineContainer]) -> None:
+        self._config = config
         self._pipelines = pipelines
-        self._pre_processing_middlewares = []
-        self._post_processing_middlewares = []
-
-    def add_pre_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
-        self._pre_processing_middlewares.extend(middlewares)
-
-    def add_post_processing_middlewares(self, *middlewares: PipelineMiddleware) -> None:
-        self._post_processing_middlewares.extend(middlewares)
 
     async def put_item(self, item: BaseItem) -> BaseItem:
         "Processes an item by passing it through the appropriate pipelines."
         logger.debug(f"pipeline item received: {item}")
 
-        for middleware in self._pre_processing_middlewares:
-            await middleware(item)
-
         try:
-            pipelines = self._pipelines[item.pipeline_name]
+            pipe_container = self._pipelines[item.pipeline_name]
         except KeyError:
-            raise PipelineException(f"Pipelines for item {item} not found")
+            if self._config.strict:
+                raise PipelineException(f"Pipelines for item {item} not found")
 
-        for pipeline in pipelines:
-            await pipeline.put_item(item)
+            logger.warning(f"pipelines for item {item} not found")
+            return item
 
-        for middleware in self._post_processing_middlewares:
-            await middleware(item)
+        for middleware in pipe_container.pre_middlewares:
+            item = await middleware(item)
+
+        for pipeline in pipe_container.pipelines:
+            item = await pipeline.put_item(item)
+
+        for middleware in pipe_container.post_middlewares:
+            item = await middleware(item)
 
         return item
-
-    def _get_pipelines(self) -> Generator[BasePipeline[Any], None, None]:
-        for pipelines in self._pipelines.values():
-            for pipeline in pipelines:
-                yield pipeline
 
     async def close(self) -> None:
         """
@@ -53,5 +55,6 @@ class PipelineDispatcher:
 
         Calls the close() method for each pipeline in the system.
         """
-        for pipeline in self._get_pipelines():
-            await pipeline.close()
+        for pipe_container in self._pipelines.values():
+            for pipeline in pipe_container.pipelines:
+                await pipeline.close()
