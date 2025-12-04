@@ -4,6 +4,7 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
+
 from ..exceptions import HTTPException, StopMiddlewareProcessing
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
@@ -28,8 +29,9 @@ _RequestQueue = asyncio.PriorityQueue[_PRequest]
 def _get_request_sender(queue: _RequestQueue) -> SendRequest:
     "Creates a request sender function that adds requests to the priority queue."
 
-    async def sender(request: Request) -> None:
+    async def sender(request: Request) -> Request:
         await queue.put(_PRequest(priority=request.priority, request=request))
+        return request
 
     return sender
 

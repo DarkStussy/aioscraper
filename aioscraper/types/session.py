@@ -66,7 +66,7 @@ class Request:
     state: dict[str, Any] = field(default_factory=dict)
 
 
-SendRequest = Callable[[Request], Awaitable[None]]
+SendRequest = Callable[[Request], Awaitable[Request]]
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
