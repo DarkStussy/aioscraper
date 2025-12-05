@@ -17,7 +17,7 @@
 
 ## Key Features
 
-- Fully asynchronous architecture powered by `aiohttp` and `aiojobs`
+- Fully asynchronous architecture with `aiojobs` scheduling and pluggable HTTP backends (`aiohttp` preferred, `httpx` supported)
 - Modular system with middleware support
 - Pipeline data processing
 - Flexible configuration
@@ -30,7 +30,9 @@
 
 Install
 ```bash
-pip install aioscraper
+pip install "aioscraper[aiohttp]"
+# or use httpx as the HTTP backend
+pip install "aioscraper[httpx]"
 ```
 
 Create `scraper.py`:

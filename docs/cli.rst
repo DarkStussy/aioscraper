@@ -72,7 +72,7 @@ Supported environment variables:
 
 - ``SESSION_REQUEST_TIMEOUT``: Request timeout (seconds).
 - ``SESSION_REQUEST_DELAY``: Delay between requests (seconds).
-- ``SESSION_SSL``: Enable/disable SSL.
+- ``SESSION_SSL``: ``true``/``false`` to toggle verification, or a path to a CA bundle for custom certificates.
 - ``SCHEDULER_CONCURRENT_REQUESTS``: Max concurrent requests.
 - ``SCHEDULER_PENDING_REQUESTS``: Pending requests to maintain.
 - ``SCHEDULER_CLOSE_TIMEOUT``: Scheduler shutdown timeout (seconds).

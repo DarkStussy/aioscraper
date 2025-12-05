@@ -10,9 +10,9 @@ class SessionConfig:
     """Configuration for session.
 
     Args:
-        timeout (int): Request timeout in seconds
+        timeout (float): Request timeout in seconds
         delay (float): Delay between requests in seconds
-        ssl (bool): Whether to use SSL for requests
+        ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
     """
 
     timeout: float = 60.0
@@ -77,6 +77,12 @@ class Config:
 
 
 def load_config(concurrent_requests: int | None = None, pending_requests: int | None = None) -> Config:
+    """Load Config from environment variables, falling back to defaults and optional CLI overrides.
+
+    ``SESSION_SSL`` accepts:
+    - ``true``/``false`` (case-insensitive) to toggle verification
+    - Any other string is treated as a path passed to ``ssl.create_default_context().load_verify_locations``.
+    """
     default_config = Config()
 
     if concurrent_requests is None:

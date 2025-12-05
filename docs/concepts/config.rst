@@ -5,6 +5,7 @@ Configuration
 
 You can build a :class:`Config <aioscraper.config.Config>` and pass it into :meth:`AIOScraper.start <aioscraper.scraper.core.AIOScraper.start>`, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed.
 
 .. code-block:: python
 

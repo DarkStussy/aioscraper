@@ -18,6 +18,7 @@ Configuration
 .. autoclass:: aioscraper.config.SchedulerConfig
 .. autoclass:: aioscraper.config.ExecutionConfig
 .. autoclass:: aioscraper.config.PipelineConfig
+.. autofunction:: aioscraper.config.load_config
 
 Types
 -----
@@ -34,6 +35,7 @@ Session
 
 .. autoclass:: aioscraper.session.base.BaseSession
 .. autoclass:: aioscraper.session.aiohttp.AiohttpSession
+.. autoclass:: aioscraper.session.httpx.HttpxSession
 
 Pipeline
 --------
