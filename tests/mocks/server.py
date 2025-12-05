@@ -25,7 +25,7 @@ class MockResponse:
     headers: dict[str, str] | None = None
 
     def __post_init__(self) -> None:
-        if self.json and self.text:
+        if self.json is not NOTSET and self.text:
             raise ValueError("Cannot set both json and text")
 
 
@@ -105,17 +105,17 @@ class MockServer(BaseTestServer):
 
     def add(
         self,
-        *,
-        method: str,
         url: str | re.Pattern[str],
-        handler: ResponseHandler,
+        *,
+        method: str = "GET",
+        handler: ResponseHandler | None = None,
         repeat: int = 1,
     ) -> None:
         self._routes.append(
             Route(
                 url=url.replace("http://", "").replace("https://", "") if isinstance(url, str) else url,
                 method=method.upper(),
-                handler=handler,
+                handler=handler or (lambda _: MockResponse()),
                 repeat=repeat,
             )
         )

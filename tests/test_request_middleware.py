@@ -1,8 +1,7 @@
 import pytest
-from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper
 from aioscraper.types import Request, Response, SendRequest
+from tests.mocks.scraper import MockAIOScraper
 
 
 class RequestMiddleware:
@@ -38,18 +37,19 @@ class Scraper:
 
 
 @pytest.mark.asyncio
-async def test_request_middleware(aresponses: ResponsesMockServer):
+async def test_request_middleware(mock_aioscraper: MockAIOScraper):
     response_data = {"status": "OK"}
-    aresponses.add("api.test.com", "/v1", "GET", response=response_data)  # type: ignore
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: response_data)
 
     scraper = Scraper()
-    async with AIOScraper(scraper) as s:
-        s.add_outer_request_middlewares(RequestMiddleware("outer"))
-        s.add_inner_request_middlewares(RequestMiddleware("inner"))
-        await s.start()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        mock_aioscraper.add_outer_request_middlewares(RequestMiddleware("outer"))
+        mock_aioscraper.add_inner_request_middlewares(RequestMiddleware("inner"))
+        await mock_aioscraper.start()
 
     assert scraper.response_data == response_data
     assert scraper.from_outer_middleware is True
     assert scraper.from_inner_middleware is True
     assert scraper.state == {"from_outer_middleware": True, "from_inner_middleware": True}
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()

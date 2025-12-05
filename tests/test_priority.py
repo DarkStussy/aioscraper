@@ -1,10 +1,10 @@
 import asyncio
 import pytest
-from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper
 from aioscraper.config import Config, SchedulerConfig
 from aioscraper.types import Request, SendRequest, Response
+from tests.mocks.scraper import MockAIOScraper
+from tests.mocks.server import MockResponse
 
 
 class PriorityScraper:
@@ -20,16 +20,17 @@ class PriorityScraper:
 
 
 @pytest.mark.asyncio
-async def test_request_priority_order(aresponses: ResponsesMockServer):
-    async def handle_request(request):
+async def test_request_priority_order(mock_aioscraper: MockAIOScraper):
+    async def handle_request(_) -> MockResponse:
         await asyncio.sleep(0.1)
-        return aresponses.Response(status=200, text="OK")
+        return MockResponse(text="OK")
 
-    aresponses.add("api.test.com", "/v1", "GET", response=handle_request, repeat=3)  # type: ignore
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=handle_request, repeat=3)
 
     scraper = PriorityScraper()
-    async with AIOScraper(scraper) as s:
-        await s.start(Config(scheduler=SchedulerConfig(concurrent_requests=1, pending_requests=3)))
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        await mock_aioscraper.start(Config(scheduler=SchedulerConfig(concurrent_requests=1, pending_requests=3)))
 
     assert scraper.order == [1, 2, 3]
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()

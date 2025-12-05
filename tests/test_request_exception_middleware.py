@@ -1,9 +1,9 @@
 import pytest
-from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper
 from aioscraper.exceptions import HTTPException, StopMiddlewareProcessing
 from aioscraper.types import Request, SendRequest, Response
+from tests.mocks.scraper import MockAIOScraper
+from tests.mocks.server import MockResponse
 
 
 class RequestExceptionMiddleware:
@@ -48,21 +48,19 @@ class Scraper:
 
 
 @pytest.mark.asyncio
-async def test_request_exception_middleware(aresponses: ResponsesMockServer):
-    def handle_request(request):
-        return aresponses.Response(status=404)
-
-    aresponses.add("api.test.com", "/v0", "GET", response=handle_request)  # type: ignore
-    aresponses.add("api.test.com", "/v1", "GET", response={"status": "OK"}, repeat=2)  # type: ignore
+async def test_request_exception_middleware(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add("https://api.test.com/v0", handler=lambda _: MockResponse(status=404))
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"}, repeat=2)
 
     scraper = Scraper()
     middleware = RequestExceptionMiddleware()
-    async with AIOScraper(scraper) as s:
-        s.add_request_exception_middlewares(middleware)
-        await s.start()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        mock_aioscraper.add_request_exception_middlewares(middleware)
+        await mock_aioscraper.start()
 
     assert middleware.http_exc_handed is True
     assert scraper.http_exc_handed is False
     assert middleware.exc_handled is True
     assert scraper.exc_handled is False
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()

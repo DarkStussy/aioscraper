@@ -160,6 +160,7 @@ cython_debug/
 
 # other
 main.py
+test.py
 
 docs/make.bat
 docs/Makefile

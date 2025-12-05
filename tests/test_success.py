@@ -18,11 +18,7 @@ class Scraper:
 @pytest.mark.asyncio
 async def test_success(mock_aioscraper: MockAIOScraper):
     response_data = {"status": "OK"}
-    mock_aioscraper.server.add(
-        method="GET",
-        url="https://api.test.com/v1",
-        handler=lambda _: {"status": "OK"},
-    )
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: response_data)
 
     scraper = Scraper()
     mock_aioscraper.register(scraper)

@@ -1,13 +1,13 @@
 import pytest
 from dataclasses import dataclass
-from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper
 from aioscraper.config import PipelineConfig
 from aioscraper.exceptions import PipelineException
 from aioscraper.types import Pipeline, Request, SendRequest, Response
 from aioscraper.pipeline import BasePipeline
 from aioscraper.pipeline.dispatcher import PipelineContainer, PipelineDispatcher
+
+from .mocks import MockAIOScraper, MockResponse
 
 
 @dataclass
@@ -49,19 +49,21 @@ class Scraper:
 
 
 @pytest.mark.asyncio
-async def test_pipeline(aresponses: ResponsesMockServer):
+async def test_pipeline(mock_aioscraper: MockAIOScraper):
     item = Item("test")
     pipeline = RealPipeline()
 
-    aresponses.add("api.test.com", "/v1", "GET", response=item.pipeline_name)  # type: ignore
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: MockResponse(text=item.pipeline_name))
 
-    async with AIOScraper(Scraper()) as s:
-        s.add_pipelines(item.pipeline_name, pipeline)
-        s.add_pipeline_pre_middlewares(item.pipeline_name, pre_processing_middleware)
-        s.add_pipeline_post_middlewares(item.pipeline_name, post_processing_middleware)
-        await s.start()
+    scraper = Scraper()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        mock_aioscraper.add_pipelines(item.pipeline_name, pipeline)
+        mock_aioscraper.add_pipeline_pre_middlewares(item.pipeline_name, pre_processing_middleware)
+        mock_aioscraper.add_pipeline_post_middlewares(item.pipeline_name, post_processing_middleware)
+        await mock_aioscraper.start()
 
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()
 
     assert len(pipeline.items) == 1
     assert pipeline.items[0].pipeline_name == item.pipeline_name

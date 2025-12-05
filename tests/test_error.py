@@ -1,9 +1,9 @@
 import pytest
-from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper
 from aioscraper.exceptions import ClientException, HTTPException
 from aioscraper.types import Request, SendRequest, Response
+from tests.mocks.scraper import MockAIOScraper
+from tests.mocks.server import MockResponse
 
 
 class Scraper:
@@ -21,21 +21,21 @@ class Scraper:
 
 
 @pytest.mark.asyncio
-async def test_error(aresponses: ResponsesMockServer):
+async def test_error(mock_aioscraper: MockAIOScraper):
     response_data = "Internal Server Error"
-
-    def handle_request(request):
-        return aresponses.Response(status=500, text=response_data)
-
-    aresponses.add("api.test.com", "/v1", "GET", response=handle_request)  # pyright: ignore
+    mock_aioscraper.server.add(
+        "https://api.test.com/v1",
+        handler=lambda _: MockResponse(status=500, text=response_data),
+    )
 
     scraper = Scraper()
-    async with AIOScraper(scraper) as s:
-        await s.start()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        await mock_aioscraper.start()
 
     assert scraper.status == 500
     assert scraper.response_data == response_data
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()
 
 
 class CallbackErrorScraper:
@@ -55,16 +55,17 @@ class CallbackErrorScraper:
 
 
 @pytest.mark.asyncio
-async def test_callback_error_triggers_errback(aresponses: ResponsesMockServer):
-    aresponses.add("api.test.com", "/v2", "GET", response={"status": "OK"})  # type: ignore
+async def test_callback_error_triggers_errback(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add("https://api.test.com/v2")
 
     scraper = CallbackErrorScraper()
-    async with AIOScraper(scraper) as s:
-        await s.start()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        await mock_aioscraper.start()
 
     assert scraper.exc_message == "parse failed"
     assert scraper.request_url == "https://api.test.com/v2"
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()
 
 
 class ErrbackKwargsScraper:
@@ -82,16 +83,17 @@ class ErrbackKwargsScraper:
 
 
 @pytest.mark.asyncio
-async def test_errback_receives_cb_kwargs(aresponses: ResponsesMockServer):
-    def handle_request(request):
-        return aresponses.Response(status=503, text="Service Unavailable")
-
-    aresponses.add("api.test.com", "/v3", "GET", response=handle_request)  # type: ignore
+async def test_errback_receives_cb_kwargs(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add(
+        "https://api.test.com/v3",
+        handler=lambda _: MockResponse(status=503, text="Service Unavailable"),
+    )
 
     scraper = ErrbackKwargsScraper()
-    async with AIOScraper(scraper) as s:
-        await s.start()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        await mock_aioscraper.start()
 
     assert scraper.status == 503
     assert scraper.meta == "value"
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()
