@@ -1,4 +1,3 @@
-import importlib.util
 from pathlib import Path
 from textwrap import dedent
 
@@ -74,3 +73,24 @@ def test_attr_not_found(tmp_path: Path):
 
     with pytest.raises(CLIError):
         resolve_entrypoint(f"{path}:missing")
+
+
+def test_relative_module_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    path = _write_module(
+        tmp_path,
+        """
+        from aioscraper import AIOScraper
+        scraper = AIOScraper()
+        """,
+    )
+    # simulate running from parent dir
+    monkeypatch.chdir(tmp_path.parent)
+    rel_path = Path(tmp_path.name) / path.name
+
+    scraper = resolve_entrypoint(str(rel_path))
+    assert isinstance(scraper, AIOScraper)
+
+
+def test_resolve_entrypoint_missing_module_raises():
+    with pytest.raises(CLIError):
+        resolve_entrypoint("this.module.does.not.exist")
