@@ -5,9 +5,9 @@ from typing import AsyncIterator, Callable, Self, Type, Any
 
 from .executor import ScraperExecutor
 from ..config import Config
-from ..pipeline import BasePipeline
-from ..pipeline.dispatcher import PipelineContainer, PipelineDispatcher
-from ..types import Scraper, Middleware, PipelineMiddleware, ItemType
+from ..holders import MiddlewareHolder, PipelineHolder
+from ..pipeline.dispatcher import PipelineDispatcher
+from ..types import Scraper
 from ..session import BaseSession, get_session
 
 logger = getLogger(__name__)
@@ -27,8 +27,8 @@ class AIOScraper:
     """
 
     def __init__(self, *scrapers: Scraper) -> None:
-        self._scrapers = [*scrapers]
-        self._dependencies: dict[str, Any] = {}
+        self.scrapers = [*scrapers]
+        self.dependencies: dict[str, Any] = {}
 
         @asynccontextmanager
         async def default_lifespan(_: Self):
@@ -37,95 +37,32 @@ class AIOScraper:
         self._lifespan = default_lifespan
         self._lifespan_exit_stack = AsyncExitStack()
 
-        self._request_outer_middlewares: list[Middleware] = []
-        self._request_inner_middlewares: list[Middleware] = []
-        self._request_exception_middlewares: list[Middleware] = []
-        self._response_middlewares: list[Middleware] = []
-
-        self._pipeline_containers: dict[str, PipelineContainer] = {}
+        self._middleware_holder = MiddlewareHolder()
+        self._pipeline_holder = PipelineHolder()
 
         self._executor: ScraperExecutor | None = None
 
     def __call__(self, scraper: Scraper) -> Scraper:
         "Add a scraper callable and return it for decorator use."
-        self._scrapers.append(scraper)
+        self.scrapers.append(scraper)
         return scraper
 
     def add_dependencies(self, **kwargs: Any) -> None:
         "Add shared dependencies to inject into scraper callbacks."
-        self._dependencies.update(kwargs)
+        self.dependencies.update(kwargs)
 
     def lifespan(self, lifespan: Lifespan) -> Lifespan:
         "Attach a lifespan callback to run before/after scraping."
         self._lifespan = asynccontextmanager(lifespan)
         return lifespan
 
-    def add_pipelines(self, name: str, *pipelines: BasePipeline[ItemType]) -> None:
-        """
-        Add pipelines to process scraped data.
+    @property
+    def middleware(self) -> MiddlewareHolder:
+        return self._middleware_holder
 
-        Args:
-            name (str): Name identifier for the pipeline
-            pipelines (tuple[BasePipeline[ItemType], ...]): Pipeline instances to be added
-        """
-        if name not in self._pipeline_containers:
-            self._pipeline_containers[name] = PipelineContainer(pipelines=[*pipelines])
-        else:
-            self._pipeline_containers[name].pipelines.extend(pipelines)
-
-    def add_pipeline_pre_middlewares(self, name: str, *middlewares: PipelineMiddleware[ItemType]) -> None:
-        """
-        Add pipeline pre-processing middlewares.
-
-        These middlewares are executed before processing an item in the pipeline.
-        """
-        if name not in self._pipeline_containers:
-            self._pipeline_containers[name] = PipelineContainer(pre_middlewares=[*middlewares])
-        else:
-            self._pipeline_containers[name].pre_middlewares.extend(middlewares)
-
-    def add_pipeline_post_middlewares(self, name: str, *middlewares: PipelineMiddleware[ItemType]) -> None:
-        """
-        Add pipeline post-processing middlewares.
-
-        These middlewares are executed after processing an item in the pipeline.
-        """
-        if name not in self._pipeline_containers:
-            self._pipeline_containers[name] = PipelineContainer(post_middlewares=[*middlewares])
-        else:
-            self._pipeline_containers[name].post_middlewares.extend(middlewares)
-
-    def add_outer_request_middlewares(self, *middlewares: Middleware) -> None:
-        """
-        Add outer request middlewares.
-
-        These middlewares are executed before the request is sent to the scheduler.
-        """
-        self._request_outer_middlewares.extend(middlewares)
-
-    def add_inner_request_middlewares(self, *middlewares: Middleware) -> None:
-        """
-        Add inner request middlewares.
-
-        These middlewares are executed after the request is scheduled but before it is sent.
-        """
-        self._request_inner_middlewares.extend(middlewares)
-
-    def add_request_exception_middlewares(self, *middlewares: Middleware) -> None:
-        """
-        Add request exception middlewares.
-
-        These middlewares are executed when an exception occurs during the request processing.
-        """
-        self._request_exception_middlewares.extend(middlewares)
-
-    def add_response_middlewares(self, *middlewares: Middleware) -> None:
-        """
-        Add response middlewares.
-
-        These middlewares are executed after receiving the response.
-        """
-        self._response_middlewares.extend(middlewares)
+    @property
+    def pipeline(self) -> PipelineHolder:
+        return self._pipeline_holder
 
     async def __aenter__(self) -> Self:
         await self._lifespan_exit_stack.enter_async_context(self._lifespan(self))
@@ -155,13 +92,10 @@ class AIOScraper:
         config = config or Config()
         self._executor = ScraperExecutor(
             config=config,
-            scrapers=self._scrapers,
-            dependencies=self._dependencies,
-            request_outer_middlewares=self._request_outer_middlewares,
-            request_inner_middlewares=self._request_inner_middlewares,
-            request_exception_middlewares=self._request_exception_middlewares,
-            response_middlewares=self._response_middlewares,
-            pipeline_dispatcher=PipelineDispatcher(config.pipeline, self._pipeline_containers),
+            scrapers=self.scrapers,
+            dependencies=self.dependencies,
+            middleware_holder=self._middleware_holder,
+            pipeline_dispatcher=PipelineDispatcher(config.pipeline, self._pipeline_holder.pipelines),
             session=self._create_session(config),
         )
         await self._executor.run()

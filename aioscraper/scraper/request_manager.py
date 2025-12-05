@@ -5,13 +5,13 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
-
 from ..exceptions import HTTPException, StopMiddlewareProcessing
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
 from ..session import BaseSession
-from ..types import Request, Middleware, SendRequest
+from ..types import Request, SendRequest
+from ..holders import MiddlewareHolder
 
 logger = getLogger(__name__)
 
@@ -62,10 +62,7 @@ class RequestManager:
         delay: float,
         shutdown_timeout: float,
         dependencies: dict[str, Any],
-        request_outer_middlewares: list[Middleware],
-        request_inner_middlewares: list[Middleware],
-        request_exception_middlewares: list[Middleware],
-        response_middlewares: list[Middleware],
+        middleware_holder: MiddlewareHolder,
     ) -> None:
         self._session = session
         self._schedule_request = schedule_request
@@ -74,10 +71,7 @@ class RequestManager:
         self._shutdown_timeout = shutdown_timeout
         self._request_sender = _get_request_sender(queue)
         self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}
-        self._request_outer_middlewares = request_outer_middlewares
-        self._request_inner_middlewares = request_inner_middlewares
-        self._request_exception_middlewares = request_exception_middlewares
-        self._response_middlewares = response_middlewares
+        self._middleware_holder = middleware_holder
         self._event = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
 
@@ -87,7 +81,7 @@ class RequestManager:
 
     async def _send_request(self, request: Request) -> None:
         try:
-            for inner_middleware in self._request_inner_middlewares:
+            for inner_middleware in self._middleware_holder.inner:
                 await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
 
             url = parse_url(request.url, request.params)
@@ -95,7 +89,7 @@ class RequestManager:
 
             response = await self._session.make_request(request)
 
-            for response_middleware in self._response_middlewares:
+            for response_middleware in self._middleware_holder.response:
                 await response_middleware(
                     **get_func_kwargs(response_middleware, request=request, response=response, **self._dependencies)
                 )
@@ -125,7 +119,7 @@ class RequestManager:
             await self._handle_exception(request, exc)
 
     async def _handle_exception(self, request: Request, exc: Exception) -> None:
-        for exception_middleware in self._request_exception_middlewares:
+        for exception_middleware in self._middleware_holder.exception:
             try:
                 await exception_middleware(
                     **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies)
@@ -161,7 +155,7 @@ class RequestManager:
             if self._event.is_set():
                 break
 
-            for outer_middleware in self._request_outer_middlewares:
+            for outer_middleware in self._middleware_holder.outer:
                 try:
                     await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
                 except Exception as e:

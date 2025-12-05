@@ -1,7 +1,7 @@
 Pipelines
 =========
 
-Pipelines are ordered processors for your scraped items. Each item declares which pipeline set to use via ``pipeline_name``; the dispatcher routes items to matching pipelines.
+Pipelines are ordered processors for your scraped items. Each item declares which pipeline set to use via ``pipeline_name``; the dispatcher routes items to matching pipelines. Add pipelines with `scraper.pipeline.add` or decorate pipeline classes with `@scraper.pipeline(name, *args, **kwargs)`; wrap their flow with middleware decorators.
 
 Core
 ----
@@ -9,7 +9,8 @@ Core
 - Items must expose ``pipeline_name`` (property or attribute) so the dispatcher can route them.
 - Multiple pipelines can share the same name; all matching pipelines run sequentially.
 - Missing pipeline handling is controlled by ``PipelineConfig.strict`` (defaults to raising; set ``PIPELINE_STRICT=false`` to warn and continue).
-- :meth:`add_pipelines <aioscraper.scraper.core.AIOScraper.add_pipelines>` adds one or more pipeline instances for a given ``pipeline_name``.
+- ``scraper.pipeline.add(...)`` adds one or more pipeline instances for a given ``pipeline_name``.
+- ``@scraper.pipeline(name, *args, **kwargs)`` instantiates and registers a pipeline class (useful when you need constructor args).
 
 
 .. code-block:: python
@@ -31,35 +32,33 @@ Core
             return "articles"
 
 
+    @scraper.pipeline("articles")
     class PrintPipeline(BasePipeline[Article]):
         async def put_item(self, item: Article) -> Article:
             print("store:", item.title)
             return item
 
 
-    scraper.add_pipelines("articles", PrintPipeline())
-
-
     async def callback(response, pipeline: Pipeline):
         await pipeline(Article(title=response.json()["title"]))
+
 
 
 Middlewares around pipelines
 ----------------------------
 - Pipeline middlewares let you hook into the item flow before the first pipeline and after the last one. They receive the current item instance and must return it (mutated or replaced).
-- Register pre-middlewares with :meth:`add_pipeline_pre_middlewares <aioscraper.scraper.core.AIOScraper.add_pipeline_pre_middlewares>` to prepare or normalize the item before any pipeline sees it.
-- Register post-middlewares with :meth:`add_pipeline_post_middlewares <aioscraper.scraper.core.AIOScraper.add_pipeline_post_middlewares>` to finalize or log the item after all pipelines finish.
+- Register pre-middlewares with ``@scraper.pipeline.middleware("pre", name)`` to prepare or normalize the item before any pipeline sees it.
+- Register post-middlewares with ``@scraper.pipeline.middleware("post", name)`` to finalize or log the item after all pipelines finish.
 
 .. code-block:: python
 
+   @scraper.pipeline.middleware("pre", "articles")
    async def pre_process(item: Article) -> Article:
        ...
 
+   @scraper.pipeline.middleware("post", "articles")
    async def post_process(item: Article) -> Article:
        ...
-
-   scraper.add_pipeline_pre_middlewares("articles", pre_process)
-   scraper.add_pipeline_post_middlewares("articles", post_process)
 
 Flow (per ``pipeline_name``)
 

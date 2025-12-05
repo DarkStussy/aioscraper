@@ -7,11 +7,12 @@ from aiojobs import Scheduler
 
 from .request_manager import RequestManager
 from ..config import Config
+from ..holders import MiddlewareHolder
 from .._helpers.func import get_func_kwargs
 from .._helpers.asyncio import execute_coroutines
 from ..pipeline.dispatcher import PipelineDispatcher
 from ..session import BaseSession
-from ..types import Scraper, Middleware
+from ..types import Scraper
 
 logger = getLogger(__name__)
 
@@ -29,10 +30,7 @@ class ScraperExecutor:
         config: Config,
         scrapers: list[Scraper],
         dependencies: dict[str, Any],
-        request_outer_middlewares: list[Middleware],
-        request_inner_middlewares: list[Middleware],
-        request_exception_middlewares: list[Middleware],
-        response_middlewares: list[Middleware],
+        middleware_holder: MiddlewareHolder,
         pipeline_dispatcher: PipelineDispatcher,
         session: BaseSession,
     ) -> None:
@@ -56,10 +54,7 @@ class ScraperExecutor:
             delay=self._config.session.delay,
             shutdown_timeout=self._config.execution.shutdown_timeout,
             dependencies={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
-            request_outer_middlewares=request_outer_middlewares,
-            request_inner_middlewares=request_inner_middlewares,
-            request_exception_middlewares=request_exception_middlewares,
-            response_middlewares=response_middlewares,
+            middleware_holder=middleware_holder,
         )
 
     async def run(self) -> None:

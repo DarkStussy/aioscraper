@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from .base import BasePipeline
 from ..config import PipelineConfig
 from ..exceptions import PipelineException
-from ..types.pipeline import PipelineMiddleware, ItemType
+from ..types.pipeline import ItemType, PipelineMiddleware
 
 logger = getLogger(__name__)
 

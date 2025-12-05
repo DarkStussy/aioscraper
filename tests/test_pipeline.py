@@ -1,9 +1,11 @@
+from typing import Callable
 import pytest
 from dataclasses import dataclass
 
 from aioscraper.config import PipelineConfig
 from aioscraper.exceptions import PipelineException
-from aioscraper.types import Pipeline, Request, SendRequest, Response
+from aioscraper.holders.pipeline import PipelineMiddlewareType
+from aioscraper.types import Pipeline, Request, SendRequest, Response, ItemType, PipelineMiddleware
 from aioscraper.pipeline import BasePipeline
 from aioscraper.pipeline.dispatcher import PipelineContainer, PipelineDispatcher
 
@@ -14,12 +16,14 @@ from .mocks import MockAIOScraper, MockResponse
 class Item:
     pipeline_name: str
     is_processed: bool = False
+    from_pre: bool = False
 
 
 class RealPipeline(BasePipeline[Item]):
-    def __init__(self) -> None:
+    def __init__(self, *labels: str) -> None:
         self.items: list[Item] = []
         self.closed = False
+        self.labels = labels
 
     async def put_item(self, item: Item) -> Item:
         self.items.append(item)
@@ -31,6 +35,7 @@ class RealPipeline(BasePipeline[Item]):
 
 async def pre_processing_middleware(item: Item) -> Item:
     assert item.pipeline_name == "test"
+    item.from_pre = True
     return item
 
 
@@ -48,26 +53,77 @@ class Scraper:
         await pipeline(Item(response.text()))
 
 
+def register_via_decorator(
+    scraper: MockAIOScraper,
+    middleware_type: PipelineMiddlewareType,
+    name: str,
+    middleware: PipelineMiddleware[ItemType],
+):
+    scraper.pipeline.middleware(middleware_type, name)(middleware)
+
+
+def register_via_add(
+    scraper: MockAIOScraper,
+    middleware_type: PipelineMiddlewareType,
+    name: str,
+    middleware: PipelineMiddleware[Item],
+):
+    scraper.pipeline.add_middlewares(middleware_type, name, middleware)
+
+
+def register_pipeline_add(scraper: MockAIOScraper, name: str) -> None:
+    scraper.pipeline.add(name, RealPipeline("add"))
+
+
+def register_pipeline_decorator(scraper: MockAIOScraper, name: str) -> None:
+    @scraper.pipeline(name, "decorator")
+    class _(RealPipeline): ...
+
+
 @pytest.mark.asyncio
-async def test_pipeline(mock_aioscraper: MockAIOScraper):
-    item = Item("test")
-    pipeline = RealPipeline()
+@pytest.mark.parametrize(
+    "middleware_register",
+    [
+        pytest.param(register_via_decorator, id="middleware-decorator"),
+        pytest.param(register_via_add, id="middleware-add"),
+    ],
+)
+@pytest.mark.parametrize(
+    "pipeline_register",
+    [
+        pytest.param(register_pipeline_add, id="pipeline-add"),
+        pytest.param(register_pipeline_decorator, id="pipeline-decorator"),
+    ],
+)
+async def test_pipeline(
+    mock_aioscraper: MockAIOScraper,
+    middleware_register: Callable[[MockAIOScraper, PipelineMiddlewareType, str, PipelineMiddleware[Item]]],
+    pipeline_register: Callable[[MockAIOScraper, str], None],
+):
+    pipeline_name = "test"
+    item = Item(pipeline_name)
 
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: MockResponse(text=item.pipeline_name))
 
     scraper = Scraper()
     mock_aioscraper(scraper)
     async with mock_aioscraper:
-        mock_aioscraper.add_pipelines(item.pipeline_name, pipeline)
-        mock_aioscraper.add_pipeline_pre_middlewares(item.pipeline_name, pre_processing_middleware)
-        mock_aioscraper.add_pipeline_post_middlewares(item.pipeline_name, post_processing_middleware)
+        pipeline_register(mock_aioscraper, pipeline_name)
+        middleware_register(mock_aioscraper, "pre", pipeline_name, pre_processing_middleware)
+        middleware_register(mock_aioscraper, "post", pipeline_name, post_processing_middleware)
         await mock_aioscraper.start()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
+    container = mock_aioscraper.pipeline.pipelines[pipeline_name]
+    pipeline = container.pipelines[0]
+
+    assert isinstance(pipeline, RealPipeline)
     assert len(pipeline.items) == 1
     assert pipeline.items[0].pipeline_name == item.pipeline_name
+    assert pipeline.items[0].from_pre
     assert pipeline.items[0].is_processed
+    assert pipeline.labels in [("add",), ("decorator",)]
     assert pipeline.closed
 
 
