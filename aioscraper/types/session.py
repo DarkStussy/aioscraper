@@ -21,7 +21,7 @@ class Request:
     Represents an HTTP request with all its parameters.
 
     Args:
-        url (str | URL): Target URL
+        url (str): Target URL
         method (str): HTTP method
         params (QueryParams | None): URL query parameters
         data (Any): Request body data
@@ -38,9 +38,9 @@ class Request:
 
         priority (int): Priority of the request
         callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
-        cb_kwargs (dict[str, Any] | None): Keyword arguments for the callback function
+        cb_kwargs (dict[str, Any]): Keyword arguments for the callback function
         errback (Callable[..., Awaitable] | None): Async error callback function
-        state (dict[str, Any] | None): State for middlewares
+        state (dict[str, Any]): State for middlewares
     """
 
     url: str

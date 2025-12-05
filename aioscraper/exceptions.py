@@ -16,7 +16,7 @@ class HTTPException(ClientException):
 
     Args:
         status_code (int): The HTTP status code of the failed request
-        message (str): Optional error message describing the failure
+        message (str): Error message describing the failure
         url (str): The URL that was being accessed
         method (str): The HTTP method used for the request
         content (bytes): The raw response content

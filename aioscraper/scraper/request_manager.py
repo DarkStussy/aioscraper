@@ -47,10 +47,11 @@ class RequestManager:
         queue (_RequestQueue): Priority queue for requests
         delay (float): Delay between requests in seconds
         shutdown_timeout (float): Timeout for graceful shutdown
-        dependencies (dict): Additional dependencies to request
-        request_outer_middlewares (list[RequestMiddleware]): Middleware to run before queue processing
-        request_inner_middlewares (list[RequestMiddleware]): Middleware to run before request execution
-        response_middlewares (list[ResponseMiddleware]): Middleware to run after response received
+        dependencies (dict[str, Any]): Additional dependencies to request
+        request_outer_middlewares (list[Middleware]): Middleware to run before queue processing
+        request_inner_middlewares (list[Middleware]): Middleware to run before request execution
+        request_exception_middlewares (list[Middleware]): Middleware to run when a request raises an exception
+        response_middlewares (list[Middleware]): Middleware to run after response received
     """
 
     def __init__(
