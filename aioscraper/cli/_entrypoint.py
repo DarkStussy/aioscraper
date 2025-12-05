@@ -1,14 +1,13 @@
 import importlib
 import importlib.util
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 
 from .exceptions import CLIError
-from ..scraper.core import AIOScraper, Lifespan
+from ..scraper.core import AIOScraper
 
 
 def _resolve_file_path(module_ref: str) -> Path | None:
@@ -61,7 +60,8 @@ def _import_module(module_ref: str) -> ModuleType:
 
 
 def _parse_entrypoint(target: str) -> tuple[str, str | None]:
-    if target.endswith(".py"):
+    target_path = Path(target)
+    if target_path.exists():
         return target, None
 
     module_ref, sep, attr = target.rpartition(":")
@@ -82,35 +82,28 @@ def _get_attr(module: ModuleType, name: str) -> Any:
         raise CLIError(f"'{name}' not found in '{module.__name__}'") from exc
 
 
-def _wrap_lifespan(lifespan: Any) -> Lifespan:
-    if not callable(lifespan):
-        raise CLIError("`lifespan` must be callable")
+def _coerce_scraper(obj: Any, attr_name: str) -> AIOScraper:
+    if isinstance(obj, AIOScraper):
+        return obj
 
-    @asynccontextmanager
-    async def cm(scraper_: AIOScraper):
+    if callable(obj):
         try:
-            ctx = lifespan(scraper_)
+            produced = obj()
         except Exception as exc:
-            raise CLIError("Failed to call `lifespan(scraper)`") from exc
+            raise CLIError(f"Failed to call '{attr_name}'") from exc
 
-        try:
-            async with ctx:  # type: ignore
-                yield
-        except TypeError as exc:
-            raise CLIError("`lifespan` must return an async context manager") from exc
+        if isinstance(produced, AIOScraper):
+            return produced
 
-    return cm
+        raise CLIError(f"'{attr_name}' did not return an AIOScraper instance")
+
+    raise CLIError(f"'{attr_name}' is not an AIOScraper instance or factory")
 
 
 def resolve_entrypoint(target: str) -> AIOScraper:
     module_ref, attr = _parse_entrypoint(target)
     module = _import_module(module_ref)
 
-    if attr == "lifespan":
-        return AIOScraper(lifespan=_wrap_lifespan(_get_attr(module, "lifespan")))
-
-    scraper = _get_attr(module, attr or "scraper")
-    if not isinstance(scraper, AIOScraper):
-        raise CLIError(f"{scraper} is not instance of AIOScraper")
-
-    return scraper
+    attr_name = attr or "scraper"
+    scraper_obj = _get_attr(module, attr_name)
+    return _coerce_scraper(scraper_obj, attr_name)

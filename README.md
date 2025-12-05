@@ -1,12 +1,19 @@
 # aioscraper
 
-![aioscraper logo](docs/static/aioscraper.png)
+<p align="center">
+  <img src="docs/static/aioscraper.png" alt="aioscraper logo" width="340">
+</p>
 
-**Asynchronous framework for building modular and scalable web scrapers.**
+### Asynchronous framework for building modular and scalable web scrapers.
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![Version](https://img.shields.io/github/v/tag/darkstussy/aioscraper?label=version)
+![PyPI](https://img.shields.io/pypi/v/aioscraper)
+![Tests](https://github.com/darkstussy/aioscraper/actions/workflows/tests.yml/badge.svg)
+[![Documentation Status](https://readthedocs.org/projects/aioscraper/badge/?version=latest)](https://aioscraper.readthedocs.io/en/latest/)
+![GitHub last commit](https://img.shields.io/github/last-commit/darkstussy/aioscraper)
+
+> **Beta notice:** APIs and behavior may change; expect sharp edges while things settle.
 
 ## Key Features
 
@@ -46,12 +53,6 @@ Run it
 ```bash
 aioscraper scraper
 ```
-
-## Benchmarks
-
-Below are benchmarks comparing `aioscraper` and `scrapy` on a local JSON server.
-
-The scripts used for these tests are available in [this Gist](https://gist.github.com/DarkStussy/dc5d3c2b4029428e990ad44190f4cdbc).
 
 ## License
 

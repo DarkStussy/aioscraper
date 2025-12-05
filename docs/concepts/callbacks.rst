@@ -3,8 +3,8 @@ Callbacks and Error Handling
 
 Callbacks drive the happy path, while error handlers keep failures contained. `aioscraper` routes both through the request lifecycle so you can react at the right moment.
 
-Key points
-----------
+.. rubric:: Key points
+
 - ``Request.callback`` runs only on successful responses.
 - ``Request.errback`` handles HTTP statuses ``>=400`` and unexpected exceptions from callbacks or middlewares.
 - ``Request.cb_kwargs`` are merged into callback/errback arguments alongside framework dependencies (``send_request``, ``pipeline``, etc.).
