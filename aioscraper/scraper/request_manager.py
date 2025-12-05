@@ -104,9 +104,10 @@ class RequestManager:
                     request,
                     exc=HTTPException(
                         status_code=response.status,
-                        message=response.text(),
+                        message=response.text(errors="replace"),
                         url=str(url),
                         method=response.method,
+                        content=response.content,
                     ),
                 )
             elif request.callback is not None:
@@ -131,21 +132,21 @@ class RequestManager:
             except StopMiddlewareProcessing:
                 return
 
-        if request.errback is None:
-            raise exc
-
-        try:
-            await request.errback(
-                **get_func_kwargs(
-                    request.errback,
-                    request=request,
-                    exc=exc,
-                    **request.cb_kwargs,
-                    **self._dependencies,
-                ),
-            )
-        except Exception as exc:
-            logger.exception(exc)
+        if request.errback is not None:
+            try:
+                await request.errback(
+                    **get_func_kwargs(
+                        request.errback,
+                        request=request,
+                        exc=exc,
+                        **request.cb_kwargs,
+                        **self._dependencies,
+                    )
+                )
+            except Exception as errback_exc:
+                raise ExceptionGroup("Errback failed", [exc, errback_exc])
+        else:
+            logger.error(f"{request.method}: {request.url}: {exc}", exc_info=exc)
 
     def listen_queue(self) -> None:
         """Start listening to the request queue."""

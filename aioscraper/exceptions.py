@@ -16,16 +16,18 @@ class HTTPException(ClientException):
 
     Args:
         status_code (int): The HTTP status code of the failed request
-        message (str | None): Optional error message describing the failure
+        message (str): Optional error message describing the failure
         url (str): The URL that was being accessed
         method (str): The HTTP method used for the request
+        content (bytes): The raw response content
     """
 
-    def __init__(self, status_code: int, message: str | None, url: str, method: str) -> None:
+    def __init__(self, status_code: int, message: str, url: str, method: str, content: bytes) -> None:
         self.status_code = status_code
         self.message = message
         self.url = url
         self.method = method
+        self.content = content
 
     def __str__(self) -> str:
         return f"{self.method} {self.url}: {self.status_code}: {self.message}"

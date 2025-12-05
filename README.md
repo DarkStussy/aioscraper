@@ -6,7 +6,7 @@
 
 ### Asynchronous framework for building modular and scalable web scrapers.
 
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![PyPI](https://img.shields.io/pypi/v/aioscraper)
 ![Tests](https://github.com/darkstussy/aioscraper/actions/workflows/tests.yml/badge.svg)
