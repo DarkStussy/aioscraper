@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Mapping, MutableMapping, Any, Callable, Awaitable, NotRequired, TypedDict
 
 QueryParams = MutableMapping[str, str | int | float]
-RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]] | BaseCookie[str]
+RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
 RequestHeaders = MutableMapping[str, str]
 ResponseHeaders = Mapping[str, str]
 

@@ -8,9 +8,9 @@ from ..config import Config
 from ..pipeline import BasePipeline
 from ..pipeline.dispatcher import PipelineContainer, PipelineDispatcher
 from ..types import Scraper, Middleware, PipelineMiddleware, ItemType
+from ..session import BaseSession, get_session
 
 logger = getLogger(__name__)
-
 
 Lifespan = Callable[["AIOScraper"], AbstractAsyncContextManager[None, bool | None]]
 
@@ -142,6 +142,9 @@ class AIOScraper:
         finally:
             await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
+    def _create_session(self, config: Config) -> BaseSession:
+        return get_session(config)
+
     async def start(self, config: Config | None = None) -> None:
         """
         Initialize and run the scraper with the given configuration.
@@ -159,6 +162,7 @@ class AIOScraper:
             request_exception_middlewares=self._request_exception_middlewares,
             response_middlewares=self._response_middlewares,
             pipeline_dispatcher=PipelineDispatcher(config.pipeline, self._pipeline_containers),
+            session=self._create_session(config),
         )
         await self._executor.run()
 

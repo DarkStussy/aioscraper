@@ -1,4 +1,5 @@
 import logging
+import ssl
 from dataclasses import dataclass
 
 from . import env_parser
@@ -16,7 +17,7 @@ class SessionConfig:
 
     timeout: float = 60.0
     delay: float = 0.0
-    ssl: bool = True
+    ssl: ssl.SSLContext | bool = True
 
 
 @dataclass(slots=True, frozen=True)
@@ -90,11 +91,20 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
             default_config.scheduler.pending_requests,
         )
 
+    if (raw_ssl_value := env_parser.parse_str("SESSION_SSL", default=None)) is not None:
+        if raw_ssl_value.lower() not in {"true", "false"}:
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.load_verify_locations(raw_ssl_value)
+        else:
+            ssl_ctx = env_parser.to_bool(raw_ssl_value)
+    else:
+        ssl_ctx = True
+
     return Config(
         session=SessionConfig(
             timeout=env_parser.parse_float("SESSION_REQUEST_TIMEOUT", default_config.session.timeout),
             delay=env_parser.parse_float("SESSION_REQUEST_DELAY", default_config.session.delay),
-            ssl=env_parser.parse_bool("SESSION_SSL", default_config.session.ssl),
+            ssl=ssl_ctx,
         ),
         scheduler=SchedulerConfig(
             concurrent_requests=concurrent_requests,

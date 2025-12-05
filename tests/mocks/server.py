@@ -1,0 +1,139 @@
+import asyncio
+import inspect
+import math
+import re
+from http import HTTPStatus
+from contextlib import AbstractContextManager, ExitStack
+from dataclasses import dataclass
+from typing import Any, Callable, Self
+
+from aiohttp import web
+from aiohttp.test_utils import BaseTestServer
+from aiohttp.web_runner import ServerRunner
+from aiohttp.web_server import Server
+
+from aioscraper.types.stub import NotSetType
+
+NOTSET = NotSetType()
+
+
+@dataclass(slots=True, kw_only=True)
+class MockResponse:
+    status: int = HTTPStatus.OK
+    text: str | None = None
+    json: Any = NOTSET
+    headers: dict[str, str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.json and self.text:
+            raise ValueError("Cannot set both json and text")
+
+
+ResponseHandler = Callable[[web.BaseRequest], Any]
+
+
+@dataclass(slots=True, kw_only=True)
+class Route:
+    method: str
+    url: str | re.Pattern[str]
+    handler: ResponseHandler
+    repeat: int = 1
+    called: int = 0
+
+    def matches(self, method: str, url: str) -> bool:
+        if method.upper() != self.method:
+            return False
+
+        url = url.replace("http://", "").replace("https://", "")
+        return bool(re.fullmatch(self.url, url))
+
+
+class MockServer(BaseTestServer):
+    def __init__(
+        self,
+        patch_client: Callable[[int], AbstractContextManager],
+        *,
+        scheme: str = "",
+        host: str = "127.0.0.1",
+        port: int = 0,
+    ):
+        super().__init__(scheme=scheme, host=host, port=port)
+        self._calls: list[tuple[str, str, MockResponse]] = []
+        self._routes: list[Route] = []
+        self._unmatched: list[web.BaseRequest] = []
+        self._patch_client = patch_client
+        self._patch_exit_stack = ExitStack()
+
+    async def _make_runner(self, debug: bool = True, **kwargs):
+        srv = Server(self._dispatch, loop=self._loop, debug=True, **kwargs)
+        return ServerRunner(srv, debug=debug, **kwargs)
+
+    async def _dispatch(self, request: web.BaseRequest) -> web.StreamResponse:
+        method = request.method.upper()
+        for route in self._routes:
+            if route.called >= route.repeat or not route.matches(request.method, str(request.url)):
+                continue
+
+            route.called += 1
+
+            if inspect.iscoroutinefunction(route.handler):
+                response = await route.handler(request)
+            else:
+                response = await asyncio.to_thread(route.handler, request)
+
+            if not isinstance(response, MockResponse):
+                response = MockResponse(json=response)
+
+            self._calls.append((method, request.path, response))
+
+            if response.json is not NOTSET:
+                return web.json_response(data=response.json, status=response.status, headers=response.headers)
+
+            return web.Response(text=response.text, status=response.status, headers=response.headers)
+
+        self._unmatched.append(request)
+        raise web.HTTPNotFound()
+
+    async def __aenter__(self) -> Self:
+        await self.start_server(loop=self._loop)
+        self._patch_exit_stack.enter_context(self._patch_client(self.port or 0))
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._patch_exit_stack.__exit__(exc_type, exc_val, exc_tb)
+        await self.close()
+
+    def add(
+        self,
+        *,
+        method: str,
+        url: str | re.Pattern[str],
+        handler: ResponseHandler,
+        repeat: int = 1,
+    ) -> None:
+        self._routes.append(
+            Route(
+                url=url.replace("http://", "").replace("https://", "") if isinstance(url, str) else url,
+                method=method.upper(),
+                handler=handler,
+                repeat=repeat,
+            )
+        )
+
+    def assert_no_unused_routes(self, ignore_infinite_repeats: bool = False) -> None:
+        unused = [
+            route
+            for route in self._routes
+            if route.called < route.repeat and not (ignore_infinite_repeats and route.repeat == math.inf)
+        ]
+        if unused:
+            details = ", ".join(f"{route.method} {route.url} ({route.called}/{route.repeat})" for route in unused)
+            raise AssertionError(f"Unused routes: {details}")
+
+    def assert_all_requests_matched(self) -> None:
+        for request in self._unmatched:
+            raise AssertionError(f"No match found for request: {request.method} {request.host} {request.path}")
+
+    def assert_all_routes_handled(self) -> None:
+        self.assert_no_unused_routes()
+        self.assert_all_requests_matched()

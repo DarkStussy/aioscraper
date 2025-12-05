@@ -1,8 +1,7 @@
 import pytest
-from aresponses import ResponsesMockServer
 
-from aioscraper import AIOScraper
 from aioscraper.types import Request, SendRequest, Response
+from tests.mocks import MockAIOScraper
 
 
 class Scraper:
@@ -10,20 +9,25 @@ class Scraper:
         self.response_data = None
 
     async def __call__(self, send_request: SendRequest) -> None:
-        await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
+        await send_request(Request(url="http://api.test.com/v1", callback=self.parse))
 
     async def parse(self, response: Response) -> None:
         self.response_data = response.json()
 
 
 @pytest.mark.asyncio
-async def test_success(aresponses: ResponsesMockServer):
+async def test_success(mock_aioscraper: MockAIOScraper):
     response_data = {"status": "OK"}
-    aresponses.add("api.test.com", "/v1", "GET", response=response_data)  # type: ignore
+    mock_aioscraper.server.add(
+        method="GET",
+        url="https://api.test.com/v1",
+        handler=lambda _: {"status": "OK"},
+    )
 
     scraper = Scraper()
-    async with AIOScraper(scraper) as s:
-        await s.start()
+    mock_aioscraper.register(scraper)
+    async with mock_aioscraper:
+        await mock_aioscraper.start()
 
     assert scraper.response_data == response_data
-    aresponses.assert_plan_strictly_followed()
+    mock_aioscraper.server.assert_all_routes_handled()

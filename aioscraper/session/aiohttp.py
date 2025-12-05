@@ -8,12 +8,8 @@ from ..types import Response, Request
 class AiohttpSession(BaseSession):
     "Implementation of HTTP session using aiohttp."
 
-    def __init__(self, timeout: float | None = None, ssl: bool | None = None) -> None:
-        super().__init__(timeout, ssl)
-        self._session = ClientSession(
-            timeout=ClientTimeout(total=timeout),
-            connector=TCPConnector(ssl=ssl) if ssl is not None else None,
-        )
+    def __init__(self, timeout: ClientTimeout, connector: TCPConnector | None = None) -> None:
+        self._session = ClientSession(timeout=timeout, connector=connector)
 
     async def make_request(self, request: Request) -> Response:
         "Perform an HTTP request via aiohttp and wrap the result in `Response`."
@@ -47,6 +43,7 @@ class AiohttpSession(BaseSession):
             ),
             timeout=ClientTimeout(total=request.timeout) if request.timeout is not None else None,
             allow_redirects=request.allow_redirects,
+            max_redirects=request.max_redirects,
         ) as response:
             return Response(
                 url=str(response.url),

@@ -1,4 +1,5 @@
-from .aiohttp import AiohttpSession
 from .base import BaseSession
+from .factory import get_session
 
-__all__ = ("AiohttpSession", "BaseSession")
+
+__all__ = ("BaseSession", "get_session")

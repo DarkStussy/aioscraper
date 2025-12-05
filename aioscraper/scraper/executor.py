@@ -10,7 +10,7 @@ from ..config import Config
 from .._helpers.func import get_func_kwargs
 from .._helpers.asyncio import execute_coroutines
 from ..pipeline.dispatcher import PipelineDispatcher
-from ..session import AiohttpSession
+from ..session import BaseSession
 from ..types import Scraper, Middleware
 
 logger = getLogger(__name__)
@@ -34,6 +34,7 @@ class ScraperExecutor:
         request_exception_middlewares: list[Middleware],
         response_middlewares: list[Middleware],
         pipeline_dispatcher: PipelineDispatcher,
+        session: BaseSession,
     ) -> None:
         self._config = config
 
@@ -49,7 +50,7 @@ class ScraperExecutor:
 
         self._request_queue = asyncio.PriorityQueue()
         self._request_manager = RequestManager(
-            session=AiohttpSession(timeout=self._config.session.timeout, ssl=self._config.session.ssl),
+            session=session,
             schedule_request=self._scheduler.spawn,
             queue=self._request_queue,
             delay=self._config.session.delay,
