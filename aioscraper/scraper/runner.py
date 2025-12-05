@@ -5,7 +5,7 @@ import signal
 from functools import partial
 
 from .core import AIOScraper
-from ..config import Config
+from ..config import Config, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,9 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
                 logger.debug("Signal handler for %s was not installed", sig_name)
 
 
-async def _run_scraper_without_force_exit(config: Config, scraper: AIOScraper, shutdown_event: asyncio.Event) -> None:
+async def _run_scraper_without_force_exit(scraper: AIOScraper, config: Config, shutdown_event: asyncio.Event) -> None:
     "Run scraper with shutdown/timeout handling, ignoring force-exit logic."
-    execution_timeout = config.execution.timeout
+    execution_timeout = config.execution.timeout if config else None
 
     shutdown_task = asyncio.create_task(shutdown_event.wait())
     timeout_task = asyncio.create_task(asyncio.sleep(execution_timeout)) if execution_timeout is not None else None
@@ -89,9 +89,8 @@ async def _run_scraper_without_force_exit(config: Config, scraper: AIOScraper, s
 
 
 async def _run_scraper(
-    config: Config,
     scraper: AIOScraper,
-    *,
+    config: Config,
     shutdown_event: asyncio.Event | None = None,
     force_exit_event: asyncio.Event | None = None,
     install_signal_handlers: bool = True,
@@ -104,7 +103,7 @@ async def _run_scraper(
         _setup_signal_handlers(loop, shutdown, force_exit)
 
     force_exit_task = asyncio.create_task(force_exit.wait())
-    scraper_task = asyncio.create_task(_run_scraper_without_force_exit(config, scraper, shutdown))
+    scraper_task = asyncio.create_task(_run_scraper_without_force_exit(scraper, config, shutdown))
 
     done, _ = await asyncio.wait([force_exit_task, scraper_task], return_when=asyncio.FIRST_COMPLETED)
 
@@ -118,6 +117,6 @@ async def _run_scraper(
     await scraper_task
 
 
-async def run_scraper(config: Config, scraper: AIOScraper):
+async def run_scraper(scraper: AIOScraper, *, config: Config | None = None):
     "Public entrypoint to run scraper with signal handling."
-    await _run_scraper(config, scraper)
+    await _run_scraper(scraper, config=config or load_config())

@@ -1,7 +1,7 @@
 Lifespan
 ========
 
-A lifespan is an async context manager ``lifespan(scraper)`` that wraps the same :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance before CLI startup. Use it to create and tear down resources in one place.
+Lifespan is an async context manager ``lifespan(scraper)`` that wraps the same :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance before startup. Use it to create and tear down resources in one place.
 
 What it does
 ------------
@@ -41,8 +41,6 @@ What it does
 
     @asynccontextmanager
     async def lifespan(scraper: AIOScraper):
-        scraper.register(scrape)
-
         db_client = await DbClient.create()
         scraper.register_dependencies(db_client=db_client)
 
@@ -52,6 +50,7 @@ What it does
             await db_client.close()
 
 
-.. note::
-   - If a module exposes both ``scraper`` and ``lifespan``, the CLI applies ``lifespan(scraper)`` automatically.
-   - When you target ``lifespan`` explicitly via ``module:lifespan``, the CLI will create a new scraper for you.
+    def create_scraper() -> AIOScraper:
+        scraper = AIOScraper(lifespan=lifespan)
+        scraper.register(scrape)
+        return scraper

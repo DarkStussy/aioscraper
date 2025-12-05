@@ -9,7 +9,7 @@ You can build a :class:`Config <aioscraper.config.Config>` and pass it into :met
 .. code-block:: python
 
     import logging
-    from aioscraper import AIOScraper
+    from aioscraper import AIOScraper, run_scraper
     from aioscraper.config import Config, SessionConfig, SchedulerConfig, ExecutionConfig, PipelineConfig
 
     config = Config(
@@ -26,9 +26,18 @@ You can build a :class:`Config <aioscraper.config.Config>` and pass it into :met
 
 
     async def main():
-        async with AIOScraper() as scraper:
-            await scraper.start(config)
+        scraper = AIOScraper()
+        await run_scraper(scraper, config=config)
 
+Graceful shutdown
+-----------------
+
+- ``execution.timeout`` — overall budget (``None`` by default, i.e. no total limit); on expiry the runner logs at ``execution.log_level`` and cancels all tasks.
+- ``execution.shutdown_timeout`` — grace period after SIGINT/SIGTERM/timeout before hard cancelling in-flight work.
+- ``execution.shutdown_check_interval`` — pause between drain checks while waiting for the scheduler/queue to empty.
+- Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
+
+These settings are honored by both the CLI and :func:`run_scraper <aioscraper.scraper.runner.run_scraper>`, giving consistent stop behavior in code or from the terminal.
 
 
 .. autoclass:: aioscraper.config.Config

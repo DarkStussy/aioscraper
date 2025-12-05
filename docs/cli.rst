@@ -18,9 +18,9 @@ The CLI loads a module (file path or ``module.path``) and optionally a specific 
 
 Entry rules:
 
-- Without ``:attr``: the CLI looks for a ``scraper`` attribute that is an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance. If the module also exposes ``lifespan(scraper)``, the CLI will wrap the scraper with it before starting.
-- With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>`: the CLI uses that instance. If the module exposes ``lifespan``, it will wrap the scraper with it.
-- With ``:attr`` equal to ``lifespan``: the CLI creates a new :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` and passes it into that context manager; register scrapers inside the lifespan.
+- Without ``:attr``: the CLI looks for a ``scraper`` attribute that is either an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance or a callable returning one.
+- With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>`: the CLI uses that instance.
+- With ``:attr`` pointing to a callable: the CLI calls it and expects an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance in return.
 
 Examples:
 
@@ -28,9 +28,37 @@ Examples:
 
    aioscraper scraper                   # uses scraper variable from scraper.py
    aioscraper mypkg.scraper:custom_app  # uses custom_app AIOScraper instance
-   aioscraper mypkg.setup:lifespan      # uses lifespan(scraper) context manager
+   aioscraper mypkg.factory:make        # calls make() and expects AIOScraper
 
-For resource setup/teardown around the same scraper instance, provide a ``lifespan(scraper)`` async context manager (see :doc:`/concepts/lifespan`).
+For resource setup/teardown around the same scraper instance, attach a ``lifespan(scraper)`` when constructing the scraper in code (see :doc:`/concepts/lifespan`).
+
+Running without the CLI
+-----------------------
+
+You can run the same scraper programmatically using :func:`run_scraper <aioscraper.scraper.runner.run_scraper>`:
+
+.. code-block:: python
+
+    import asyncio
+    from aioscraper import AIOScraper, run_scraper
+    from aioscraper.types import Request, SendRequest
+
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://example.com"))
+
+
+    async def main():
+        scraper = AIOScraper()
+        scraper.register(scrape)
+        await run_scraper(scraper)
+
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+
+
+This gives you the same signal handling and graceful shutdown behavior as the CLI.
 
 Configuration
 -------------

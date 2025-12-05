@@ -49,7 +49,7 @@ async def test_shutdown_event_cancels_scraper():
         shutdown.set()
 
     trigger = asyncio.create_task(trigger_shutdown())
-    await _run_scraper_without_force_exit(config, scraper, shutdown_event=shutdown)
+    await _run_scraper_without_force_exit(scraper, config, shutdown)
     trigger.cancel()
     with suppress(asyncio.CancelledError):
         await trigger
@@ -66,7 +66,7 @@ async def test_execution_timeout_cancels_scraper(caplog):
     config = Config(execution=ExecutionConfig(timeout=0.02, shutdown_timeout=0.01))
     shutdown = asyncio.Event()
 
-    await _run_scraper_without_force_exit(config, scraper, shutdown_event=shutdown)
+    await _run_scraper_without_force_exit(scraper, config, shutdown)
 
     assert scraper.cancelled is True
     assert any("execution timeout" in rec.getMessage().lower() for rec in caplog.records)
@@ -86,8 +86,8 @@ async def test_force_exit_path():
 
     trigger = asyncio.create_task(trigger_force_exit())
     await _run_scraper(
-        config,
         scraper,
+        config,
         shutdown_event=shutdown,
         force_exit_event=force_exit,
         install_signal_handlers=False,

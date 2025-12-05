@@ -7,6 +7,8 @@ Core
 .. autoclass:: aioscraper.scraper.core.AIOScraper
    :members:
 
+.. autofunction:: aioscraper.scraper.runner.run_scraper
+
 
 Configuration
 -------------
