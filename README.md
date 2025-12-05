@@ -1,7 +1,7 @@
 # aioscraper
 
 <p align="center">
-  <img src="docs/static/aioscraper.png" alt="aioscraper logo" width="340">
+  <img src="https://raw.githubusercontent.com/DarkStussy/aioscraper/main/docs/static/aioscraper.png" alt="aioscraper logo" width="340">
 </p>
 
 ### Asynchronous framework for building modular and scalable web scrapers.
