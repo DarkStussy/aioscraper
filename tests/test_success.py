@@ -21,7 +21,7 @@ async def test_success(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: response_data)
 
     scraper = Scraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         await mock_aioscraper.start()
 

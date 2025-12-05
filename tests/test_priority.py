@@ -28,7 +28,7 @@ async def test_request_priority_order(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.add("https://api.test.com/v1", handler=handle_request, repeat=3)
 
     scraper = PriorityScraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         await mock_aioscraper.start(Config(scheduler=SchedulerConfig(concurrent_requests=1, pending_requests=3)))
 

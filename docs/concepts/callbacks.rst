@@ -21,7 +21,7 @@ Callbacks drive the happy path, while error handlers keep failures contained. `a
     scraper = AIOScraper()
 
 
-    @scraper.register
+    @scraper
     async def scrape(send_request: SendRequest):
         await send_request(
             Request(

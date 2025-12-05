@@ -29,7 +29,7 @@ async def test_error(mock_aioscraper: MockAIOScraper):
     )
 
     scraper = Scraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         await mock_aioscraper.start()
 
@@ -59,7 +59,7 @@ async def test_callback_error_triggers_errback(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.add("https://api.test.com/v2")
 
     scraper = CallbackErrorScraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         await mock_aioscraper.start()
 
@@ -90,7 +90,7 @@ async def test_errback_receives_cb_kwargs(mock_aioscraper: MockAIOScraper):
     )
 
     scraper = ErrbackKwargsScraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         await mock_aioscraper.start()
 

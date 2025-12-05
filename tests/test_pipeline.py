@@ -56,7 +56,7 @@ async def test_pipeline(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: MockResponse(text=item.pipeline_name))
 
     scraper = Scraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         mock_aioscraper.add_pipelines(item.pipeline_name, pipeline)
         mock_aioscraper.add_pipeline_pre_middlewares(item.pipeline_name, pre_processing_middleware)

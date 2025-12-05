@@ -1,12 +1,13 @@
 import asyncio
+import inspect
 import logging
 from typing import Sequence
 
 from ._args import parse_args
 from .exceptions import CLIError
-from ._entrypoint import resolve_entrypoint
-from ..config import load_config
-from ..scraper.runner import run_scraper
+from ._entrypoint import resolve_entrypoint_factory
+from ..config import Config, load_config
+from ..scraper import run_scraper
 
 logger = logging.getLogger("aioscraper.cli")
 
@@ -24,16 +25,21 @@ def _apply_uvloop_policy() -> None:
         raise CLIError("Failed to apply uvloop event loop policy") from exc
 
 
+async def _run(config: Config, entrypoint: str) -> None:
+    init = resolve_entrypoint_factory(entrypoint)
+    scraper = await init() if inspect.iscoroutinefunction(init) else init()
+    await run_scraper(scraper, config=config)
+
+
 def main(argv: Sequence[str] | None = None):
     args = parse_args(argv)
-    scraper = resolve_entrypoint(args.entrypoint)
     config = load_config(args.concurrent_requests, args.pending_requests)
 
     try:
         if args.uvloop:
             _apply_uvloop_policy()
 
-        asyncio.run(run_scraper(scraper, config=config))
+        asyncio.run(_run(config, args.entrypoint))
     except KeyboardInterrupt:
         logger.info("Interrupted, shutting down...")
 

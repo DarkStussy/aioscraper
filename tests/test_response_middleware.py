@@ -35,7 +35,7 @@ async def test_response_middleware(mock_aioscraper: MockAIOScraper):
 
     middleware = ResponseMiddleware()
     scraper = Scraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         mock_aioscraper.add_response_middlewares(middleware)
         await mock_aioscraper.start()

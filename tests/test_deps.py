@@ -24,9 +24,9 @@ async def test_dependencies(mock_aioscraper: MockAIOScraper):
 
     scraper = Scraper()
 
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
-        mock_aioscraper.register_dependencies(dep="injected")
+        mock_aioscraper.add_dependencies(dep="injected")
         await mock_aioscraper.start()
 
     assert scraper.results["scraper_dep"] == "injected"

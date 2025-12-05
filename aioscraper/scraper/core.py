@@ -1,7 +1,7 @@
-from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from logging import getLogger
 from types import TracebackType
-from typing import Callable, Self, Type, Any
+from typing import AsyncIterator, Callable, Self, Type, Any
 
 from .executor import ScraperExecutor
 from ..config import Config
@@ -12,7 +12,7 @@ from ..session import BaseSession, get_session
 
 logger = getLogger(__name__)
 
-Lifespan = Callable[["AIOScraper"], AbstractAsyncContextManager[None, bool | None]]
+Lifespan = Callable[["AIOScraper"], AsyncIterator[None]]
 
 
 class AIOScraper:
@@ -24,10 +24,9 @@ class AIOScraper:
 
     Args:
         scrapers (tuple[Scraper, ...]): List of scraper callables to execute
-        lifespan (Lifespan | None): Optional async context manager factory to run before/after scraping
     """
 
-    def __init__(self, *scrapers: Scraper, lifespan: Lifespan | None = None) -> None:
+    def __init__(self, *scrapers: Scraper) -> None:
         self._scrapers = [*scrapers]
         self._dependencies: dict[str, Any] = {}
 
@@ -35,7 +34,7 @@ class AIOScraper:
         async def default_lifespan(_: Self):
             yield
 
-        self._lifespan = lifespan or default_lifespan
+        self._lifespan = default_lifespan
         self._lifespan_exit_stack = AsyncExitStack()
 
         self._request_outer_middlewares: list[Middleware] = []
@@ -47,18 +46,19 @@ class AIOScraper:
 
         self._executor: ScraperExecutor | None = None
 
-    def register(self, scraper: Scraper) -> Scraper:
-        "Register a single scraper callable; returns it for decorator usage."
+    def __call__(self, scraper: Scraper) -> Scraper:
+        "Add a scraper callable and return it for decorator use."
         self._scrapers.append(scraper)
         return scraper
 
-    def register_all(self, *scrapers: Scraper) -> None:
-        "Register multiple scraper callables at once."
-        self._scrapers.extend(scrapers)
-
-    def register_dependencies(self, **kwargs: Any) -> None:
-        "Register shared dependencies to inject into scraper callbacks."
+    def add_dependencies(self, **kwargs: Any) -> None:
+        "Add shared dependencies to inject into scraper callbacks."
         self._dependencies.update(kwargs)
+
+    def lifespan(self, lifespan: Lifespan) -> Lifespan:
+        "Attach a lifespan callback to run before/after scraping."
+        self._lifespan = asynccontextmanager(lifespan)
+        return lifespan
 
     def add_pipelines(self, name: str, *pipelines: BasePipeline[ItemType]) -> None:
         """
@@ -167,5 +167,6 @@ class AIOScraper:
         await self._executor.run()
 
     async def close(self) -> None:
+        "Close the scraper and its associated resources."
         if self._executor is not None:
             await self._executor.close()

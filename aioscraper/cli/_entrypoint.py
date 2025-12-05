@@ -1,10 +1,10 @@
 import importlib
 import importlib.util
+import inspect
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
-
+from typing import Any, Callable
 
 from .exceptions import CLIError
 from ..scraper.core import AIOScraper
@@ -82,28 +82,43 @@ def _get_attr(module: ModuleType, name: str) -> Any:
         raise CLIError(f"'{name}' not found in '{module.__name__}'") from exc
 
 
-def _coerce_scraper(obj: Any, attr_name: str) -> AIOScraper:
-    if isinstance(obj, AIOScraper):
-        return obj
-
-    if callable(obj):
-        try:
-            produced = obj()
-        except Exception as exc:
-            raise CLIError(f"Failed to call '{attr_name}'") from exc
-
-        if isinstance(produced, AIOScraper):
-            return produced
-
-        raise CLIError(f"'{attr_name}' did not return an AIOScraper instance")
-
-    raise CLIError(f"'{attr_name}' is not an AIOScraper instance or factory")
-
-
-def resolve_entrypoint(target: str) -> AIOScraper:
+def resolve_entrypoint_factory(target: str) -> Callable[[], Any]:
     module_ref, attr = _parse_entrypoint(target)
     module = _import_module(module_ref)
 
     attr_name = attr or "scraper"
     scraper_obj = _get_attr(module, attr_name)
-    return _coerce_scraper(scraper_obj, attr_name)
+
+    if isinstance(scraper_obj, AIOScraper):
+        return lambda: scraper_obj
+
+    if inspect.iscoroutinefunction(scraper_obj):
+
+        async def _resolve_async() -> AIOScraper:
+            try:
+                scraper = await scraper_obj()
+            except Exception as exc:
+                raise CLIError(f"Failed to await '{attr_name}'") from exc
+
+            if isinstance(scraper, AIOScraper):
+                return scraper
+
+            raise CLIError(f"'{attr_name}' did not return an AIOScraper instance")
+
+        return _resolve_async
+    elif callable(scraper_obj):
+
+        def _resolve_sync() -> AIOScraper:
+            try:
+                scraper = scraper_obj()
+            except Exception as exc:
+                raise CLIError(f"Failed to call '{attr_name}'") from exc
+
+            if isinstance(scraper, AIOScraper):
+                return scraper
+
+            raise CLIError(f"'{attr_name}' did not return an AIOScraper instance")
+
+        return _resolve_sync
+
+    raise CLIError(f"'{attr_name}' is not an AIOScraper instance or factory")

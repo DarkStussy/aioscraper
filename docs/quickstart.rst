@@ -19,7 +19,7 @@ Save as ``scraper.py``:
    scraper = AIOScraper()
 
 
-   @scraper.register
+   @scraper
    async def scrape(send_request: SendRequest):
        for i in range(1, 4):
            await send_request(
@@ -37,7 +37,7 @@ Save as ``scraper.py``:
 What this code does
 -------------------
 - Creates one ``AIOScraper`` instance.
-- Registers a scraper that queues three GET requests (each tagged with its index).
+- Adds a scraper that queues three GET requests (each tagged with its index).
 - Prints status and URL for each response as it arrives.
 
 
@@ -50,7 +50,7 @@ Run it
 What happens when it runs
 -------------------------
 - The CLI loads your module and finds the ``scraper`` instance.
-- The registered ``scrape`` function enqueues several requests (each with its own callback arguments).
+- The ``scrape`` function enqueues several requests (each with its own callback arguments).
 - The scheduler dispatches them using your concurrency settings; HTTP clients execute without blocking each other, so responses can arrive out of order.
 - As responses arrive, ``handle_response`` runs for each one and prints status/URL.
 

@@ -42,7 +42,7 @@ async def test_request_middleware(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: response_data)
 
     scraper = Scraper()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         mock_aioscraper.add_outer_request_middlewares(RequestMiddleware("outer"))
         mock_aioscraper.add_inner_request_middlewares(RequestMiddleware("inner"))

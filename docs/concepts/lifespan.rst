@@ -5,14 +5,13 @@ Lifespan is an async context manager ``lifespan(scraper)`` that wraps the same :
 
 What it does
 ------------
-- Runs once before the scraper starts; you can register scrapers, pipelines, and middlewares here.
-- Injects dependencies via :meth:`register_dependencies <aioscraper.scraper.core.AIOScraper.register_dependencies>` so callbacks receive them.
+- Runs once before the scraper starts; you can add scrapers, pipelines, and middlewares here.
+- Injects dependencies via :meth:`add_dependencies <aioscraper.scraper.core.AIOScraper.add_dependencies>` so callbacks receive them.
 - Ensures teardown (closing clients, flushing buffers) happens even on errors.
 
 
 .. code-block:: python
 
-    from contextlib import asynccontextmanager
     from typing import Iterable, Self
     from aioscraper import AIOScraper
     from aioscraper.types import Request, SendRequest, Response
@@ -39,10 +38,9 @@ What it does
         print(f"[{response.status}] {response.url}")
 
 
-    @asynccontextmanager
     async def lifespan(scraper: AIOScraper):
         db_client = await DbClient.create()
-        scraper.register_dependencies(db_client=db_client)
+        scraper.add_dependencies(db_client=db_client)
 
         try:
             yield
@@ -51,6 +49,6 @@ What it does
 
 
     def create_scraper() -> AIOScraper:
-        scraper = AIOScraper(lifespan=lifespan)
-        scraper.register(scrape)
+        scraper = AIOScraper(scrape)
+        scraper.lifespan(lifespan)
         return scraper

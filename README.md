@@ -42,7 +42,7 @@ from aioscraper.types import Request, Response, SendRequest
 
 scraper = AIOScraper()
 
-@scraper.register
+@scraper
 async def scrape(send_request: SendRequest):
     await send_request(Request(url="https://example.com", callback=handle_response))
 

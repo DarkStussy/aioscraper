@@ -20,7 +20,7 @@ Entry rules:
 
 - Without ``:attr``: the CLI looks for a ``scraper`` attribute that is either an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance or a callable returning one.
 - With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>`: the CLI uses that instance.
-- With ``:attr`` pointing to a callable: the CLI calls it and expects an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance in return.
+- With ``:attr`` pointing to a callable (sync **or async**): the CLI executes/awaits it and expects an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance in return.
 
 Examples:
 
@@ -28,7 +28,8 @@ Examples:
 
    aioscraper scraper                   # uses scraper variable from scraper.py
    aioscraper mypkg.scraper:custom_app  # uses custom_app AIOScraper instance
-   aioscraper mypkg.factory:make        # calls make() and expects AIOScraper
+   aioscraper mypkg.factory:make        # calls make() (sync factory)
+   aioscraper mypkg.factory:make_async  # awaits make_async() (async factory)
 
 For resource setup/teardown around the same scraper instance, attach a ``lifespan(scraper)`` when constructing the scraper in code (see :doc:`/concepts/lifespan`).
 
@@ -49,9 +50,7 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 
 
     async def main():
-        scraper = AIOScraper()
-        scraper.register(scrape)
-        await run_scraper(scraper)
+        await run_scraper(AIOScraper(scrape))
 
 
     if __name__ == "__main__":

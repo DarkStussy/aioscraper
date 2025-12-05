@@ -54,7 +54,7 @@ async def test_request_exception_middleware(mock_aioscraper: MockAIOScraper):
 
     scraper = Scraper()
     middleware = RequestExceptionMiddleware()
-    mock_aioscraper.register(scraper)
+    mock_aioscraper(scraper)
     async with mock_aioscraper:
         mock_aioscraper.add_request_exception_middlewares(middleware)
         await mock_aioscraper.start()

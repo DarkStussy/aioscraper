@@ -9,7 +9,7 @@ Core
 - Items must expose ``pipeline_name`` (property or attribute) so the dispatcher can route them.
 - Multiple pipelines can share the same name; all matching pipelines run sequentially.
 - Missing pipeline handling is controlled by ``PipelineConfig.strict`` (defaults to raising; set ``PIPELINE_STRICT=false`` to warn and continue).
-- :meth:`add_pipelines <aioscraper.scraper.core.AIOScraper.add_pipelines>` registers one or more pipeline instances for a given ``pipeline_name``.
+- :meth:`add_pipelines <aioscraper.scraper.core.AIOScraper.add_pipelines>` adds one or more pipeline instances for a given ``pipeline_name``.
 
 
 .. code-block:: python
