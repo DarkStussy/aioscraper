@@ -1,18 +1,12 @@
 import asyncio
 import logging
-from typing import Any, Sequence
+from typing import Sequence
 
 from ._args import parse_args
 from .exceptions import CLIError
-from ..config import Config, load_config
-from ._entrypoint import handle_lifespan, resolve_entrypoint
-from ..scraper import AIOScraper
-
-
-async def _run_scraper(config: Config, scraper: AIOScraper, lifespan: Any) -> None:
-    async with handle_lifespan(lifespan, scraper):
-        async with scraper:
-            await scraper.start(config)
+from ._entrypoint import resolve_entrypoint
+from ..config import load_config
+from ..scraper.runner import run_scraper
 
 
 def _apply_uvloop_policy() -> None:
@@ -35,7 +29,7 @@ def main(argv: Sequence[str] | None = None):
         if args.uvloop:
             _apply_uvloop_policy()
 
-        asyncio.run(_run_scraper(config, *resolve_entrypoint(args.entrypoint)))
+        asyncio.run(run_scraper(config, resolve_entrypoint(args.entrypoint)))
     except KeyboardInterrupt:
         logging.info("Interrupted, shutting down...")
 

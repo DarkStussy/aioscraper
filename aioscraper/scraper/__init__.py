@@ -1,3 +1,4 @@
-from .core import AIOScraper
+from .core import AIOScraper, Lifespan
+from .runner import run_scraper
 
-__all__ = ("AIOScraper",)
+__all__ = ("AIOScraper", "Lifespan", "run_scraper")

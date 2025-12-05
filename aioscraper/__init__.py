@@ -4,6 +4,6 @@ __author__ = "darkstussy"
 
 __copyright__ = f"Copyright (c) 2025 {__author__}"
 
-from .scraper import AIOScraper
+from .scraper import AIOScraper, run_scraper
 
-__all__ = ("AIOScraper",)
+__all__ = ("AIOScraper", "run_scraper")

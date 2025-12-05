@@ -1,14 +1,14 @@
 import importlib
 import importlib.util
 import sys
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 
 from .exceptions import CLIError
-from ..scraper import AIOScraper
+from ..scraper.core import AIOScraper, Lifespan
 
 
 def _resolve_file_path(module_ref: str) -> Path | None:
@@ -82,32 +82,35 @@ def _get_attr(module: ModuleType, name: str) -> Any:
         raise CLIError(f"'{name}' not found in '{module.__name__}'") from exc
 
 
-@asynccontextmanager
-async def _default_lifespan(_):
-    yield
+def _wrap_lifespan(lifespan: Any) -> Lifespan:
+    if not callable(lifespan):
+        raise CLIError("`lifespan` must be callable")
+
+    @asynccontextmanager
+    async def cm(scraper_: AIOScraper):
+        try:
+            ctx = lifespan(scraper_)
+        except Exception as exc:
+            raise CLIError("Failed to call `lifespan(scraper)`") from exc
+
+        try:
+            async with ctx:  # type: ignore
+                yield
+        except TypeError as exc:
+            raise CLIError("`lifespan` must return an async context manager") from exc
+
+    return cm
 
 
-def resolve_entrypoint(target: str) -> tuple[AIOScraper, Any]:
+def resolve_entrypoint(target: str) -> AIOScraper:
     module_ref, attr = _parse_entrypoint(target)
     module = _import_module(module_ref)
 
     if attr == "lifespan":
-        return AIOScraper(), _get_attr(module, "lifespan")
+        return AIOScraper(lifespan=_wrap_lifespan(_get_attr(module, "lifespan")))
 
     scraper = _get_attr(module, attr or "scraper")
     if not isinstance(scraper, AIOScraper):
         raise CLIError(f"{scraper} is not instance of AIOScraper")
 
-    return scraper, getattr(module, "lifespan", _default_lifespan)
-
-
-def handle_lifespan(lifespan: Any, scraper: AIOScraper) -> AbstractAsyncContextManager:
-    try:
-        obj = lifespan(scraper)
-    except TypeError as e:
-        raise CLIError("`lifespan` must be a asynccontextmanager") from e
-
-    if not isinstance(obj, AbstractAsyncContextManager):
-        raise CLIError("`lifespan` must be a asynccontextmanager")
-
-    return obj
+    return scraper

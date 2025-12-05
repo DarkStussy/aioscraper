@@ -1,6 +1,7 @@
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 from logging import getLogger
 from types import TracebackType
-from typing import Type, Any
+from typing import Callable, Self, Type, Any
 
 from .executor import ScraperExecutor
 from ..config import Config
@@ -11,6 +12,9 @@ from ..types import Scraper, Middleware, PipelineMiddleware, ItemType
 logger = getLogger(__name__)
 
 
+Lifespan = Callable[["AIOScraper"], AbstractAsyncContextManager[None, bool | None]]
+
+
 class AIOScraper:
     """
     An asynchronous web scraping framework that manages multiple scrapers and their execution.
@@ -19,12 +23,20 @@ class AIOScraper:
     managing requests, handling middleware, and processing data through pipelines.
 
     Args:
-        scrapers (tuple[BaseScraper, ...]): List of scraper instances to be executed
+        scrapers (tuple[Scraper, ...]): List of scraper callables to execute
+        lifespan (Lifespan | None): Optional async context manager factory to run before/after scraping
     """
 
-    def __init__(self, *scrapers: Scraper) -> None:
+    def __init__(self, *scrapers: Scraper, lifespan: Lifespan | None = None) -> None:
         self._scrapers = [*scrapers]
         self._dependencies: dict[str, Any] = {}
+
+        @asynccontextmanager
+        async def default_lifespan(_: Self):
+            yield
+
+        self._lifespan = lifespan or default_lifespan
+        self._lifespan_exit_stack = AsyncExitStack()
 
         self._request_outer_middlewares: list[Middleware] = []
         self._request_inner_middlewares: list[Middleware] = []
@@ -115,7 +127,8 @@ class AIOScraper:
         """
         self._response_middlewares.extend(middlewares)
 
-    async def __aenter__(self) -> "AIOScraper":
+    async def __aenter__(self) -> Self:
+        await self._lifespan_exit_stack.enter_async_context(self._lifespan(self))
         return self
 
     async def __aexit__(
@@ -124,7 +137,10 @@ class AIOScraper:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        await self.close()
+        try:
+            await self.close()
+        finally:
+            await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
     async def start(self, config: Config | None = None) -> None:
         """

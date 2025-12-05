@@ -21,7 +21,7 @@ class _PRequest:
     "Priority Request Pair - Internal class for managing prioritized requests."
 
     priority: int
-    request: Request | None = field(compare=False)
+    request: Request = field(compare=False)
 
 
 _RequestQueue = asyncio.PriorityQueue[_PRequest]
@@ -77,6 +77,7 @@ class RequestManager:
         self._request_inner_middlewares = request_inner_middlewares
         self._request_exception_middlewares = request_exception_middlewares
         self._response_middlewares = response_middlewares
+        self._event = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
 
     @property
@@ -154,12 +155,9 @@ class RequestManager:
         """Process requests from the queue with configured delay."""
         while True:
             r = await self._queue.get()
-            if r.request is None:
-                if r.priority == sys.maxsize:
-                    logger.info("shutdown request manager")
-                    break
 
-                continue
+            if self._event.is_set():
+                break
 
             for outer_middleware in self._request_outer_middlewares:
                 try:
@@ -170,20 +168,12 @@ class RequestManager:
             await self._schedule_request(execute_coroutine(self._send_request(r.request)))
             await asyncio.sleep(self._delay)
 
-    async def shutdown(self, force: bool = False) -> None:
-        """
-        Shutdown the request manager.
-
-        Args:
-            force (bool): If True, force shutdown after timeout
-        """
-        await self._queue.put(_PRequest(priority=sys.maxsize, request=None))
-        if self._task is not None:
-            try:
-                await asyncio.wait_for(self._task, timeout=self._shutdown_timeout) if force else await self._task
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
-
     async def close(self) -> None:
         """Close the underlying session."""
+        self._event.set()
+        await self._queue.put(_PRequest(priority=sys.maxsize, request=Request(url="stub")))
+
+        if self._task is not None:
+            await self._task
+
         await self._session.close()

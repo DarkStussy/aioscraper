@@ -35,7 +35,6 @@ class ScraperExecutor:
         response_middlewares: list[Middleware],
         pipeline_dispatcher: PipelineDispatcher,
     ) -> None:
-        self._start_time: float | None = None
         self._config = config
 
         self._scrapers = scrapers
@@ -67,64 +66,32 @@ class ScraperExecutor:
         self._start_time = time.time()
         self._request_manager.listen_queue()
 
-        await asyncio.gather(
-            *[
-                scraper(
-                    **get_func_kwargs(
-                        scraper,
-                        send_request=self._request_manager.sender,
-                        pipeline=self._pipeline_dispatcher.put_item,
-                        **self._dependencies,
+        try:
+            await asyncio.gather(
+                *[
+                    scraper(
+                        **get_func_kwargs(
+                            scraper,
+                            send_request=self._request_manager.sender,
+                            pipeline=self._pipeline_dispatcher.put_item,
+                            **self._dependencies,
+                        )
                     )
-                )
-                for scraper in self._scrapers
-            ]
-        )
+                    for scraper in self._scrapers
+                ]
+            )
+            await self._wait()
+        finally:
+            await self._wait()
 
-    async def _shutdown(self) -> bool:
-        "Internal method to handle graceful shutdown of the scraper."
-        status = False
-
-        if self._start_time is None:
-            return status
-
-        execution_timeout = (
-            max(self._config.execution.timeout - (time.time() - self._start_time), 0.1)
-            if self._config.execution.timeout
-            else None
-        )
-        while True:
-            if execution_timeout is not None and time.time() - self._start_time > execution_timeout:
-                logger.log(
-                    level=self._config.execution.log_level,
-                    msg=f"execution timeout: {self._config.execution.timeout}",
-                )
-                status = True
-                break
-            if len(self._scheduler) == 0 and self._request_queue.qsize() == 0:
-                break
-
+    async def _wait(self) -> None:
+        while len(self._scheduler) > 0 or self._request_queue.qsize() > 0:
             await asyncio.sleep(self._config.execution.shutdown_check_interval)
 
-        return status
-
-    async def shutdown(self) -> None:
-        "Initiate the shutdown process for the scraper."
-        force = await self._shutdown()
-        await self._request_manager.shutdown(force)
-
-    async def close(self, shutdown: bool = True) -> None:
-        """
-        Close all resources and cleanup.
-
-        Args:
-            shutdown (bool): Whether to perform shutdown before closing
-        """
-        try:
-            await self.shutdown() if shutdown else await self._request_manager.shutdown(force=True)
-        finally:
-            await execute_coroutines(
-                self._scheduler.close(),
-                self._request_manager.close(),
-                self._pipeline_dispatcher.close(),
-            )
+    async def close(self) -> None:
+        "Close all resources and cleanup."
+        await execute_coroutines(
+            self._request_manager.close(),
+            self._scheduler.close(),
+            self._pipeline_dispatcher.close(),
+        )
