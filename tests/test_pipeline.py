@@ -96,7 +96,7 @@ def register_pipeline_decorator(scraper: MockAIOScraper, name: str) -> None:
 )
 async def test_pipeline(
     mock_aioscraper: MockAIOScraper,
-    middleware_register: Callable[[MockAIOScraper, PipelineMiddlewareType, str, PipelineMiddleware[Item]]],
+    middleware_register: Callable[[MockAIOScraper, PipelineMiddlewareType, str, PipelineMiddleware[Item]], None],
     pipeline_register: Callable[[MockAIOScraper, str], None],
 ):
     pipeline_name = "test"
