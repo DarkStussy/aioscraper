@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from .base import BasePipeline
 from ..config import PipelineConfig
-from ..exceptions import PipelineException
+from ..exceptions import PipelineException, StopMiddlewareProcessing, StopItemProcessing
 from ..types.pipeline import ItemType, PipelineMiddleware
 
 logger = getLogger(__name__)
@@ -39,13 +39,23 @@ class PipelineDispatcher:
             return item
 
         for middleware in pipe_container.pre_middlewares:
-            item = await middleware(item)
+            try:
+                item = await middleware(item)
+            except StopMiddlewareProcessing:
+                break
+            except StopItemProcessing:
+                return item
 
         for pipeline in pipe_container.pipelines:
             item = await pipeline.put_item(item)
 
         for middleware in pipe_container.post_middlewares:
-            item = await middleware(item)
+            try:
+                item = await middleware(item)
+            except StopMiddlewareProcessing:
+                break
+            except StopItemProcessing:
+                return item
 
         return item
 

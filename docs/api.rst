@@ -56,6 +56,8 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.ClientException
 .. autoclass:: aioscraper.exceptions.HTTPException
 .. autoclass:: aioscraper.exceptions.PipelineException
+.. autoclass:: aioscraper.exceptions.StopItemProcessing
+.. autoclass:: aioscraper.exceptions.StopRequestProcessing
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing
 .. autoclass:: aioscraper.exceptions.InvalidRequestData
 .. autoclass:: aioscraper.cli.exceptions.CLIError

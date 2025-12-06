@@ -3,7 +3,6 @@ from http.cookies import SimpleCookie
 
 import pytest
 
-from aioscraper.exceptions import StopMiddlewareProcessing
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.scraper.request_manager import RequestManager
 from aioscraper.session.base import BaseSession
@@ -28,38 +27,6 @@ class FakeSession(BaseSession):
 
     async def close(self) -> None:
         self.closed = True
-
-
-@pytest.mark.asyncio
-async def test_exception_middleware_can_stop_processing():
-    flags = {"first": False, "second": False, "errback": False}
-
-    async def exc_one(exc: Exception, request: Request) -> None:
-        flags["first"] = True
-        raise StopMiddlewareProcessing()
-
-    async def exc_two(exc: Exception) -> None:
-        flags["second"] = True
-
-    async def errback(exc: Exception) -> None:
-        flags["errback"] = True
-
-    holder = MiddlewareHolder()
-    holder.add("exception", exc_one, exc_two)
-
-    manager = RequestManager(
-        session=FakeSession(),
-        schedule_request=lambda coro: coro,  # not used in this test
-        queue=asyncio.PriorityQueue(),
-        delay=0,
-        shutdown_timeout=0.1,
-        dependencies={},
-        middleware_holder=holder,
-    )
-
-    await manager._handle_exception(Request(url="https://api.test.com/stop", errback=errback), RuntimeError("boom"))
-
-    assert flags == {"first": True, "second": False, "errback": False}
 
 
 @pytest.mark.asyncio

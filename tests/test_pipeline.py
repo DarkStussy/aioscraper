@@ -6,6 +6,7 @@ from aioscraper.config import PipelineConfig
 from aioscraper.exceptions import PipelineException
 from aioscraper.holders.pipeline import PipelineMiddlewareType
 from aioscraper.types import Pipeline, Request, SendRequest, Response, ItemType, PipelineMiddleware
+from aioscraper.exceptions import StopMiddlewareProcessing, StopItemProcessing
 from aioscraper.pipeline import BasePipeline
 from aioscraper.pipeline.dispatcher import PipelineContainer, PipelineDispatcher
 from tests.mocks import MockAIOScraper, MockResponse
@@ -209,3 +210,100 @@ async def test_pipeline_multiple_pipelines_order_and_close():
     assert audit == ["pre1", "pre2", "first", "second", "post1", "post2"]
     assert first.closed is True
     assert second.closed is True
+
+
+class AuditPipeline(BasePipeline[CountItem]):
+    def __init__(self, audit: list[str]) -> None:
+        self.audit = audit
+
+    async def put_item(self, item: CountItem) -> CountItem:
+        self.audit.append("pipeline")
+        return item
+
+
+@pytest.mark.asyncio
+async def test_pipeline_pre_middleware_stop_processing_skips_rest_and_pipelines():
+    audit: list[str] = []
+
+    async def pre_one(item: CountItem) -> CountItem:
+        raise StopMiddlewareProcessing
+
+    async def pre_two(item: CountItem) -> CountItem:
+        audit.append("pre2")
+        return item
+
+    async def post_one(item: CountItem) -> CountItem:
+        audit.append("post")
+        return item
+
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {
+            "count": PipelineContainer(
+                pipelines=[AuditPipeline(audit)],
+                pre_middlewares=[pre_one, pre_two],
+                post_middlewares=[post_one],
+            )
+        },
+    )
+
+    result = await dispatcher.put_item(CountItem("count"))
+
+    assert result.total == 0
+    assert audit == ["pipeline", "post"]  # pre2 skipped, pipeline and post executed
+
+
+@pytest.mark.asyncio
+async def test_pipeline_pre_stop_item_processing_returns_early():
+    audit: list[str] = []
+
+    async def pre_stop(item: CountItem) -> CountItem:
+        raise StopItemProcessing
+
+    async def post_one(item: CountItem) -> CountItem:
+        audit.append("post")
+        return item
+
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {
+            "count": PipelineContainer(
+                pipelines=[AuditPipeline(audit)],
+                pre_middlewares=[pre_stop],
+                post_middlewares=[post_one],
+            )
+        },
+    )
+
+    result = await dispatcher.put_item(CountItem("count"))
+
+    assert result.total == 0
+    assert audit == []
+
+
+@pytest.mark.asyncio
+async def test_pipeline_post_stop_processing_skips_remaining_posts():
+    audit: list[str] = []
+
+    async def post_one(item: CountItem) -> CountItem:
+        raise StopMiddlewareProcessing
+
+    async def post_two(item: CountItem) -> CountItem:
+        audit.append("post2")
+        return item
+
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {
+            "count": PipelineContainer(
+                pipelines=[AuditPipeline(audit)],
+                pre_middlewares=[],
+                post_middlewares=[post_one, post_two],
+            )
+        },
+    )
+
+    result = await dispatcher.put_item(CountItem("count"))
+
+    assert result.total == 0
+    assert audit == ["pipeline"]

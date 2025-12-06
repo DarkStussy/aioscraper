@@ -5,7 +5,7 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
-from ..exceptions import HTTPException, StopMiddlewareProcessing
+from ..exceptions import HTTPException, StopMiddlewareProcessing, StopRequestProcessing
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
@@ -79,7 +79,12 @@ class RequestManager:
     async def _send_request(self, request: Request) -> None:
         try:
             for inner_middleware in self._middleware_holder.inner:
-                await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
+                try:
+                    await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
+                except StopRequestProcessing:
+                    return
+                except StopMiddlewareProcessing:
+                    break
 
             url = parse_url(request.url, request.params)
             logger.debug(f"send request: {request.method} {url}")
@@ -87,9 +92,14 @@ class RequestManager:
             response = await self._session.make_request(request)
 
             for response_middleware in self._middleware_holder.response:
-                await response_middleware(
-                    **get_func_kwargs(response_middleware, request=request, response=response, **self._dependencies)
-                )
+                try:
+                    await response_middleware(
+                        **get_func_kwargs(response_middleware, request=request, response=response, **self._dependencies)
+                    )
+                except StopRequestProcessing:
+                    return
+                except StopMiddlewareProcessing:
+                    break
 
             if response.status >= 400:
                 await self._handle_exception(
@@ -121,8 +131,10 @@ class RequestManager:
                 await exception_middleware(
                     **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies)
                 )
-            except StopMiddlewareProcessing:
+            except StopRequestProcessing:
                 return
+            except StopMiddlewareProcessing:
+                break
 
         if request.errback is not None:
             try:
@@ -155,6 +167,8 @@ class RequestManager:
             for outer_middleware in self._middleware_holder.outer:
                 try:
                     await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
+                except StopMiddlewareProcessing:
+                    logger.debug("StopMiddlewareProcessing in outer middleware is ignored")
                 except Exception as e:
                     logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
 

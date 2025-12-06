@@ -49,6 +49,8 @@ Middlewares around pipelines
 - Pipeline middlewares let you hook into the item flow before the first pipeline and after the last one. They receive the current item instance and must return it (mutated or replaced).
 - Register pre-middlewares with ``@scraper.pipeline.middleware("pre", name)`` to prepare or normalize the item before any pipeline sees it.
 - Register post-middlewares with ``@scraper.pipeline.middleware("post", name)`` to finalize or log the item after all pipelines finish.
+- Raise :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` to stop remaining middlewares in the current phase (pre/post) but continue the rest of the pipeline flow.
+- Raise :class:`StopItemProcessing <aioscraper.exceptions.StopItemProcessing>` to stop processing the current item entirely (skip remaining middlewares and pipelines).
 
 .. code-block:: python
 
