@@ -13,11 +13,13 @@ class SessionConfig:
         timeout (float): Request timeout in seconds
         delay (float): Delay between requests in seconds
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
+        proxy (str | dict[str, str] | None): Default proxy passed to the HTTP client
     """
 
     timeout: float = 60.0
     delay: float = 0.0
     ssl: ssl_module.SSLContext | bool = True
+    proxy: str | dict[str, str] | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -111,6 +113,7 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
             timeout=env_parser.parse_float("SESSION_REQUEST_TIMEOUT", default_config.session.timeout),
             delay=env_parser.parse_float("SESSION_REQUEST_DELAY", default_config.session.delay),
             ssl=ssl_ctx,
+            proxy=env_parser.parse_proxy("SESSION_PROXY", None),
         ),
         scheduler=SchedulerConfig(
             concurrent_requests=concurrent_requests,

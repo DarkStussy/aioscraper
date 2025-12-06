@@ -1,5 +1,5 @@
 from ssl import SSLContext
-from httpx import AsyncClient, BasicAuth, USE_CLIENT_DEFAULT
+from httpx import AsyncClient, BasicAuth, USE_CLIENT_DEFAULT, AsyncHTTPTransport
 
 from .base import BaseSession
 from ..types import Response, Request
@@ -9,8 +9,19 @@ from .._helpers.http import parse_cookies, parse_url, to_simple_cookie
 class HttpxSession(BaseSession):
     "Implementation of HTTP session using httpx."
 
-    def __init__(self, timeout: float | None, verify: SSLContext | bool) -> None:
-        self._client = AsyncClient(timeout=timeout, verify=verify)
+    def __init__(
+        self,
+        timeout: float | None,
+        verify: SSLContext | bool,
+        proxy: str | dict[str, str] | None,
+    ) -> None:
+        if isinstance(proxy, dict):
+            mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items()}
+            proxy = None
+        else:
+            mounts = None
+
+        self._client = AsyncClient(timeout=timeout, verify=verify, proxy=proxy, mounts=mounts)
 
     async def make_request(self, request: Request) -> Response:
         "Perform an HTTP request via httpx and wrap the result in `Response`."

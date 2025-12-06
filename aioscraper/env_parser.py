@@ -4,6 +4,8 @@ from logging import getLevelNamesMapping
 import os
 from typing import Any, TypeVar, Callable
 
+from yarl import URL
+
 from .types import NotSetType
 
 
@@ -80,3 +82,20 @@ def parse_json(key: str, default: Any = NOTSET, load: Callable[[str], Any] | Non
 
 def parse_log_level(key: str, default: int | None | NotSetType = NOTSET) -> int:
     return parse(key, to_log_level, default)
+
+
+def parse_proxy(key: str, default: str | None = None) -> dict[str, str] | str | None:
+    value = parse_str(key, default)
+    if not value:
+        return None
+
+    try:
+        proxies = json.loads(value)
+        return {"http://": proxies["http"], "https://": proxies["https"]}
+    except:
+        pass
+
+    try:
+        return str(URL(value))
+    except Exception as e:
+        raise ValueError("Cannot parse proxy env variable") from e

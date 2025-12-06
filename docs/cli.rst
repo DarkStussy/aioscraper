@@ -72,6 +72,7 @@ Supported environment variables:
 - ``SESSION_REQUEST_TIMEOUT``: Request timeout (seconds).
 - ``SESSION_REQUEST_DELAY``: Delay between requests (seconds).
 - ``SESSION_SSL``: ``true``/``false`` to toggle verification, or a path to a CA bundle for custom certificates.
+- ``SESSION_PROXY``: Default proxy for the HTTP client (string ``http://user:pass@host:port`` or JSON ``{"http": "...", "https": "..."}``).
 - ``SCHEDULER_CONCURRENT_REQUESTS``: Max concurrent requests.
 - ``SCHEDULER_PENDING_REQUESTS``: Pending requests to maintain.
 - ``SCHEDULER_CLOSE_TIMEOUT``: Scheduler shutdown timeout (seconds).

@@ -8,9 +8,14 @@ from ..types import Response, Request
 class AiohttpSession(BaseSession):
     "Implementation of HTTP session using aiohttp."
 
-    def __init__(self, timeout: ClientTimeout, connector: TCPConnector | None = None) -> None:
+    def __init__(
+        self,
+        timeout: ClientTimeout,
+        connector: TCPConnector | None,
+        proxy: str | None,
+    ) -> None:
         self._timeout = timeout
-        self._session = ClientSession(timeout=timeout, connector=connector)
+        self._session = ClientSession(timeout=timeout, connector=connector, proxy=proxy)
 
     async def make_request(self, request: Request) -> Response:
         "Perform an HTTP request via aiohttp and wrap the result in `Response`."

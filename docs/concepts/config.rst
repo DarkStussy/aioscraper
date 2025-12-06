@@ -5,7 +5,9 @@ Configuration
 
 You can build a :class:`Config <aioscraper.config.Config>` and pass it into :meth:`AIOScraper.start <aioscraper.scraper.core.AIOScraper.start>`, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
-The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed.
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
+
+For ``httpx``, proxies are client-scoped, so set :class:`SessionConfig.proxy <aioscraper.config.Config>` (or ``SESSION_PROXY``) if you need to route traffic through a proxy.
 
 .. code-block:: python
 
@@ -14,7 +16,7 @@ The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherw
     from aioscraper.config import Config, SessionConfig, SchedulerConfig, ExecutionConfig, PipelineConfig
 
     config = Config(
-        session=SessionConfig(timeout=20, delay=0.05, ssl=True),
+        session=SessionConfig(timeout=20, delay=0.05, ssl=True, proxy="http://localhost:8080"),
         scheduler=SchedulerConfig(concurrent_requests=32, pending_requests=4, close_timeout=0.5),
         execution=ExecutionConfig(
             timeout=60,
