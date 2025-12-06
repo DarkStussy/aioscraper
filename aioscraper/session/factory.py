@@ -6,8 +6,7 @@ from ..exceptions import AIOScraperException
 logger = logging.getLogger(__name__)
 
 
-def get_session(config: Config, force: str | None = "httpx") -> BaseSession:
-    print(config.session.proxy)
+def get_session(config: Config, force: str | None = None) -> BaseSession:
     if force != "httpx":
         try:
             from .aiohttp import AiohttpSession, ClientTimeout, TCPConnector
