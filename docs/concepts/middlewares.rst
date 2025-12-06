@@ -4,9 +4,11 @@ Middlewares
 Middlewares let you intercept requests, responses and exceptions. Each hook runs at a specific phase and can be registered with decorators.
 
 - ``@scraper.middleware("outer")`` — before a request enters the queue (normalize/annotate requests).
-- ``@scraper.middleware("inner")`` — right before HTTP dispatch (headers, auth, tracing); :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` stops remaining inner middlewares, :class:`StopRequestProcessing <aioscraper.exceptions.StopRequestProcessing>` stops the request entirely.
-- ``@scraper.middleware("exception")`` — whenever sending/handling fails; :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` stops further exception handling/errback, :class:`StopRequestProcessing <aioscraper.exceptions.StopRequestProcessing>` stops request processing.
-- ``@scraper.middleware("response")`` — after HTTP completes, before ``callback``; :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` stops remaining response middlewares, :class:`StopRequestProcessing <aioscraper.exceptions.StopRequestProcessing>` stops further handling of the response.
+- ``@scraper.middleware("inner")`` — right before HTTP dispatch (headers, auth, tracing).
+- ``@scraper.middleware("exception")`` — whenever sending/handling fails.
+- ``@scraper.middleware("response")`` — after HTTP completes, before ``callback``.
+
+:class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` stops remaining middlewares in the current phase (inner/response/exception); :class:`StopRequestProcessing <aioscraper.exceptions.StopRequestProcessing>` stops the current request entirely.
 
 
 .. code-block:: python

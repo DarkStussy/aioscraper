@@ -82,8 +82,10 @@ class RequestManager:
                 try:
                     await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
                 except StopRequestProcessing:
+                    logger.debug("StopRequestProcessing in inner middleware: aborting request processing")
                     return
                 except StopMiddlewareProcessing:
+                    logger.debug("StopMiddlewareProcessing in inner middleware: stopping inner chain")
                     break
 
             url = parse_url(request.url, request.params)
@@ -97,8 +99,10 @@ class RequestManager:
                         **get_func_kwargs(response_middleware, request=request, response=response, **self._dependencies)
                     )
                 except StopRequestProcessing:
+                    logger.debug("StopRequestProcessing in response middleware: aborting request processing")
                     return
                 except StopMiddlewareProcessing:
+                    logger.debug("StopMiddlewareProcessing in response middleware: stopping response chain")
                     break
 
             if response.status >= 400:
@@ -132,8 +136,10 @@ class RequestManager:
                     **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies)
                 )
             except StopRequestProcessing:
+                logger.debug("StopRequestProcessing in exception middleware: aborting request processing")
                 return
             except StopMiddlewareProcessing:
+                logger.debug("StopMiddlewareProcessing in exception middleware: stopping exception chain")
                 break
 
         if request.errback is not None:
@@ -167,8 +173,8 @@ class RequestManager:
             for outer_middleware in self._middleware_holder.outer:
                 try:
                     await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
-                except StopMiddlewareProcessing:
-                    logger.debug("StopMiddlewareProcessing in outer middleware is ignored")
+                except (StopMiddlewareProcessing, StopRequestProcessing) as e:
+                    logger.debug(f"{e.__class__.__name__} in outer middleware is ignored")
                 except Exception as e:
                     logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
 

@@ -42,8 +42,10 @@ class PipelineDispatcher:
             try:
                 item = await middleware(item)
             except StopMiddlewareProcessing:
+                logger.debug("StopMiddlewareProcessing in pipeline pre middleware: stopping pre chain")
                 break
             except StopItemProcessing:
+                logger.debug("StopItemProcessing in pipeline pre middleware: aborting item processing")
                 return item
 
         for pipeline in pipe_container.pipelines:
@@ -53,8 +55,10 @@ class PipelineDispatcher:
             try:
                 item = await middleware(item)
             except StopMiddlewareProcessing:
+                logger.debug("StopMiddlewareProcessing in pipeline post middleware: stopping post chain")
                 break
             except StopItemProcessing:
+                logger.debug("StopItemProcessing in pipeline post middleware: aborting item processing")
                 return item
 
         return item
