@@ -11,6 +11,7 @@ from aiohttp import web
 from aiohttp.test_utils import BaseTestServer
 from aiohttp.web_runner import ServerRunner
 from aiohttp.web_server import Server
+from yarl import URL
 
 from aioscraper.types.stub import NotSetType
 
@@ -32,6 +33,14 @@ class MockResponse:
 ResponseHandler = Callable[[web.BaseRequest], Any]
 
 
+def _parse_url_without_scheme_and_qs(v: str) -> str:
+    url = URL(v)
+    host = url.host
+    port = f":{url.port}" if url.port not in (None, 80, 443) else ""
+    path = url.path
+    return f"{host}{port}{path}"
+
+
 @dataclass(slots=True, kw_only=True)
 class Route:
     method: str
@@ -44,8 +53,7 @@ class Route:
         if method.upper() != self.method:
             return False
 
-        url = url.replace("http://", "").replace("https://", "")
-        return bool(re.fullmatch(self.url, url))
+        return bool(re.fullmatch(self.url, _parse_url_without_scheme_and_qs(url)))
 
 
 class MockServer(BaseTestServer):
@@ -58,7 +66,7 @@ class MockServer(BaseTestServer):
         port: int = 0,
     ):
         super().__init__(scheme=scheme, host=host, port=port)
-        self._calls: list[tuple[str, str, MockResponse]] = []
+        self._calls: list[tuple[str, str, MockResponse | web.StreamResponse]] = []
         self._routes: list[Route] = []
         self._unmatched: list[web.BaseRequest] = []
         self._patch_client = patch_client
@@ -80,6 +88,10 @@ class MockServer(BaseTestServer):
                 response = await route.handler(request)
             else:
                 response = await asyncio.to_thread(route.handler, request)
+
+            if isinstance(response, web.StreamResponse):
+                self._calls.append((method, request.path, response))
+                return response
 
             if not isinstance(response, MockResponse):
                 response = MockResponse(json=response)
@@ -113,7 +125,7 @@ class MockServer(BaseTestServer):
     ) -> None:
         self._routes.append(
             Route(
-                url=url.replace("http://", "").replace("https://", "") if isinstance(url, str) else url,
+                url=_parse_url_without_scheme_and_qs(url) if isinstance(url, str) else url,
                 method=method.upper(),
                 handler=handler or (lambda _: MockResponse()),
                 repeat=repeat,

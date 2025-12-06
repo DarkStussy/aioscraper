@@ -5,8 +5,7 @@ import pytest
 from aioscraper.exceptions import HTTPException
 from aioscraper.holders.middleware import MiddlewareType
 from aioscraper.types import Request, Response, SendRequest, Middleware
-
-from .mocks import MockAIOScraper, MockResponse
+from tests.mocks import MockAIOScraper, MockResponse
 
 
 class MiddlewareScraper:

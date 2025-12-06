@@ -1,4 +1,4 @@
-from aiohttp import ClientSession, ClientTimeout, TCPConnector
+from aiohttp import ClientSession, ClientTimeout, TCPConnector, FormData
 from aiohttp.helpers import BasicAuth
 
 from .base import BaseSession
@@ -9,15 +9,30 @@ class AiohttpSession(BaseSession):
     "Implementation of HTTP session using aiohttp."
 
     def __init__(self, timeout: ClientTimeout, connector: TCPConnector | None = None) -> None:
+        self._timeout = timeout
         self._session = ClientSession(timeout=timeout, connector=connector)
 
     async def make_request(self, request: Request) -> Response:
         "Perform an HTTP request via aiohttp and wrap the result in `Response`."
+        data = request.data
+
+        if request.files is not None:
+            form = FormData()
+
+            if isinstance(request.data, dict):
+                for key, value in request.data.items():
+                    form.add_field(key, value)
+
+            for name, file in request.files.items():
+                form.add_field(name, file.value, filename=file.name, content_type=file.content_type)
+
+            data = form
+
         async with self._session.request(
             url=request.url,
             method=request.method,
             params=request.params,
-            data=request.data,
+            data=data,
             json=request.json_data,
             cookies=request.cookies,
             headers=request.headers,
@@ -41,7 +56,7 @@ class AiohttpSession(BaseSession):
                 if request.auth is not None
                 else None
             ),
-            timeout=ClientTimeout(total=request.timeout) if request.timeout is not None else None,
+            timeout=ClientTimeout(total=request.timeout) if request.timeout is not None else self._timeout,
             allow_redirects=request.allow_redirects,
             max_redirects=request.max_redirects,
         ) as response:

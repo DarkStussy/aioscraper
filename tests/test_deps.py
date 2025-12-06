@@ -1,7 +1,8 @@
 import pytest
 
+from aioscraper._helpers.func import get_func_kwargs
 from aioscraper.types import Request, SendRequest, Response
-from tests.mocks.scraper import MockAIOScraper
+from tests.mocks import MockAIOScraper
 
 
 class Scraper:
@@ -33,3 +34,19 @@ async def test_dependencies(mock_aioscraper: MockAIOScraper):
     assert scraper.results["response_dep"] == "injected"
     assert scraper.results["payload"] == response_data
     mock_aioscraper.server.assert_all_routes_handled()
+
+
+def test_get_func_kwargs_picks_only_known_params():
+    def fn(a, b, c): ...
+
+    kwargs = get_func_kwargs(fn, a=1, b=2, c=3, d=4)
+
+    assert kwargs == {"a": 1, "b": 2, "c": 3}
+
+
+def test_get_func_kwargs_handles_missing_optional_params():
+    def fn(a, b=2): ...
+
+    kwargs = get_func_kwargs(fn, a=1, c=3)
+
+    assert kwargs == {"a": 1}

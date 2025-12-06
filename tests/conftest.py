@@ -2,8 +2,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from .mocks import MockServer, MockAIOScraper
-from .mocks import client
+from tests.mocks import MockServer, MockAIOScraper
+from tests.mocks import client
 
 CLIENTS = ("aiohttp", "httpx")
 

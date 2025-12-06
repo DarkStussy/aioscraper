@@ -1,12 +1,32 @@
 import json
 from http.cookies import BaseCookie, Morsel, SimpleCookie
 from dataclasses import dataclass, field
-from typing import Mapping, MutableMapping, Any, Callable, Awaitable, NotRequired, TypedDict
+from typing import (
+    Mapping,
+    MutableMapping,
+    Any,
+    Callable,
+    Awaitable,
+    NamedTuple,
+    NotRequired,
+    TypedDict,
+)
+
+from ..exceptions import InvalidRequestData
 
 QueryParams = MutableMapping[str, str | int | float]
 RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
 RequestHeaders = MutableMapping[str, str]
 ResponseHeaders = Mapping[str, str]
+
+
+class File(NamedTuple):
+    name: str
+    value: Any
+    content_type: str | None = None
+
+
+RequestFiles = MutableMapping[str, File]
 
 
 class BasicAuth(TypedDict):
@@ -25,6 +45,7 @@ class Request:
         method (str): HTTP method
         params (QueryParams | None): URL query parameters
         data (Any): Request body data
+        files (RequestFiles | None): Multipart files mapping
         json_data (Any): JSON data to be sent in the request body
         cookies (RequestCookies | None): Request cookies
         headers (RequestHeaders | None): Request headers
@@ -48,6 +69,7 @@ class Request:
     params: QueryParams | None = None
     data: Any = None
     json_data: Any = None
+    files: RequestFiles | None = None
     cookies: RequestCookies | None = None
     headers: RequestHeaders | None = None
     auth: BasicAuth | None = None
@@ -64,6 +86,13 @@ class Request:
     cb_kwargs: dict[str, Any] = field(default_factory=dict)
     errback: Callable[..., Awaitable[Any]] | None = None
     state: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.json_data and self.data:
+            raise InvalidRequestData("Cannot send both data and json_data")
+
+        if self.json_data and self.files:
+            raise InvalidRequestData("Cannot send both files and json_data")
 
 
 SendRequest = Callable[[Request], Awaitable[Request]]

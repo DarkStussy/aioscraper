@@ -2,8 +2,7 @@ import pytest
 
 from aioscraper.exceptions import ClientException, HTTPException
 from aioscraper.types import Request, SendRequest, Response
-from tests.mocks.scraper import MockAIOScraper
-from tests.mocks.server import MockResponse
+from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:

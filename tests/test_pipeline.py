@@ -8,8 +8,7 @@ from aioscraper.holders.pipeline import PipelineMiddlewareType
 from aioscraper.types import Pipeline, Request, SendRequest, Response, ItemType, PipelineMiddleware
 from aioscraper.pipeline import BasePipeline
 from aioscraper.pipeline.dispatcher import PipelineContainer, PipelineDispatcher
-
-from .mocks import MockAIOScraper, MockResponse
+from tests.mocks import MockAIOScraper, MockResponse
 
 
 @dataclass

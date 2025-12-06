@@ -43,3 +43,7 @@ class StopMiddlewareProcessing(AIOScraperException):
     "Stoppable exception for pipeline exception middlewares."
 
     ...
+
+
+class InvalidRequestData(AIOScraperException):
+    "Raised when request payload fields conflict."
