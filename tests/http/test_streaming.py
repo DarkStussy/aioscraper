@@ -8,10 +8,10 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.bodies: dict[str, bytes] = {}
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/chunked",
@@ -29,7 +29,7 @@ class Scraper:
             )
         )
 
-    async def store_body(self, response: Response, key: str) -> None:
+    async def store_body(self, response: Response, key: str):
         self.bodies[key] = response.content
 
 

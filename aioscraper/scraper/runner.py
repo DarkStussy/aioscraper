@@ -10,10 +10,10 @@ from ..config import Config, load_config
 logger = logging.getLogger(__name__)
 
 
-def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Event, force_exit: asyncio.Event) -> None:
+def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Event, force_exit: asyncio.Event):
     "Register SIGINT/SIGTERM handlers; repeated signal triggers force_exit."
 
-    def _trigger(sig_name: str) -> None:
+    def _trigger(sig_name: str):
         if shutdown.is_set():
             if not force_exit.is_set():
                 logger.error("Received second %s, ignore shutdown timeout", sig_name)
@@ -36,7 +36,7 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
                 logger.debug("Signal handler for %s was not installed", sig_name)
 
 
-async def _run_scraper_without_force_exit(scraper: AIOScraper, config: Config, shutdown_event: asyncio.Event) -> None:
+async def _run_scraper_without_force_exit(scraper: AIOScraper, config: Config, shutdown_event: asyncio.Event):
     "Run scraper with shutdown/timeout handling, ignoring force-exit logic."
     execution_timeout = config.execution.timeout if config else None
 
@@ -94,7 +94,7 @@ async def _run_scraper(
     shutdown_event: asyncio.Event | None = None,
     force_exit_event: asyncio.Event | None = None,
     install_signal_handlers: bool = True,
-) -> None:
+):
     "Main runner: wires signal handlers, listens for force-exit, delegates shutdown-aware execution."
     loop = asyncio.get_running_loop()
     shutdown = shutdown_event or asyncio.Event()

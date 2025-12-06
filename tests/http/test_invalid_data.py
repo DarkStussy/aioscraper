@@ -7,11 +7,11 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.error: Exception | None = None
         self.parsed_ok = False
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/bad-json",
@@ -21,11 +21,11 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response) -> None:
+    async def parse(self, response: Response):
         response.json()  # should raise JSONDecodeError on broken data
         self.parsed_ok = True
 
-    async def on_error(self, exc: Exception) -> None:
+    async def on_error(self, exc: Exception):
         self.error = exc
 
 

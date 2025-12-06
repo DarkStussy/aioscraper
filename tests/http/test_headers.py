@@ -6,11 +6,11 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.seen_headers: dict[str, str] | None = None
         self.response_headers: Mapping[str, str] | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/headers",
@@ -20,7 +20,7 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response, request: Request) -> None:
+    async def parse(self, response: Response, request: Request):
         self.seen_headers = response.json()
         self.response_headers = response.headers
 

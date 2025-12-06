@@ -60,7 +60,7 @@ class RequestManager:
         shutdown_timeout: float,
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
-    ) -> None:
+    ):
         self._session = sessionmaker()
         self._schedule_request = schedule_request
         self._queue = queue
@@ -76,7 +76,7 @@ class RequestManager:
     def sender(self) -> SendRequest:
         return self._request_sender
 
-    async def _send_request(self, request: Request) -> None:
+    async def _send_request(self, request: Request):
         try:
             for inner_middleware in self._middleware_holder.inner:
                 try:
@@ -129,7 +129,7 @@ class RequestManager:
         except Exception as exc:
             await self._handle_exception(request, exc)
 
-    async def _handle_exception(self, request: Request, exc: Exception) -> None:
+    async def _handle_exception(self, request: Request, exc: Exception):
         for exception_middleware in self._middleware_holder.exception:
             try:
                 await exception_middleware(
@@ -158,11 +158,11 @@ class RequestManager:
         else:
             logger.error(f"{request.method}: {request.url}: {exc}", exc_info=exc)
 
-    def listen_queue(self) -> None:
+    def listen_queue(self):
         """Start listening to the request queue."""
         self._task = asyncio.create_task(self._listen_queue())
 
-    async def _listen_queue(self) -> None:
+    async def _listen_queue(self):
         """Process requests from the queue with configured delay."""
         while True:
             r = await self._queue.get()
@@ -181,7 +181,7 @@ class RequestManager:
             await self._schedule_request(execute_coroutine(self._send_request(r.request)))
             await asyncio.sleep(self._delay)
 
-    async def close(self) -> None:
+    async def close(self):
         """Close the underlying session."""
         self._event.set()
         await self._queue.put(_PRequest(priority=sys.maxsize, request=Request(url="stub")))

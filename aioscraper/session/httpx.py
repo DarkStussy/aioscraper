@@ -14,7 +14,7 @@ class HttpxSession(BaseSession):
         timeout: float | None,
         verify: SSLContext | bool,
         proxy: str | dict[str, str | None] | None,
-    ) -> None:
+    ):
         if isinstance(proxy, dict):
             mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items() if proxy} or None
             proxy = None
@@ -58,5 +58,5 @@ class HttpxSession(BaseSession):
             content=await response.aread(),
         )
 
-    async def close(self) -> None:
+    async def close(self):
         await self._client.aclose()

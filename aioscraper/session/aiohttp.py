@@ -13,7 +13,7 @@ class AiohttpSession(BaseSession):
         timeout: ClientTimeout,
         connector: TCPConnector | None,
         proxy: str | None,
-    ) -> None:
+    ):
         self._timeout = timeout
         self._session = ClientSession(timeout=timeout, connector=connector, proxy=proxy)
 
@@ -74,5 +74,5 @@ class AiohttpSession(BaseSession):
                 content=await response.read(),
             )
 
-    async def close(self) -> None:
+    async def close(self):
         await self._session.close()

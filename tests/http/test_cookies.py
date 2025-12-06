@@ -6,11 +6,11 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.seen_cookies: dict[str, str] | None = None
         self.response_cookies: dict[str, Any] | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/cookies",
@@ -20,7 +20,7 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response, request: Request) -> None:
+    async def parse(self, response: Response, request: Request):
         self.seen_cookies = response.json()
         self.response_cookies = response.cookies
 

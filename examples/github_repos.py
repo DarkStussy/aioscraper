@@ -32,7 +32,7 @@ class RepoItem:
 
 @scraper.pipeline(RepoItem)
 class CollectPipeline:
-    def __init__(self) -> None:
+    def __init__(self):
         self.items: list[dict[str, Any]] = []
 
     async def put_item(self, item: RepoItem) -> RepoItem:
@@ -47,7 +47,7 @@ class CollectPipeline:
         )
         return item
 
-    async def close(self) -> None:
+    async def close(self):
         print(f"Collected {len(self.items)} repos")
         for repo in self.items:
             print(
@@ -57,7 +57,7 @@ class CollectPipeline:
 
 
 @scraper
-async def fetch_repos(send_request: SendRequest) -> None:
+async def fetch_repos(send_request: SendRequest):
     repos = [
         ("python", "cpython"),
         ("django", "django"),
@@ -66,7 +66,7 @@ async def fetch_repos(send_request: SendRequest) -> None:
         ("microsoft", "playwright-python"),
     ]
 
-    async def parse_repo(response: Response, pipeline: Pipeline, owner: str, name: str) -> None:
+    async def parse_repo(response: Response, pipeline: Pipeline, owner: str, name: str):
         await pipeline(RepoItem(owner, name, data=response.json()))
 
     for owner, name in repos:

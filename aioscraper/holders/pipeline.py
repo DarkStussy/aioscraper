@@ -14,7 +14,7 @@ from ..types.pipeline import (
 class PipelineHolder:
     "Keeps pipeline containers and exposes decorator helpers."
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.pipelines: dict[Any, PipelineContainer] = {}
         self.global_middlewares: list[Callable[..., GlobalPipelineMiddleware[Any]]] = []
 
@@ -39,7 +39,7 @@ class PipelineHolder:
 
         return decorator
 
-    def add(self, item_type: Type[PipelineItemType], *pipelines: BasePipeline[PipelineItemType]) -> None:
+    def add(self, item_type: Type[PipelineItemType], *pipelines: BasePipeline[PipelineItemType]):
         "Add pipelines to process scraped data."
         for pipeline in pipelines:
             # runtime protocol check to ensure BasePipeline interface compliance
@@ -79,7 +79,7 @@ class PipelineHolder:
         middleware_type: PipelineMiddlewareStage,
         item_type: Type[PipelineItemType],
         *middlewares: PipelineMiddleware[PipelineItemType],
-    ) -> None:
+    ):
         "Add pipeline processing middlewares."
         if item_type not in self.pipelines:
             container = self.pipelines[item_type] = PipelineContainer()
@@ -102,6 +102,6 @@ class PipelineHolder:
         self.add_global_middlewares(middleware)
         return middleware
 
-    def add_global_middlewares(self, *middlewares: Callable[..., GlobalPipelineMiddleware[PipelineItemType]]) -> None:
+    def add_global_middlewares(self, *middlewares: Callable[..., GlobalPipelineMiddleware[PipelineItemType]]):
         "Add global pipeline processing middlewares."
         self.global_middlewares.extend(middlewares)

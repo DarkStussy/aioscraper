@@ -7,7 +7,7 @@ from .server import MockServer
 
 
 class MockAIOScraper(AIOScraper):
-    def __init__(self, *scrapers: Scraper, server: MockServer, http_backend: str) -> None:
+    def __init__(self, *scrapers: Scraper, server: MockServer, http_backend: str):
         super().__init__(*scrapers)
         self._server = server
         self._http_backend = http_backend

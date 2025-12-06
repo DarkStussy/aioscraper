@@ -8,24 +8,24 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class MiddlewareScraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.response = None
         self.outer: bool | None = None
         self.inner: bool | None = None
         self.response_flag: bool | None = None
         self.exception_seen = False
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
         await send_request(Request(url="https://api.test.com/error", errback=self.handle_error))
 
-    async def parse(self, response: Response, request: Request, outer: bool, inner: bool) -> None:
+    async def parse(self, response: Response, request: Request, outer: bool, inner: bool):
         self.response = response.json()
         self.outer = outer
         self.inner = inner
         self.response_flag = request.state.get("from_response")
 
-    async def handle_error(self, exc: Exception) -> None:
+    async def handle_error(self, exc: Exception):
         self.exception_seen = isinstance(exc, HTTPException)
 
 
@@ -54,20 +54,20 @@ async def test_middleware(
 
     calls = {"outer": 0, "inner": 0, "response": 0, "exception": 0}
 
-    async def outer_middleware(request: Request) -> None:
+    async def outer_middleware(request: Request):
         calls["outer"] += 1
         request.cb_kwargs["outer"] = True
         request.state["outer"] = True
 
-    async def inner_middleware(request: Request) -> None:
+    async def inner_middleware(request: Request):
         calls["inner"] += 1
         request.cb_kwargs["inner"] = True
 
-    async def response_middleware(response: Response, request: Request) -> None:
+    async def response_middleware(response: Response, request: Request):
         calls["response"] += 1
         request.state["from_response"] = True
 
-    async def exception_middleware(exc: Exception) -> None:
+    async def exception_middleware(exc: Exception):
         calls["exception"] += 1
         assert isinstance(exc, HTTPException)
 
@@ -110,10 +110,10 @@ async def test_stop_middleware_processing_short_circuits_chain(
 
     mock_aioscraper.middleware.add(middleware_type, first, second)
 
-    async def scrape(send_request: SendRequest) -> None:
+    async def scrape(send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", callback=parse))
 
-    async def parse() -> None:
+    async def parse():
         calls.append("callback")
 
     mock_aioscraper(scrape)
@@ -148,10 +148,10 @@ async def test_stop_request_processing_short_circuits_everything(
 
     mock_aioscraper.middleware.add(middleware_type, first, second)
 
-    async def scrape(send_request: SendRequest) -> None:
+    async def scrape(send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", callback=parse))
 
-    async def parse() -> None:
+    async def parse():
         calls.append("callback")
 
     mock_aioscraper(scrape)
@@ -180,7 +180,7 @@ async def test_exception_middleware_stop_processing_skips_rest_and_errback(mock_
 
     mock_aioscraper.middleware.add("exception", exc_one, exc_two)
 
-    async def scrape(send_request: SendRequest) -> None:
+    async def scrape(send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/error", errback=errback))
 
     mock_aioscraper(scrape)
@@ -211,7 +211,7 @@ async def test_exception_middleware_stop_request_processing_skips_errback(mock_a
 
     mock_aioscraper.middleware.add("exception", exc_one, exc_two)
 
-    async def scrape(send_request: SendRequest) -> None:
+    async def scrape(send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/error", errback=errback))
 
     mock_aioscraper(scrape)

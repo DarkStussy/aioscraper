@@ -12,7 +12,7 @@ from ..scraper import run_scraper
 logger = logging.getLogger("aioscraper.cli")
 
 
-def _apply_uvloop_policy() -> None:
+def _apply_uvloop_policy():
     try:
         import uvloop  # type: ignore
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on optional dependency
@@ -25,7 +25,7 @@ def _apply_uvloop_policy() -> None:
         raise CLIError("Failed to apply uvloop event loop policy") from exc
 
 
-async def _run(config: Config, entrypoint: str) -> None:
+async def _run(config: Config, entrypoint: str):
     init = resolve_entrypoint_factory(entrypoint)
     scraper = await init() if inspect.iscoroutinefunction(init) else init()
     await run_scraper(scraper, config=config)

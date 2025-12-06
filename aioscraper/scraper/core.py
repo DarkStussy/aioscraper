@@ -26,7 +26,7 @@ class AIOScraper:
         scrapers (tuple[Scraper, ...]): List of scraper callables to execute
     """
 
-    def __init__(self, *scrapers: Scraper) -> None:
+    def __init__(self, *scrapers: Scraper):
         self.scrapers = [*scrapers]
         self.dependencies: dict[str, Any] = {}
 
@@ -47,7 +47,7 @@ class AIOScraper:
         self.scrapers.append(scraper)
         return scraper
 
-    def add_dependencies(self, **kwargs: Any) -> None:
+    def add_dependencies(self, **kwargs: Any):
         "Add shared dependencies to inject into scraper callbacks."
         self.dependencies.update(kwargs)
 
@@ -75,7 +75,7 @@ class AIOScraper:
         exc_type: Type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None:
+    ):
         try:
             await self.close()
         finally:
@@ -84,7 +84,7 @@ class AIOScraper:
     def _get_sessionmaker(self, config: Config) -> SessionMaker:
         return get_sessionmaker(config)
 
-    async def start(self, config: Config | None = None) -> None:
+    async def start(self, config: Config | None = None):
         """
         Initialize and run the scraper with the given configuration.
 
@@ -108,7 +108,7 @@ class AIOScraper:
 
         await self._executor.run()
 
-    async def close(self) -> None:
+    async def close(self):
         "Close the scraper and its associated resources."
         if self._executor is not None:
             await self._executor.close()

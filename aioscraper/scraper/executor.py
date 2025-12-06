@@ -33,7 +33,7 @@ class ScraperExecutor:
         middleware_holder: MiddlewareHolder,
         pipeline_dispatcher: PipelineDispatcher,
         sessionmaker: SessionMaker,
-    ) -> None:
+    ):
         self._config = config
         self._scrapers = scrapers
         self._dependencies = {"config": config, "pipeline": pipeline_dispatcher.put_item, **dependencies}
@@ -54,7 +54,7 @@ class ScraperExecutor:
             middleware_holder=middleware_holder,
         )
 
-    async def run(self) -> None:
+    async def run(self):
         "Start the scraping process."
         self._start_time = time.time()
         self._request_manager.listen_queue()
@@ -70,11 +70,11 @@ class ScraperExecutor:
         finally:
             await self._wait()
 
-    async def _wait(self) -> None:
+    async def _wait(self):
         while len(self._scheduler) > 0 or self._request_queue.qsize() > 0:
             await asyncio.sleep(self._config.execution.shutdown_check_interval)
 
-    async def close(self) -> None:
+    async def close(self):
         "Close all resources and cleanup."
         await execute_coroutines(
             self._request_manager.close(),

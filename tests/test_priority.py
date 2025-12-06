@@ -7,14 +7,14 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class PriorityScraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.order: list[int] = []
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         for priority in range(1, 4):
             await send_request(Request(url="https://api.test.com/v1", callback=self.parse, priority=priority))
 
-    async def parse(self, response: Response, request: Request) -> None:
+    async def parse(self, response: Response, request: Request):
         self.order.append(request.priority)
 
 

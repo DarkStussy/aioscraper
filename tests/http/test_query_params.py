@@ -5,10 +5,10 @@ from tests.mocks import MockAIOScraper
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.seen: dict[str, str] | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/params?static=1",
@@ -18,7 +18,7 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response, request: Request) -> None:
+    async def parse(self, response: Response, request: Request):
         self.seen = response.json()
 
 

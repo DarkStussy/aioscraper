@@ -25,7 +25,7 @@ class MockResponse:
     json: Any = NOTSET
     headers: dict[str, str] | None = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         if self.json is not NOTSET and self.text:
             raise ValueError("Cannot set both json and text")
 
@@ -122,7 +122,7 @@ class MockServer(BaseTestServer):
         method: str = "GET",
         handler: ResponseHandler | None = None,
         repeat: int = 1,
-    ) -> None:
+    ):
         self._routes.append(
             Route(
                 url=_parse_url_without_scheme_and_qs(url) if isinstance(url, str) else url,
@@ -132,7 +132,7 @@ class MockServer(BaseTestServer):
             )
         )
 
-    def assert_no_unused_routes(self, ignore_infinite_repeats: bool = False) -> None:
+    def assert_no_unused_routes(self, ignore_infinite_repeats: bool = False):
         unused = [
             route
             for route in self._routes
@@ -142,10 +142,10 @@ class MockServer(BaseTestServer):
             details = ", ".join(f"{route.method} {route.url} ({route.called}/{route.repeat})" for route in unused)
             raise AssertionError(f"Unused routes: {details}")
 
-    def assert_all_requests_matched(self) -> None:
+    def assert_all_requests_matched(self):
         for request in self._unmatched:
             raise AssertionError(f"No match found for request: {request.method} {request.host} {request.path}")
 
-    def assert_all_routes_handled(self) -> None:
+    def assert_all_routes_handled(self):
         self.assert_no_unused_routes()
         self.assert_all_requests_matched()

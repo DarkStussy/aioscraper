@@ -6,7 +6,7 @@ from ..types import Middleware, MiddlewareStage
 class MiddlewareHolder:
     "Stores request/response middlewares and provides decorator-style registration."
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.outer = []
         self.inner = []
         self.exception = []
@@ -21,7 +21,7 @@ class MiddlewareHolder:
 
         return decorator
 
-    def add(self, middleware_type: MiddlewareStage, *middlewares: Middleware) -> None:
+    def add(self, middleware_type: MiddlewareStage, *middlewares: Middleware):
         "Append middlewares to the appropriate bucket."
         match middleware_type:
             case "outer":

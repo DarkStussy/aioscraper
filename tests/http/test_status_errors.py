@@ -6,12 +6,12 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self, status: int) -> None:
+    def __init__(self, status: int):
         self.status = status
         self.seen_error: HTTPException | None = None
         self.seen_response: Response | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url=f"https://api.test.com/{self.status}",
@@ -21,10 +21,10 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response) -> None:
+    async def parse(self, response: Response):
         self.seen_response = response
 
-    async def on_error(self, exc: Exception) -> None:
+    async def on_error(self, exc: Exception):
         if isinstance(exc, HTTPException):
             self.seen_error = exc
 

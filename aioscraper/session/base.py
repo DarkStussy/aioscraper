@@ -19,7 +19,7 @@ class BaseSession(abc.ABC):
         """
         ...
 
-    async def close(self) -> None:
+    async def close(self):
         """
         Close the session and release all resources.
 

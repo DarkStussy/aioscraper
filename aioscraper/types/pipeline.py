@@ -19,7 +19,7 @@ class BasePipeline(Protocol[PipelineItemType]):
         """
         ...
 
-    async def close(self) -> None:
+    async def close(self):
         """
         Close the pipeline.
 

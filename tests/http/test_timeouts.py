@@ -9,12 +9,12 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self, timeout: float | None) -> None:
+    def __init__(self, timeout: float | None):
         self.timeout = timeout
         self.result: str | None = None
         self.error: Exception | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/slow",
@@ -25,10 +25,10 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response) -> None:
+    async def parse(self, response: Response):
         self.result = response.text()
 
-    async def on_error(self, exc: Exception) -> None:
+    async def on_error(self, exc: Exception):
         self.error = exc
 
 

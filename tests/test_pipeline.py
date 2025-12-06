@@ -25,7 +25,7 @@ class RealItem:
 
 
 class RealPipeline:
-    def __init__(self, *labels: str) -> None:
+    def __init__(self, *labels: str):
         self.items: list[RealItem] = []
         self.closed = False
         self.labels = labels
@@ -35,7 +35,7 @@ class RealPipeline:
         self.items.append(item)
         return item
 
-    async def close(self) -> None:
+    async def close(self):
         self.closed = True
 
 
@@ -54,10 +54,10 @@ async def post_processing_middleware(item: RealItem) -> RealItem:
 
 
 class Scraper:
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
 
-    async def parse(self, response: Response, pipeline: Pipeline) -> None:
+    async def parse(self, response: Response, pipeline: Pipeline):
         await pipeline(RealItem(response.text()))
 
 
@@ -73,7 +73,7 @@ def _add(scraper: MockAIOScraper, stage: PipelineMiddlewareStage, middleware: Pi
     scraper.pipeline.add_middlewares(stage, RealItem, middleware)
 
 
-def _add_pipeline(scraper: MockAIOScraper) -> None:
+def _add_pipeline(scraper: MockAIOScraper):
     scraper.pipeline.add(RealItem, RealPipeline("add"))
 
 
@@ -95,14 +95,14 @@ def global_middleware_factory(global_label: str) -> GlobalPipelineMiddleware[Rea
 def _add_global_middleware(
     scraper: MockAIOScraper,
     middleware: Callable[[str], GlobalPipelineMiddleware[RealItem]],
-) -> None:
+):
     scraper.pipeline.add_global_middlewares(middleware)
 
 
 def _add_global_middleware_via_decorator(
     scraper: MockAIOScraper,
     middleware: Callable[[str], GlobalPipelineMiddleware[RealItem]],
-) -> None:
+):
     @scraper.pipeline.global_middleware
     def _(global_label: str) -> GlobalPipelineMiddleware[RealItem]:
         return middleware(global_label)
@@ -200,7 +200,7 @@ class StateItem:
 
 
 class OrderPipeline:
-    def __init__(self, increment: int, label: str) -> None:
+    def __init__(self, increment: int, label: str):
         self.increment = increment
         self.label = label
         self.closed = False
@@ -210,7 +210,7 @@ class OrderPipeline:
         item.total += self.increment
         return item
 
-    async def close(self) -> None:
+    async def close(self):
         self.closed = True
 
 
@@ -256,7 +256,7 @@ async def test_pipeline_multiple_pipelines_order_and_close():
 
 
 class AuditPipeline:
-    def __init__(self) -> None:
+    def __init__(self):
         self.closed = False
 
     async def put_item(self, item: StateItem) -> StateItem:
@@ -265,7 +265,7 @@ class AuditPipeline:
         item.total += 1
         return item
 
-    async def close(self) -> None:
+    async def close(self):
         self.closed = True
 
 

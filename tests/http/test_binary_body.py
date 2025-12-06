@@ -6,11 +6,11 @@ from tests.mocks import MockAIOScraper
 
 
 class Scraper:
-    def __init__(self, payload: bytes) -> None:
+    def __init__(self, payload: bytes):
         self.payload = payload
         self.response_data: dict[str, Any] | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/binary",
@@ -21,7 +21,7 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response) -> None:
+    async def parse(self, response: Response):
         self.response_data = response.json()
 
 

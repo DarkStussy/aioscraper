@@ -6,14 +6,14 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.status = None
         self.response_data = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", errback=self.errback))
 
-    async def errback(self, exc: ClientException) -> None:
+    async def errback(self, exc: ClientException):
         if isinstance(exc, HTTPException):
             self.status = exc.status_code
             self.response_data = exc.message
@@ -38,17 +38,17 @@ async def test_error(mock_aioscraper: MockAIOScraper):
 
 
 class CallbackErrorScraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.exc_message = None
         self.request_url = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v2", callback=self.parse, errback=self.errback))
 
-    async def parse(self, response: Response) -> None:
+    async def parse(self, response: Response):
         raise RuntimeError("parse failed")
 
-    async def errback(self, exc: Exception, request: Request) -> None:
+    async def errback(self, exc: Exception, request: Request):
         self.exc_message = str(exc)
         self.request_url = request.url
 
@@ -68,14 +68,14 @@ async def test_callback_error_triggers_errback(mock_aioscraper: MockAIOScraper):
 
 
 class ErrbackKwargsScraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.status = None
         self.meta = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v3", errback=self.errback, cb_kwargs={"meta": "value"}))
 
-    async def errback(self, exc: ClientException, meta: str) -> None:
+    async def errback(self, exc: ClientException, meta: str):
         if isinstance(exc, HTTPException):
             self.status = exc.status_code
         self.meta = meta

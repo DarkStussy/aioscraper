@@ -22,7 +22,7 @@ class HTTPException(ClientException):
         content (bytes): The raw response content
     """
 
-    def __init__(self, status_code: int, message: str, url: str, method: str, content: bytes) -> None:
+    def __init__(self, status_code: int, message: str, url: str, method: str, content: bytes):
         self.status_code = status_code
         self.message = message
         self.url = url

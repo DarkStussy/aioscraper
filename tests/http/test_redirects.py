@@ -5,12 +5,12 @@ from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
-    def __init__(self, allow_redirects: bool) -> None:
+    def __init__(self, allow_redirects: bool):
         self.allow_redirects = allow_redirects
         self.final_url: str | None = None
         self.status: int | None = None
 
-    async def __call__(self, send_request: SendRequest) -> None:
+    async def __call__(self, send_request: SendRequest):
         await send_request(
             Request(
                 url="https://api.test.com/redirect",
@@ -20,7 +20,7 @@ class Scraper:
             )
         )
 
-    async def parse(self, response: Response) -> None:
+    async def parse(self, response: Response):
         self.final_url = response.url
         self.status = response.status
 

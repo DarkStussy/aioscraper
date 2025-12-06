@@ -10,7 +10,7 @@ from aioscraper.types import Request, Response
 
 
 class FakeSession(BaseSession):
-    def __init__(self) -> None:
+    def __init__(self):
         self.closed = False
         self.calls = 0
 
@@ -25,13 +25,13 @@ class FakeSession(BaseSession):
             content=b"ok",
         )
 
-    async def close(self) -> None:
+    async def close(self):
         self.closed = True
 
 
 @pytest.mark.asyncio
 async def test_errback_failure_wrapped_in_exception_group():
-    async def errback(exc: Exception) -> None:
+    async def errback(exc: Exception):
         raise ValueError("errback failed")
 
     manager = RequestManager(
@@ -65,7 +65,7 @@ async def test_request_manager_respects_delay_between_requests():
         call_times.append(asyncio.get_event_loop().time())
         await coro
 
-    async def callback(response: Response, request: Request) -> None:
+    async def callback(response: Response, request: Request):
         seen.append(response.url)
         if len(seen) == 2:
             finished.set()

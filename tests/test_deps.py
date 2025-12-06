@@ -6,14 +6,14 @@ from tests.mocks import MockAIOScraper
 
 
 class Scraper:
-    def __init__(self) -> None:
+    def __init__(self):
         self.results = {}
 
-    async def __call__(self, send_request: SendRequest, dep: str) -> None:
+    async def __call__(self, send_request: SendRequest, dep: str):
         self.results["scraper_dep"] = dep
         await send_request(Request(url="https://api.test.com/deps", callback=self.parse))
 
-    async def parse(self, response: Response, dep: str) -> None:
+    async def parse(self, response: Response, dep: str):
         self.results["response_dep"] = dep
         self.results["payload"] = response.json()
 

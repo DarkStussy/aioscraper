@@ -23,7 +23,7 @@ def make_scraper_mock() -> AsyncMock:
     async def aexit(exc_type, exc_val, exc_tb):
         scraper.exited = True
 
-    async def start(config: Config) -> None:
+    async def start(config: Config):
         scraper.started = True
         try:
             await scraper._stop.wait()

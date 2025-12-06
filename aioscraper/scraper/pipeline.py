@@ -18,7 +18,7 @@ class PipelineDispatcher:
         pipelines: Mapping[Any, PipelineContainer],
         global_middlewares: list[Callable[..., GlobalPipelineMiddleware[Any]]] | None = None,
         dependencies: Mapping[str, Any] | None = None,
-    ) -> None:
+    ):
         self._config = config
         self._pipelines = pipelines
         self._global_middlewares = global_middlewares or []
@@ -90,7 +90,7 @@ class PipelineDispatcher:
         "Dispatches an item through the pipeline."
         return await self._handler(item)
 
-    async def close(self) -> None:
+    async def close(self):
         """
         Closes all pipelines.
 
