@@ -1,9 +1,6 @@
-from typing import Callable, Literal
+from typing import Callable
 
-from ..types import Middleware
-
-
-MiddlewareType = Literal["outer", "inner", "exception", "response"]
+from ..types import Middleware, MiddlewareStage
 
 
 class MiddlewareHolder:
@@ -15,7 +12,7 @@ class MiddlewareHolder:
         self.exception = []
         self.response = []
 
-    def __call__(self, middleware_type: MiddlewareType) -> Callable[[Middleware], Middleware]:
+    def __call__(self, middleware_type: MiddlewareStage) -> Callable[[Middleware], Middleware]:
         "Return a decorator that registers a middleware under the given type."
 
         def decorator(middleware: Middleware) -> Middleware:
@@ -24,7 +21,7 @@ class MiddlewareHolder:
 
         return decorator
 
-    def add(self, middleware_type: MiddlewareType, *middlewares: Middleware) -> None:
+    def add(self, middleware_type: MiddlewareStage, *middlewares: Middleware) -> None:
         "Append middlewares to the appropriate bucket."
         match middleware_type:
             case "outer":

@@ -1,41 +1,31 @@
 from logging import getLogger
 from typing import Any, Mapping
 
-from dataclasses import dataclass, field
-
-from .base import BasePipeline
 from ..config import PipelineConfig
 from ..exceptions import PipelineException, StopMiddlewareProcessing, StopItemProcessing
-from ..types.pipeline import ItemType, PipelineMiddleware
+from ..types.pipeline import PipelineItemType, PipelineContainer
 
 logger = getLogger(__name__)
-
-
-@dataclass(slots=True, kw_only=True)
-class PipelineContainer:
-    pipelines: list[BasePipeline[Any]] = field(default_factory=list)
-    pre_middlewares: list[PipelineMiddleware[Any]] = field(default_factory=list)
-    post_middlewares: list[PipelineMiddleware[Any]] = field(default_factory=list)
 
 
 class PipelineDispatcher:
     "A class for managing and dispatching items through processing pipelines."
 
-    def __init__(self, config: PipelineConfig, pipelines: Mapping[str, PipelineContainer]) -> None:
+    def __init__(self, config: PipelineConfig, pipelines: Mapping[Any, PipelineContainer]) -> None:
         self._config = config
         self._pipelines = pipelines
 
-    async def put_item(self, item: ItemType) -> ItemType:
+    async def put_item(self, item: PipelineItemType) -> PipelineItemType:
         "Processes an item by passing it through the appropriate pipelines."
         logger.debug(f"pipeline item received: {item}")
 
         try:
-            pipe_container = self._pipelines[item.pipeline_name]
+            pipe_container = self._pipelines[type(item)]
         except KeyError:
             if self._config.strict:
-                raise PipelineException(f"Pipelines for item {item} not found")
+                raise PipelineException(f"Pipelines for item {type(item)} not found")
 
-            logger.warning(f"pipelines for item {item} not found")
+            logger.warning(f"pipelines for item {type(item)} not found")
             return item
 
         for middleware in pipe_container.pre_middlewares:

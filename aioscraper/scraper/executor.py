@@ -6,11 +6,11 @@ from typing import Any
 from aiojobs import Scheduler
 
 from .request_manager import RequestManager
+from .pipeline import PipelineDispatcher
 from ..config import Config
 from ..holders import MiddlewareHolder
 from .._helpers.func import get_func_kwargs
 from .._helpers.asyncio import execute_coroutines
-from ..pipeline.dispatcher import PipelineDispatcher
 from ..session import BaseSession
 from ..types import Scraper
 

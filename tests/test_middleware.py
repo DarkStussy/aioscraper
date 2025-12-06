@@ -3,8 +3,7 @@ from typing import Callable, Literal
 import pytest
 
 from aioscraper.exceptions import HTTPException, StopMiddlewareProcessing, StopRequestProcessing
-from aioscraper.holders.middleware import MiddlewareType
-from aioscraper.types import Request, Response, SendRequest, Middleware
+from aioscraper.types import Request, Response, SendRequest, Middleware, MiddlewareStage
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -30,11 +29,11 @@ class MiddlewareScraper:
         self.exception_seen = isinstance(exc, HTTPException)
 
 
-def register_via_decorator(scraper: MockAIOScraper, middleware_type: MiddlewareType, fn: Middleware):
+def register_via_decorator(scraper: MockAIOScraper, middleware_type: MiddlewareStage, fn: Middleware):
     scraper.middleware(middleware_type)(fn)
 
 
-def register_via_add(scraper: MockAIOScraper, middleware_type: MiddlewareType, fn):
+def register_via_add(scraper: MockAIOScraper, middleware_type: MiddlewareStage, fn):
     scraper.middleware.add(middleware_type, fn)
 
 
@@ -48,7 +47,7 @@ def register_via_add(scraper: MockAIOScraper, middleware_type: MiddlewareType, f
 )
 async def test_middleware(
     mock_aioscraper: MockAIOScraper,
-    register: Callable[[MockAIOScraper, MiddlewareType, Middleware], None],
+    register: Callable[[MockAIOScraper, MiddlewareStage, Middleware], None],
 ):
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
     mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))

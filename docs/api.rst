@@ -21,16 +21,6 @@ Configuration
 .. autoclass:: aioscraper.config.PipelineConfig
 .. autofunction:: aioscraper.config.load_config
 
-Types
------
-
-.. autoclass:: aioscraper.types.session.Request
-.. autoclass:: aioscraper.types.session.Response
-.. autoclass:: aioscraper.types.session.BasicAuth
-.. autoclass:: aioscraper.types.session.File
-.. autoclass:: aioscraper.types.pipeline.BaseItem
-.. autoclass:: aioscraper.types.pipeline.Pipeline
-.. autoclass:: aioscraper.types.pipeline.PipelineMiddleware
 
 Session
 -------
@@ -38,12 +28,18 @@ Session
 .. autoclass:: aioscraper.session.base.BaseSession
 .. autoclass:: aioscraper.session.aiohttp.AiohttpSession
 .. autoclass:: aioscraper.session.httpx.HttpxSession
+.. autoclass:: aioscraper.types.session.Request
+.. autoclass:: aioscraper.types.session.Response
+.. autoclass:: aioscraper.types.session.BasicAuth
+.. autoclass:: aioscraper.types.session.File
 
 Pipeline
 --------
 
-.. autoclass:: aioscraper.pipeline.base.BasePipeline
-.. autoclass:: aioscraper.pipeline.dispatcher.PipelineDispatcher
+.. autoclass:: aioscraper.scraper.pipeline.PipelineDispatcher
+.. autoclass:: aioscraper.types.pipeline.Pipeline
+.. autoclass:: aioscraper.types.pipeline.BasePipeline
+.. autoclass:: aioscraper.types.pipeline.PipelineMiddleware
 
 Execution
 ---------

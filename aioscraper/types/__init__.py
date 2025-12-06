@@ -1,5 +1,6 @@
-from .pipeline import BaseItem, ItemType, Pipeline, PipelineMiddleware
-from .scraper import Scraper, Middleware
+from .pipeline import Pipeline, PipelineMiddleware, BasePipeline, PipelineMiddlewareStage
+from .scraper import Scraper
+from .middleware import Middleware, MiddlewareStage
 from .session import (
     QueryParams,
     RequestCookies,
@@ -24,10 +25,11 @@ __all__ = (
     "Request",
     "SendRequest",
     "Response",
-    "ItemType",
-    "BaseItem",
     "Pipeline",
+    "BasePipeline",
     "PipelineMiddleware",
+    "PipelineMiddlewareStage",
     "Middleware",
+    "MiddlewareStage",
     "NotSetType",
 )

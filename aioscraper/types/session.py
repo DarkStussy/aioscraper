@@ -17,16 +17,16 @@ from ..exceptions import InvalidRequestData
 QueryParams = MutableMapping[str, str | int | float]
 RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
 RequestHeaders = MutableMapping[str, str]
+RequestFiles = MutableMapping[str, "File"]
 ResponseHeaders = Mapping[str, str]
+
+SendRequest = Callable[["Request"], Awaitable["Request"]]
 
 
 class File(NamedTuple):
     name: str
     value: Any
     content_type: str | None = None
-
-
-RequestFiles = MutableMapping[str, File]
 
 
 class BasicAuth(TypedDict):
@@ -88,14 +88,11 @@ class Request:
     state: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        if self.json_data and self.data:
+        if self.json_data is not None and self.data is not None:
             raise InvalidRequestData("Cannot send both data and json_data")
 
-        if self.json_data and self.files:
+        if self.json_data is not None and self.files is not None:
             raise InvalidRequestData("Cannot send both files and json_data")
-
-
-SendRequest = Callable[[Request], Awaitable[Request]]
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)

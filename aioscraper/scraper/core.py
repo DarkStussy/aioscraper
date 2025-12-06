@@ -4,9 +4,9 @@ from types import TracebackType
 from typing import AsyncIterator, Callable, Self, Type, Any
 
 from .executor import ScraperExecutor
+from .pipeline import PipelineDispatcher
 from ..config import Config
 from ..holders import MiddlewareHolder, PipelineHolder
-from ..pipeline.dispatcher import PipelineDispatcher
 from ..types import Scraper
 from ..session import BaseSession, get_session
 
