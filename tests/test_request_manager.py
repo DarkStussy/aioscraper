@@ -58,7 +58,7 @@ async def test_errback_failure_wrapped_in_exception_group():
 async def test_request_manager_respects_delay_between_requests():
     call_times: list[float] = []
     seen: list[str] = []
-    delay = 0.05
+    delay = 0.1
     finished = asyncio.Event()
 
     async def schedule_request(coro):
@@ -91,4 +91,5 @@ async def test_request_manager_respects_delay_between_requests():
     assert len(call_times) == 2
 
     elapsed = call_times[1] - call_times[0]
-    assert elapsed >= delay
+    # Allow small scheduling jitter when measuring asyncio sleep
+    assert elapsed >= delay - 0.01

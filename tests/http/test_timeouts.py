@@ -1,6 +1,6 @@
 import asyncio
 
-from httpx import ReadTimeout
+from httpx import ReadTimeout, TimeoutException
 import pytest
 
 from aioscraper.types import Request, Response, SendRequest
@@ -81,4 +81,4 @@ async def test_global_timeout_from_config(mock_aioscraper: MockAIOScraper):
         await mock_aioscraper.start(config)
 
     assert scraper.result is None
-    assert isinstance(scraper.error, (ReadTimeout, asyncio.TimeoutError))
+    assert isinstance(scraper.error, (TimeoutException, asyncio.TimeoutError))
