@@ -58,10 +58,12 @@ class AIOScraper:
 
     @property
     def middleware(self) -> MiddlewareHolder:
+        "Access the middleware registry for request/response hooks."
         return self._middleware_holder
 
     @property
     def pipeline(self) -> PipelineHolder:
+        "Access the pipeline registry and middleware helpers."
         return self._pipeline_holder
 
     async def __aenter__(self) -> Self:

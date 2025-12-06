@@ -6,6 +6,7 @@ Core
 
 .. autoclass:: aioscraper.scraper.core.AIOScraper
    :members:
+   :special-members: __call__
 
 .. autofunction:: aioscraper.scraper.runner.run_scraper
 
@@ -26,6 +27,7 @@ Types
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
+.. autoclass:: aioscraper.types.session.File
 .. autoclass:: aioscraper.types.pipeline.BaseItem
 .. autoclass:: aioscraper.types.pipeline.Pipeline
 .. autoclass:: aioscraper.types.pipeline.PipelineMiddleware
@@ -48,6 +50,17 @@ Execution
 
 .. autoclass:: aioscraper.scraper.executor.ScraperExecutor
 .. autoclass:: aioscraper.scraper.request_manager.RequestManager
+
+Holders
+-------
+
+.. autoclass:: aioscraper.holders.middleware.MiddlewareHolder
+   :members:
+   :special-members: __call__
+
+.. autoclass:: aioscraper.holders.pipeline.PipelineHolder
+   :members:
+   :special-members: __call__
 
 Exceptions
 ----------
