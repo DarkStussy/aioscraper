@@ -4,14 +4,14 @@
   <img src="https://raw.githubusercontent.com/DarkStussy/aioscraper/main/docs/static/aioscraper.png" alt="aioscraper logo" width="340">
 </p>
 
-### Asynchronous framework for building modular and scalable web scrapers.
-
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![PyPI](https://img.shields.io/pypi/v/aioscraper)
 ![Tests](https://github.com/darkstussy/aioscraper/actions/workflows/tests.yml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/aioscraper/badge/?version=latest)](https://aioscraper.readthedocs.io/en/latest/)
 ![GitHub last commit](https://img.shields.io/github/last-commit/darkstussy/aioscraper)
+
+### Asynchronous framework for building modular and scalable web scrapers.
 
 > **Beta notice:** APIs and behavior may change; expect sharp edges while things settle.
 
@@ -68,6 +68,17 @@ aioscraper scraper
 - Fan-out calls inside microservices to hydrate/cache data
 - Lightweight scraping jobs that should be easy to test and ship (no big framework overhead)
 - Benchmarks show stable throughput across CPython 3.11–3.14 (see the [benchmarks](https://aioscraper.readthedocs.io/en/latest/benchmarks.html))
+
+## Contributing
+
+Contributions are welcome!
+
+If you’d like to open an issue or submit a pull request, please follow these guidelines:
+
+- Format and lint your code using the tools defined in pyproject.toml, and run Pyright (Basic mode). Type checking must pass — the project enforces strict typing discipline even in Basic mode.
+- Include tests for any new behavior or bug fixes so CI can verify the change.
+- Update the relevant docs or examples if your change affects the public API or usage patterns.
+- Small, self-contained pull requests are easier to review and merge.
 
 ## License
 

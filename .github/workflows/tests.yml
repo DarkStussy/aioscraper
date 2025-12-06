@@ -10,6 +10,7 @@ on:
       - "tests/**"
       - ".flake8"
       - "pyproject.toml"
+      - "pyrightconfig.json"
   pull_request:
     branches:
       - main
@@ -19,6 +20,7 @@ on:
       - "tests/**"
       - ".flake8"
       - "pyproject.toml"
+      - "pyrightconfig.json"
 
 jobs:
   tests:
@@ -59,7 +61,7 @@ jobs:
       - name: Lint code
         run: |
           flake8 aioscraper --count --show-source --statistics
-          pyright aioscraper
+          pyright aioscraper tests
           black --check --diff aioscraper tests
 
       - name: Run tests

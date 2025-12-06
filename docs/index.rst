@@ -33,6 +33,7 @@ You define scraping tasks that queue requests. A scheduler dispatches them with 
    :caption: Reference:
 
    api
+   Contributing <contributing>
 
 .. toctree::
    :maxdepth: 2
