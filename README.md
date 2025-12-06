@@ -17,14 +17,10 @@
 
 ## Key Features
 
-- Fully asynchronous architecture with `aiojobs` scheduling and pluggable HTTP backends (`aiohttp` preferred, `httpx` supported)
-- Modular system with middleware support
-- Pipeline data processing
-- Flexible configuration
-- Priority-based request queue management
-- Built-in error handling
-
-[Documentation](https://aioscraper.readthedocs.io)
+- Async-first core with pluggable HTTP backends (`aiohttp`/`httpx`) and `aiojobs` scheduling
+- Declarative flow: requests → callbacks → pipelines, with middleware hooks
+- Priority queueing plus configurable concurrency
+- Small, explicit API that is easy to test and compose
 
 ## Getting started
 
@@ -55,6 +51,23 @@ Run it
 ```bash
 aioscraper scraper
 ```
+
+[Documentation](https://aioscraper.readthedocs.io)
+
+## Why aioscraper?
+
+- Scrapy is mature but tied to Twisted and a heavier, older stack. aioscraper is plain asyncio with modern typing and explicit control flow.
+- Less magic: declarative Request → callback → pipeline without opaque spider classes; each piece is a normal function or typed class, simple to test and mock.
+- Light footprint: pluggable HTTP backend (aiohttp/httpx), no global settings or hidden state, no vendor lock-in.
+- Built for modern workloads: high-volume API/JSON crawling, fanning out to microservice endpoints, quick data collection jobs where you want async throughput without a large framework.
+- Easy to embed: runs inside existing async apps (FastAPI, workers, cron jobs) without adapting to a separate runtime.
+
+## Use cases
+
+- Collecting data from many JSON/REST endpoints concurrently
+- Fan-out calls inside microservices to hydrate/cache data
+- Lightweight scraping jobs that should be easy to test and ship (no big framework overhead)
+- Benchmarks show stable throughput across CPython 3.11–3.14 (see the [benchmarks](https://aioscraper.readthedocs.io/en/latest/benchmarks.html))
 
 ## License
 
