@@ -1,12 +1,17 @@
-from typing import Callable
-from dataclasses import dataclass
+from typing import Awaitable, Callable
+from dataclasses import dataclass, field
 
 import pytest
 
 from aioscraper.config import PipelineConfig
 from aioscraper.exceptions import PipelineException, StopMiddlewareProcessing, StopItemProcessing
 from aioscraper.types.session import Request, SendRequest, Response
-from aioscraper.types.pipeline import Pipeline, PipelineMiddleware, PipelineMiddlewareStage
+from aioscraper.types.pipeline import (
+    GlobalPipelineMiddleware,
+    Pipeline,
+    PipelineMiddleware,
+    PipelineMiddlewareStage,
+)
 from aioscraper.scraper.pipeline import PipelineContainer, PipelineDispatcher
 from tests.mocks import MockAIOScraper, MockResponse
 
@@ -16,6 +21,7 @@ class RealItem:
     value: str
     is_processed: bool = False
     from_pre: bool = False
+    history: list[str] = field(default_factory=list)
 
 
 class RealPipeline:
@@ -25,6 +31,7 @@ class RealPipeline:
         self.labels = labels
 
     async def put_item(self, item: RealItem) -> RealItem:
+        item.history.append(f"pipeline-{self.labels[0]}")
         self.items.append(item)
         return item
 
@@ -35,12 +42,14 @@ class RealPipeline:
 async def pre_processing_middleware(item: RealItem) -> RealItem:
     assert isinstance(item, RealItem)
     item.from_pre = True
+    item.history.append("pre")
     return item
 
 
 async def post_processing_middleware(item: RealItem) -> RealItem:
     assert isinstance(item, RealItem)
     item.is_processed = True
+    item.history.append("post")
     return item
 
 
@@ -53,7 +62,9 @@ class Scraper:
 
 
 def _add_via_decorator(
-    scraper: MockAIOScraper, stage: PipelineMiddlewareStage, middleware: PipelineMiddleware[RealItem]
+    scraper: MockAIOScraper,
+    stage: PipelineMiddlewareStage,
+    middleware: PipelineMiddleware[RealItem],
 ):
     scraper.pipeline.middleware(stage, RealItem)(middleware)
 
@@ -71,6 +82,32 @@ def _add_pipeline_via_decorator(scraper: MockAIOScraper):
     class _(RealPipeline): ...
 
 
+def global_middleware_factory(global_label: str) -> GlobalPipelineMiddleware[RealItem]:
+    async def middleware(call_next: Pipeline[RealItem], item: RealItem) -> RealItem:
+        item.history.append(f"{global_label}-before")
+        item = await call_next(item)
+        item.history.append(f"{global_label}-after")
+        return item
+
+    return middleware
+
+
+def _add_global_middleware(
+    scraper: MockAIOScraper,
+    middleware: Callable[[str], GlobalPipelineMiddleware[RealItem]],
+) -> None:
+    scraper.pipeline.add_global_middlewares(middleware)
+
+
+def _add_global_middleware_via_decorator(
+    scraper: MockAIOScraper,
+    middleware: Callable[[str], GlobalPipelineMiddleware[RealItem]],
+) -> None:
+    @scraper.pipeline.global_middleware
+    def _(global_label: str) -> GlobalPipelineMiddleware[RealItem]:
+        return middleware(global_label)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "add_middleware",
@@ -86,20 +123,31 @@ def _add_pipeline_via_decorator(scraper: MockAIOScraper):
         pytest.param(_add_pipeline_via_decorator, id="pipeline-decorator"),
     ],
 )
+@pytest.mark.parametrize(
+    "add_global_middleware",
+    [
+        pytest.param(_add_global_middleware, id="global-middleware-add"),
+        pytest.param(_add_global_middleware_via_decorator, id="global-middleware-decorator"),
+    ],
+)
 async def test_pipeline(
     mock_aioscraper: MockAIOScraper,
     add_middleware: Callable[[MockAIOScraper, PipelineMiddlewareStage, PipelineMiddleware[RealItem]], None],
     add_pipeline: Callable[[MockAIOScraper], None],
+    add_global_middleware: Callable[[MockAIOScraper, Callable[[str], GlobalPipelineMiddleware[RealItem]]], None],
 ):
 
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: MockResponse(text="test"))
 
     scraper = Scraper()
     mock_aioscraper(scraper)
+    global_label = "global"
+    mock_aioscraper.add_dependencies(global_label=global_label)
     async with mock_aioscraper:
         add_pipeline(mock_aioscraper)
         add_middleware(mock_aioscraper, "pre", pre_processing_middleware)
         add_middleware(mock_aioscraper, "post", post_processing_middleware)
+        add_global_middleware(mock_aioscraper, global_middleware_factory)
         await mock_aioscraper.start()
 
     mock_aioscraper.server.assert_all_routes_handled()
@@ -109,10 +157,18 @@ async def test_pipeline(
 
     assert isinstance(pipeline, RealPipeline)
     assert len(pipeline.items) == 1
-    assert pipeline.items[0].from_pre
-    assert pipeline.items[0].is_processed
+    item = pipeline.items[0]
+    assert item.from_pre
+    assert item.is_processed
     assert pipeline.labels in [("add",), ("decorator",)]
     assert pipeline.closed
+    assert item.history == [
+        f"{global_label}-before",
+        "pre",
+        f"pipeline-{pipeline.labels[0]}",
+        "post",
+        f"{global_label}-after",
+    ]
 
 
 @pytest.mark.asyncio
@@ -137,19 +193,20 @@ async def test_pipeline_dispatcher_not_strict(caplog):
 
 
 @dataclass
-class CountItem:
+class StateItem:
     total: int = 0
+    state: str | None = None
+    history: list[str] = field(default_factory=list)
 
 
 class OrderPipeline:
-    def __init__(self, increment: int, audit: list[str], label: str) -> None:
+    def __init__(self, increment: int, label: str) -> None:
         self.increment = increment
-        self.audit = audit
         self.label = label
         self.closed = False
 
-    async def put_item(self, item: CountItem) -> CountItem:
-        self.audit.append(self.label)
+    async def put_item(self, item: StateItem) -> StateItem:
+        item.history.append(self.label)
         item.total += self.increment
         return item
 
@@ -159,30 +216,29 @@ class OrderPipeline:
 
 @pytest.mark.asyncio
 async def test_pipeline_multiple_pipelines_order_and_close():
-    audit: list[str] = []
-    first = OrderPipeline(1, audit, "first")
-    second = OrderPipeline(10, audit, "second")
+    first = OrderPipeline(1, "first")
+    second = OrderPipeline(10, "second")
 
-    async def pre_one(item: CountItem) -> CountItem:
-        audit.append("pre1")
+    async def pre_one(item: StateItem) -> StateItem:
+        item.history.append("pre1")
         return item
 
-    async def pre_two(item: CountItem) -> CountItem:
-        audit.append("pre2")
+    async def pre_two(item: StateItem) -> StateItem:
+        item.history.append("pre2")
         return item
 
-    async def post_one(item: CountItem) -> CountItem:
-        audit.append("post1")
+    async def post_one(item: StateItem) -> StateItem:
+        item.history.append("post1")
         return item
 
-    async def post_two(item: CountItem) -> CountItem:
-        audit.append("post2")
+    async def post_two(item: StateItem) -> StateItem:
+        item.history.append("post2")
         return item
 
     dispatcher = PipelineDispatcher(
         PipelineConfig(),
         {
-            CountItem: PipelineContainer(
+            StateItem: PipelineContainer(
                 pipelines=[first, second],
                 pre_middlewares=[pre_one, pre_two],
                 post_middlewares=[post_one, post_two],
@@ -190,22 +246,22 @@ async def test_pipeline_multiple_pipelines_order_and_close():
         },
     )
 
-    result = await dispatcher.put_item(CountItem())
+    item = await dispatcher.put_item(StateItem())
     await dispatcher.close()
 
-    assert result.total == 11
-    assert audit == ["pre1", "pre2", "first", "second", "post1", "post2"]
+    assert item.total == 11
+    assert item.history == ["pre1", "pre2", "first", "second", "post1", "post2"]
     assert first.closed is True
     assert second.closed is True
 
 
 class AuditPipeline:
     def __init__(self) -> None:
-        self.audit = []
         self.closed = False
 
-    async def put_item(self, item: CountItem) -> CountItem:
-        self.audit.append("pipeline")
+    async def put_item(self, item: StateItem) -> StateItem:
+        item.history.append("pipeline")
+        item.state = "processed"
         item.total += 1
         return item
 
@@ -214,24 +270,54 @@ class AuditPipeline:
 
 
 @pytest.mark.asyncio
+async def test_pipeline_global_middlewares_wrap_chain_order_matches_example():
+    pipeline = AuditPipeline()
+
+    async def mw_a(call_next: Callable[[StateItem], Awaitable[StateItem]], item: StateItem) -> StateItem:
+        item.history.append("a-before")
+        item = await call_next(item)
+        item.history.append("a-after")
+        return item
+
+    async def mw_b(call_next: Callable[[StateItem], Awaitable[StateItem]], item: StateItem) -> StateItem:
+        item.history.append("b-before")
+        item = await call_next(item)
+        item.history.append("b-after")
+        return item
+
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {StateItem: PipelineContainer(pipelines=[pipeline])},
+        global_middlewares=[lambda: mw_a, lambda: mw_b],
+    )
+
+    item = await dispatcher.put_item(StateItem())
+    await dispatcher.close()
+
+    assert pipeline.closed is True
+    assert item.state == "processed"
+    assert item.history == ["b-before", "a-before", "pipeline", "a-after", "b-after"]
+
+
+@pytest.mark.asyncio
 async def test_pipeline_pre_middleware_stop_processing_skips_rest_and_pipelines():
     pipeline = AuditPipeline()
 
-    async def pre_one(item: CountItem) -> CountItem:
+    async def pre_one(item: StateItem) -> StateItem:
         raise StopMiddlewareProcessing
 
-    async def pre_two(item: CountItem) -> CountItem:
-        pipeline.audit.append("pre2")
+    async def pre_two(item: StateItem) -> StateItem:
+        item.history.append("pre2")
         return item
 
-    async def post_one(item: CountItem) -> CountItem:
-        pipeline.audit.append("post")
+    async def post_one(item: StateItem) -> StateItem:
+        item.history.append("post")
         return item
 
     dispatcher = PipelineDispatcher(
         PipelineConfig(),
         {
-            CountItem: PipelineContainer(
+            StateItem: PipelineContainer(
                 pipelines=[pipeline],
                 pre_middlewares=[pre_one, pre_two],
                 post_middlewares=[post_one],
@@ -239,29 +325,29 @@ async def test_pipeline_pre_middleware_stop_processing_skips_rest_and_pipelines(
         },
     )
 
-    result = await dispatcher.put_item(CountItem())
+    item = await dispatcher.put_item(StateItem())
     await dispatcher.close()
 
     assert pipeline.closed is True
-    assert result.total == 1
-    assert pipeline.audit == ["pipeline", "post"]  # pre2 skipped, pipeline and post executed
+    assert item.total == 1
+    assert item.history == ["pipeline", "post"]  # pre2 skipped, pipeline and post executed
 
 
 @pytest.mark.asyncio
 async def test_pipeline_pre_stop_item_processing_returns_early():
     pipeline = AuditPipeline()
 
-    async def pre_stop(item: CountItem) -> CountItem:
+    async def pre_stop(item: StateItem) -> StateItem:
         raise StopItemProcessing
 
-    async def post_one(item: CountItem) -> CountItem:
-        pipeline.audit.append("post")
+    async def post_one(item: StateItem) -> StateItem:
+        item.history.append("post")
         return item
 
     dispatcher = PipelineDispatcher(
         PipelineConfig(),
         {
-            CountItem: PipelineContainer(
+            StateItem: PipelineContainer(
                 pipelines=[pipeline],
                 pre_middlewares=[pre_stop],
                 post_middlewares=[post_one],
@@ -269,29 +355,29 @@ async def test_pipeline_pre_stop_item_processing_returns_early():
         },
     )
 
-    result = await dispatcher.put_item(CountItem())
+    item = await dispatcher.put_item(StateItem())
     await dispatcher.close()
 
     assert pipeline.closed is True
-    assert result.total == 0
-    assert pipeline.audit == []
+    assert item.total == 0
+    assert item.history == []
 
 
 @pytest.mark.asyncio
 async def test_pipeline_post_stop_processing_skips_remaining_posts():
     pipeline = AuditPipeline()
 
-    async def post_one(item: CountItem) -> CountItem:
+    async def post_one(item: StateItem) -> StateItem:
         raise StopMiddlewareProcessing
 
-    async def post_two(item: CountItem) -> CountItem:
-        pipeline.audit.append("post2")
+    async def post_two(item: StateItem) -> StateItem:
+        item.history.append("post2")
         return item
 
     dispatcher = PipelineDispatcher(
         PipelineConfig(),
         {
-            CountItem: PipelineContainer(
+            StateItem: PipelineContainer(
                 pipelines=[pipeline],
                 pre_middlewares=[],
                 post_middlewares=[post_one, post_two],
@@ -299,9 +385,9 @@ async def test_pipeline_post_stop_processing_skips_remaining_posts():
         },
     )
 
-    result = await dispatcher.put_item(CountItem())
+    item = await dispatcher.put_item(StateItem())
     await dispatcher.close()
 
     assert pipeline.closed is True
-    assert result.total == 1
-    assert pipeline.audit == ["pipeline"]
+    assert item.total == 1
+    assert item.history == ["pipeline"]

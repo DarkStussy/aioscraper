@@ -1,4 +1,4 @@
-from .pipeline import Pipeline, PipelineMiddleware, BasePipeline, PipelineMiddlewareStage
+from .pipeline import Pipeline, PipelineMiddleware, GlobalPipelineMiddleware, BasePipeline, PipelineMiddlewareStage
 from .scraper import Scraper
 from .middleware import Middleware, MiddlewareStage
 from .session import (
@@ -28,6 +28,7 @@ __all__ = (
     "Pipeline",
     "BasePipeline",
     "PipelineMiddleware",
+    "GlobalPipelineMiddleware",
     "PipelineMiddlewareStage",
     "Middleware",
     "MiddlewareStage",

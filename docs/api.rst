@@ -40,6 +40,7 @@ Pipeline
 .. autoclass:: aioscraper.types.pipeline.Pipeline
 .. autoclass:: aioscraper.types.pipeline.BasePipeline
 .. autoclass:: aioscraper.types.pipeline.PipelineMiddleware
+.. autoclass:: aioscraper.types.pipeline.GlobalPipelineMiddleware
 
 Execution
 ---------

@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
 
-PipelineType = TypeVar("PipelineType", bound="BasePipeline[Any]")
 PipelineItemType = TypeVar("PipelineItemType")
 
 PipelineMiddlewareStage = Literal["pre", "post"]
@@ -30,18 +29,22 @@ class BasePipeline(Protocol[PipelineItemType]):
         ...
 
 
-@runtime_checkable
 class PipelineMiddleware(Protocol[PipelineItemType]):
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
 
 
-class Pipeline(Protocol):
+class Pipeline(Protocol[PipelineItemType]):
     """
-    Callable interface matching `PipelineDispatcher.put_item`,
-    injected as the `pipeline` dependency to push items through registered pipelines.
+    Callable interface produced by `PipelineDispatcher.build_handler`, injected as the `pipeline`
+    dependency. Invoking it runs global pipeline middlewares, then the type-specific
+    pre/pipelines/post chain for the given item.
     """
 
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
+
+
+class GlobalPipelineMiddleware(Protocol[PipelineItemType]):
+    async def __call__(self, call_next: Pipeline, item: PipelineItemType) -> PipelineItemType: ...
 
 
 @dataclass(slots=True, kw_only=True)

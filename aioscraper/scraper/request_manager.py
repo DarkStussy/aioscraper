@@ -9,7 +9,7 @@ from ..exceptions import HTTPException, StopMiddlewareProcessing, StopRequestPro
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
-from ..session import BaseSession
+from ..session import SessionMaker
 from ..types import Request, SendRequest
 from ..holders import MiddlewareHolder
 
@@ -53,7 +53,7 @@ class RequestManager:
 
     def __init__(
         self,
-        session: BaseSession,
+        sessionmaker: SessionMaker,
         schedule_request: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
         queue: _RequestQueue,
         delay: float,
@@ -61,7 +61,7 @@ class RequestManager:
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
     ) -> None:
-        self._session = session
+        self._session = sessionmaker()
         self._schedule_request = schedule_request
         self._queue = queue
         self._delay = delay
@@ -174,7 +174,7 @@ class RequestManager:
                 try:
                     await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
                 except (StopMiddlewareProcessing, StopRequestProcessing) as e:
-                    logger.debug(f"{e.__class__.__name__} in outer middleware is ignored")
+                    logger.debug(f"{type(e).__name__} in outer middleware is ignored")
                 except Exception as e:
                     logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
 

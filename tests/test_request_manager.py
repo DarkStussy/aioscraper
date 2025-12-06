@@ -35,7 +35,7 @@ async def test_errback_failure_wrapped_in_exception_group():
         raise ValueError("errback failed")
 
     manager = RequestManager(
-        session=FakeSession(),
+        sessionmaker=lambda: FakeSession(),
         schedule_request=lambda coro: coro,  # not used in this test
         queue=asyncio.PriorityQueue(),
         delay=0,
@@ -71,7 +71,7 @@ async def test_request_manager_respects_delay_between_requests():
             finished.set()
 
     manager = RequestManager(
-        session=FakeSession(),
+        sessionmaker=lambda: FakeSession(),
         schedule_request=schedule_request,
         queue=asyncio.PriorityQueue(),
         delay=delay,

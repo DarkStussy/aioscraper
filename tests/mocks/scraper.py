@@ -1,21 +1,20 @@
 from aioscraper.config import Config
 from aioscraper.scraper import AIOScraper
-from aioscraper.session.base import BaseSession
-from aioscraper.session.factory import get_session
+from aioscraper.session.factory import SessionMaker, get_sessionmaker
 from aioscraper.types import Scraper
 
 from .server import MockServer
 
 
 class MockAIOScraper(AIOScraper):
-    def __init__(self, *scrapers: Scraper, server: MockServer, client_type: str) -> None:
+    def __init__(self, *scrapers: Scraper, server: MockServer, http_backend: str) -> None:
         super().__init__(*scrapers)
         self._server = server
-        self._client_type = client_type
+        self._http_backend = http_backend
 
     @property
     def server(self) -> MockServer:
         return self._server
 
-    def _create_session(self, config: Config) -> BaseSession:
-        return get_session(config, self._client_type)
+    def _get_sessionmaker(self, config: Config) -> SessionMaker:
+        return get_sessionmaker(config, self._http_backend)

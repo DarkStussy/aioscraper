@@ -8,7 +8,7 @@ from .pipeline import PipelineDispatcher
 from ..config import Config
 from ..holders import MiddlewareHolder, PipelineHolder
 from ..types import Scraper
-from ..session import BaseSession, get_session
+from ..session import SessionMaker, get_sessionmaker
 
 logger = getLogger(__name__)
 
@@ -81,8 +81,8 @@ class AIOScraper:
         finally:
             await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
-    def _create_session(self, config: Config) -> BaseSession:
-        return get_session(config)
+    def _get_sessionmaker(self, config: Config) -> SessionMaker:
+        return get_sessionmaker(config)
 
     async def start(self, config: Config | None = None) -> None:
         """
@@ -97,9 +97,15 @@ class AIOScraper:
             scrapers=self.scrapers,
             dependencies=self.dependencies,
             middleware_holder=self._middleware_holder,
-            pipeline_dispatcher=PipelineDispatcher(config.pipeline, self._pipeline_holder.pipelines),
-            session=self._create_session(config),
+            pipeline_dispatcher=PipelineDispatcher(
+                config.pipeline,
+                pipelines=self._pipeline_holder.pipelines,
+                global_middlewares=self._pipeline_holder.global_middlewares,
+                dependencies=self.dependencies,
+            ),
+            sessionmaker=self._get_sessionmaker(config),
         )
+
         await self._executor.run()
 
     async def close(self) -> None:

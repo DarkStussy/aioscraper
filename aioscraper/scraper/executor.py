@@ -11,7 +11,7 @@ from ..config import Config
 from ..holders import MiddlewareHolder
 from .._helpers.func import get_func_kwargs
 from .._helpers.asyncio import execute_coroutines
-from ..session import BaseSession
+from ..session import SessionMaker
 from ..types import Scraper
 
 logger = getLogger(__name__)
@@ -32,28 +32,25 @@ class ScraperExecutor:
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
         pipeline_dispatcher: PipelineDispatcher,
-        session: BaseSession,
+        sessionmaker: SessionMaker,
     ) -> None:
         self._config = config
-
         self._scrapers = scrapers
-        self._dependencies = dependencies
+        self._dependencies = {"config": config, "pipeline": pipeline_dispatcher.put_item, **dependencies}
         self._pipeline_dispatcher = pipeline_dispatcher
-
         self._scheduler = Scheduler(
             limit=self._config.scheduler.concurrent_requests,
             pending_limit=self._config.scheduler.pending_requests,
             close_timeout=self._config.scheduler.close_timeout,
         )
-
         self._request_queue = asyncio.PriorityQueue()
         self._request_manager = RequestManager(
-            session=session,
+            sessionmaker=sessionmaker,
             schedule_request=self._scheduler.spawn,
             queue=self._request_queue,
             delay=self._config.session.delay,
             shutdown_timeout=self._config.execution.shutdown_timeout,
-            dependencies={"pipeline": self._pipeline_dispatcher.put_item, **self._dependencies},
+            dependencies=self._dependencies,
             middleware_holder=middleware_holder,
         )
 
@@ -65,14 +62,7 @@ class ScraperExecutor:
         try:
             await asyncio.gather(
                 *[
-                    scraper(
-                        **get_func_kwargs(
-                            scraper,
-                            send_request=self._request_manager.sender,
-                            pipeline=self._pipeline_dispatcher.put_item,
-                            **self._dependencies,
-                        )
-                    )
+                    scraper(**get_func_kwargs(scraper, send_request=self._request_manager.sender, **self._dependencies))
                     for scraper in self._scrapers
                 ]
             )
