@@ -13,13 +13,13 @@ class SessionConfig:
         timeout (float): Request timeout in seconds
         delay (float): Delay between requests in seconds
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
-        proxy (str | dict[str, str] | None): Default proxy passed to the HTTP client
+        proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
     """
 
     timeout: float = 60.0
     delay: float = 0.0
     ssl: ssl_module.SSLContext | bool = True
-    proxy: str | dict[str, str] | None = None
+    proxy: str | dict[str, str | None] | None = None
 
 
 @dataclass(slots=True, frozen=True)

@@ -66,5 +66,5 @@ def test_load_config_raises_on_invalid_log_level(monkeypatch):
 def test_load_config_raises_on_invalid_proxy_url(monkeypatch):
     monkeypatch.setenv("SESSION_PROXY", "http://[::1")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ExceptionGroup):
         load_config()

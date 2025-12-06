@@ -13,10 +13,10 @@ class HttpxSession(BaseSession):
         self,
         timeout: float | None,
         verify: SSLContext | bool,
-        proxy: str | dict[str, str] | None,
+        proxy: str | dict[str, str | None] | None,
     ) -> None:
         if isinstance(proxy, dict):
-            mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items()}
+            mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items() if proxy} or None
             proxy = None
         else:
             mounts = None

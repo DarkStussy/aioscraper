@@ -84,18 +84,22 @@ def parse_log_level(key: str, default: int | None | NotSetType = NOTSET) -> int:
     return parse(key, to_log_level, default)
 
 
-def parse_proxy(key: str, default: str | None = None) -> dict[str, str] | str | None:
+def parse_proxy(key: str, default: str | None = None) -> dict[str, str | None] | str | None:
     value = parse_str(key, default)
     if not value:
         return None
 
+    url_exc = None
     try:
         proxies = json.loads(value)
-        return {"http://": proxies["http"], "https://": proxies["https"]}
-    except:
-        pass
+        return {"http://": proxies.get("http"), "https://": proxies.get("https")}
+    except Exception as e:
+        url_exc = e
 
+    json_exc = None
     try:
         return str(URL(value))
     except Exception as e:
-        raise ValueError("Cannot parse proxy env variable") from e
+        json_exc = e
+
+    raise ExceptionGroup("Cannot parse proxy", [url_exc, json_exc])

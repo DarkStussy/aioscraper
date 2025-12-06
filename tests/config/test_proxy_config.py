@@ -37,7 +37,7 @@ def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch):
     monkeypatch.setattr("aioscraper.session.httpx.AsyncHTTPTransport", DummyTransport)
     monkeypatch.setattr("aioscraper.session.httpx.AsyncClient", DummyClient)
 
-    proxy_map = {"http://": "http://proxy:8080", "https://": "http://proxy:8443"}
+    proxy_map: dict[str, str | None] = {"http://": "http://proxy:8080", "https://": "http://proxy:8443"}
 
     HttpxSession(timeout=None, verify=False, proxy=proxy_map)
 

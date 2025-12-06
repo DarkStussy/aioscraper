@@ -7,7 +7,7 @@ You can build a :class:`Config <aioscraper.config.Config>` and pass it into :met
 
 The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
 
-For ``httpx``, proxies are client-scoped, so set :class:`SessionConfig.proxy <aioscraper.config.Config>` (or ``SESSION_PROXY``) if you need to route traffic through a proxy.
+For ``httpx``, proxies are client-scoped, so set :class:`SessionConfig.proxy <aioscraper.config.SessionConfig>` (or ``SESSION_PROXY``) if you need to route traffic through a proxy.
 
 .. code-block:: python
 
