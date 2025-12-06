@@ -5,11 +5,11 @@ Pipelines are ordered processors for your scraped items. Items are routed by the
 
 Core
 ----
-- Implement :class:`BasePipeline.put_item <aioscraper.types.pipeline.BasePipeline.put_item>` to persist, transform, or fan out data.
+- Implement the :class:`BasePipeline <aioscraper.types.pipeline.BasePipeline>` protocol: provide ``put_item`` (persist/transform/fan out and return the item) and ``close`` for cleanup.
 - Pipelines are keyed by item type; every pipeline registered for that type runs sequentially.
 - Missing pipeline handling is controlled by ``PipelineConfig.strict`` (defaults to raising; set ``PIPELINE_STRICT=false`` to warn and continue).
 - ``scraper.pipeline.add(...)`` adds one or more pipeline instances for a given item type.
-- ``@scraper.pipeline(ItemType, *args, **kwargs)`` instantiates and registers a pipeline class (useful when you need constructor args).
+- ``@scraper.pipeline(ItemType, *args, **kwargs)`` is a convenient decorator that instantiates the pipeline class and registers it for you (handy when the pipeline needs constructor arguments).
 
 
 .. code-block:: python
@@ -41,12 +41,11 @@ Core
 
 Middlewares around pipelines
 ----------------------------
-- Pipeline middlewares let you hook into the item flow before the first pipeline and after the last one. They receive the current item instance and must return it (mutated or replaced).
-- Register pre-middlewares with ``@scraper.pipeline.middleware("pre", ItemType)`` to prepare or normalize the item before any pipeline sees it.
-- Register post-middlewares with ``@scraper.pipeline.middleware("post", ItemType)`` to finalize or log the item after all pipelines finish.
-- Register global middlewares with ``@scraper.pipeline.global_middleware`` to wrap the whole pipeline execution for all item types. Provide a factory that may accept injected dependencies and returns ``async def middleware(call_next, item): ...`` where ``call_next`` continues the pipeline chain.
-- Raise :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` to stop remaining middlewares in the current phase (pre/post) but continue the rest of the pipeline flow.
-- Raise :class:`StopItemProcessing <aioscraper.exceptions.StopItemProcessing>` to stop processing the current item entirely (skip remaining middlewares and pipelines).
+Pipeline middlewares let you step in before the first pipeline sees an item and after the last one finishes. Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out. 
+
+Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await call_next(item)`` to keep the item moving. 
+
+If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` to skip the remaining middlewares in that stage but continue the rest of the flow, or raise :class:`StopItemProcessing <aioscraper.exceptions.StopItemProcessing>` to stop processing the current item altogether.
 
 .. code-block:: python
 
@@ -68,10 +67,25 @@ Middlewares around pipelines
 
        return middleware
 
-Flow (per item type):
+Flow
+-------------------
+Picture the flow as nested wrappers (matryoshka style): global middlewares form the outer shells around the per-type chain. If you’ve used FastAPI middleware, it’s the same shape: a wrapper receives ``call_next`` and must ``await call_next(item)`` to keep the item moving.
 
-1. Run global middlewares as a wrapper chain (applied to every item type); each calls ``call_next`` to continue.
-2. Inside, run every pre-middleware in registration order (each awaits the previous one).
-3. Invoke each pipeline in order.
-4. Run every post-middleware in registration order.
-5. Return the (possibly mutated) item instance.
+.. code-block:: text
+
+   global mw 1
+      global mw 2
+        global mw 3
+          pre middlewares -> pipelines -> post middlewares
+        global mw 3
+      global mw 2
+   global mw 1
+
+When you call ``await pipeline(item)``:
+
+- The dispatcher picks the container by ``type(item)``; if none is registered it raises or warns depending on ``PipelineConfig.strict``.
+- Global middlewares run outer-to-inner. Each wrapper does its work and awaits ``call_next(item)`` to keep going; the final result bubbles back out through them in reverse order.
+- Inside the core chain: run all pre-middlewares in registration order (each can mutate/replace the item).
+- Run each pipeline instance in order; each must return the (possibly mutated) item for the next step.
+- Run all post-middlewares in registration order.
+- The returned item is whatever the last post-middleware (or pipeline, if no posts) produced.

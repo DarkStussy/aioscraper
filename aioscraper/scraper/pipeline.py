@@ -88,7 +88,11 @@ class PipelineDispatcher:
 
     async def put_item(self, item: PipelineItemType) -> PipelineItemType:
         "Dispatches an item through the pipeline."
-        return await self._handler(item)
+        try:
+            return await self._handler(item)
+        except StopItemProcessing:
+            logger.debug("StopItemProcessing in pipeline handler: aborting item processing")
+            return item
 
     async def close(self):
         """

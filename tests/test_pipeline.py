@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable
+from typing import Callable
 from dataclasses import dataclass, field
 
 import pytest
@@ -11,8 +11,9 @@ from aioscraper.types.pipeline import (
     Pipeline,
     PipelineMiddleware,
     PipelineMiddlewareStage,
+    PipelineContainer,
 )
-from aioscraper.scraper.pipeline import PipelineContainer, PipelineDispatcher
+from aioscraper.scraper.pipeline import PipelineDispatcher
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -273,13 +274,13 @@ class AuditPipeline:
 async def test_pipeline_global_middlewares_wrap_chain_order_matches_example():
     pipeline = AuditPipeline()
 
-    async def mw_a(call_next: Callable[[StateItem], Awaitable[StateItem]], item: StateItem) -> StateItem:
+    async def mw_a(call_next: Pipeline[StateItem], item: StateItem) -> StateItem:
         item.history.append("a-before")
         item = await call_next(item)
         item.history.append("a-after")
         return item
 
-    async def mw_b(call_next: Callable[[StateItem], Awaitable[StateItem]], item: StateItem) -> StateItem:
+    async def mw_b(call_next: Pipeline[StateItem], item: StateItem) -> StateItem:
         item.history.append("b-before")
         item = await call_next(item)
         item.history.append("b-after")
@@ -391,3 +392,23 @@ async def test_pipeline_post_stop_processing_skips_remaining_posts():
     assert pipeline.closed is True
     assert item.total == 1
     assert item.history == ["pipeline"]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_global_middleware_stop_item_processing_returns_item():
+    pipeline = AuditPipeline()
+
+    async def stop_item(call_next, item):
+        raise StopItemProcessing
+
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {StateItem: PipelineContainer(pipelines=[pipeline])},
+        global_middlewares=[lambda: stop_item],
+    )
+
+    item = await dispatcher.put_item(StateItem())
+    await dispatcher.close()
+
+    assert item.total == 0
+    assert len(item.history) == 0

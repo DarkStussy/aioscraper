@@ -12,6 +12,7 @@ SessionMaker = Callable[[], BaseSession]
 
 
 def get_sessionmaker(config: Config, http_backend: str | None = None) -> SessionMaker:
+    "Return a factory that builds a session using the chosen or available HTTP backend."
     if http_backend != "httpx":
         try:
             from .aiohttp import AiohttpSession, ClientTimeout, TCPConnector

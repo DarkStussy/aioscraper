@@ -28,6 +28,7 @@ Session
 .. autoclass:: aioscraper.session.base.BaseSession
 .. autoclass:: aioscraper.session.aiohttp.AiohttpSession
 .. autoclass:: aioscraper.session.httpx.HttpxSession
+.. autofunction:: aioscraper.session.factory.get_sessionmaker
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
