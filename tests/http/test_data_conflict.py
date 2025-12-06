@@ -4,7 +4,6 @@ from aioscraper.exceptions import InvalidRequestData
 from aioscraper.types import Request, File
 
 
-
 def test_json_and_data_raises():
     with pytest.raises(InvalidRequestData, match="data and json_data"):
         Request(

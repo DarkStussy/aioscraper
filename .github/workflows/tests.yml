@@ -54,7 +54,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .[dev,test]
+          pip install -e .[aiohttp,httpx,dev,test]
 
       - name: Lint code
         run: |
