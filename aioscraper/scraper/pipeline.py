@@ -10,7 +10,7 @@ logger = getLogger(__name__)
 
 
 class PipelineDispatcher:
-    "A class for managing and dispatching items through processing pipelines."
+    "Routes items through the registered pipeline chain."
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class PipelineDispatcher:
         self._handler = self._build_handler()
 
     async def _put_item(self, item: PipelineItemType) -> PipelineItemType:
-        "Processes an item by passing it through the appropriate pipelines."
+        "Processes an item through pre-middleware, pipelines, and post-middleware for its type."
         logger.debug(f"pipeline item received: {item}")
 
         try:

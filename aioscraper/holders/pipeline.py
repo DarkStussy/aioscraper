@@ -24,7 +24,7 @@ class PipelineHolder:
         *args,
         **kwargs,
     ) -> Callable[[Type[BasePipeline[PipelineItemType]]], Type[BasePipeline[PipelineItemType]]]:
-        "Return a decorator that instantiates and registers a pipeline class."
+        "Return a decorator that instantiates and registers a pipeline class for the given item type."
 
         def decorator(pipeline_class: Type[BasePipeline[PipelineItemType]]) -> Type[BasePipeline[PipelineItemType]]:
             try:
@@ -66,7 +66,7 @@ class PipelineHolder:
         middleware_type: PipelineMiddlewareStage,
         item_type: Type[PipelineItemType],
     ) -> Callable[[PipelineMiddleware[PipelineItemType]], PipelineMiddleware[PipelineItemType]]:
-        "Return a decorator that registers a pipeline middleware."
+        "Return a decorator that registers a pipeline middleware for the given stage."
 
         def decorator(middleware: PipelineMiddleware[PipelineItemType]) -> PipelineMiddleware[PipelineItemType]:
             self.add_middlewares(middleware_type, item_type, middleware)
@@ -98,10 +98,15 @@ class PipelineHolder:
         self,
         middleware: Callable[..., GlobalPipelineMiddleware[PipelineItemType]],
     ) -> Callable[..., GlobalPipelineMiddleware[PipelineItemType]]:
-        "Add a global pipeline middleware wrapping the full pipeline execution."
+        """
+        Add a global pipeline middleware factory.
+
+        The callable can accept injected dependencies and must return a middleware with signature
+        ``async def mw(call_next, item): ...`` which wraps the entire pipeline chain for every item type.
+        """
         self.add_global_middlewares(middleware)
         return middleware
 
     def add_global_middlewares(self, *middlewares: Callable[..., GlobalPipelineMiddleware[PipelineItemType]]):
-        "Add global pipeline processing middlewares."
+        "Add global pipeline middlewares as factory."
         self.global_middlewares.extend(middlewares)

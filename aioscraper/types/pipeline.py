@@ -9,11 +9,11 @@ PipelineMiddlewareStage = Literal["pre", "post"]
 
 @runtime_checkable
 class BasePipeline(Protocol[PipelineItemType]):
-    "Base class for implementing data processing pipelines."
+    "Interface for classes that process scraped items of a specific type."
 
     async def put_item(self, item: PipelineItemType) -> PipelineItemType:
         """
-        Process a item.
+        Process an item and return it (mutated or replaced).
 
         This method must be implemented by all concrete pipeline classes.
         """
@@ -30,6 +30,8 @@ class BasePipeline(Protocol[PipelineItemType]):
 
 
 class PipelineMiddleware(Protocol[PipelineItemType]):
+    "Async hook used before or after pipeline execution; must return the item."
+
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
 
 
@@ -44,6 +46,8 @@ class Pipeline(Protocol[PipelineItemType]):
 
 
 class GlobalPipelineMiddleware(Protocol[PipelineItemType]):
+    "Wrapper invoked around the entire pipeline chain for every item type."
+
     async def __call__(self, call_next: Pipeline, item: PipelineItemType) -> PipelineItemType: ...
 
 
