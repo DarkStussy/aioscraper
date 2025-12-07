@@ -8,7 +8,7 @@ Requires beautifulsoup4:
 
 Run with the CLI:
 
-    $ aioscraper examples.bs4_quotes
+    $ aioscraper quotes
 """
 
 from dataclasses import dataclass, field
