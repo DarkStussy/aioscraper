@@ -5,6 +5,7 @@ from typing import Any
 
 from aiojobs import Scheduler
 
+
 from .request_manager import RequestManager
 from .pipeline import PipelineDispatcher
 from .session import SessionMaker
@@ -45,11 +46,10 @@ class ScraperExecutor:
         )
         self._request_queue = asyncio.PriorityQueue()
         self._request_manager = RequestManager(
+            rate_limit_config=self._config.session.rate_limit,
             sessionmaker=sessionmaker,
-            schedule_request=self._scheduler.spawn,
+            schedule=self._scheduler.spawn,
             queue=self._request_queue,
-            delay=self._config.session.delay,
-            shutdown_timeout=self._config.execution.shutdown_timeout,
             dependencies=self._dependencies,
             middleware_holder=middleware_holder,
         )
@@ -71,7 +71,7 @@ class ScraperExecutor:
             await self._wait()
 
     async def _wait(self):
-        while len(self._scheduler) > 0 or self._request_queue.qsize() > 0:
+        while len(self._scheduler) > 0 or self._request_manager.active:
             await asyncio.sleep(self._config.execution.shutdown_check_interval)
 
     async def close(self):

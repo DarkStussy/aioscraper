@@ -1,8 +1,10 @@
 import ssl as ssl_module
 
+
 from .models import (
     Config,
     MiddlewareConfig,
+    RateLimitConfig,
     RequestRetryConfig,
     SessionConfig,
     SchedulerConfig,
@@ -16,7 +18,21 @@ from .. import env_parser
 
 
 def load_config(concurrent_requests: int | None = None, pending_requests: int | None = None) -> Config:
-    "Load config from environment variables, falling back to defaults and optional CLI overrides."
+    """Load configuration from environment variables with optional CLI overrides.
+
+    Reads configuration from environment variables prefixed with SESSION_, SCHEDULER_,
+    EXECUTION_, and PIPELINE_. When parameters are None, values are read from
+    corresponding environment variables. Defaults are used when env vars are not set.
+
+    Args:
+        concurrent_requests (int | None): Override for SCHEDULER_CONCURRENT_REQUESTS.
+            If None, reads from environment or uses default (64).
+        pending_requests (int | None): Override for SCHEDULER_PENDING_REQUESTS.
+            If None, reads from environment or uses default (1).
+
+    Returns:
+        Config: Complete configuration object with all settings resolved.
+    """
     default_config = Config()
     default_retry = default_config.session.retry
 
@@ -49,7 +65,6 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
     return Config(
         session=SessionConfig(
             timeout=env_parser.parse_float("SESSION_REQUEST_TIMEOUT", default_config.session.timeout),
-            delay=env_parser.parse_float("SESSION_REQUEST_DELAY", default_config.session.delay),
             ssl=ssl_ctx,
             proxy=env_parser.parse_proxy("SESSION_PROXY", None),
             http_backend=env_parser.parse("SESSION_HTTP_BACKEND", HttpBackend, default_config.session.http_backend),
@@ -68,6 +83,15 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
                     stop_processing=env_parser.parse_bool(
                         "SESSION_RETRY_MIDDLEWARE_STOP", default_retry.middleware.stop_processing
                     ),
+                ),
+            ),
+            rate_limit=RateLimitConfig(
+                enabled=env_parser.parse_bool("SESSION_RATE_LIMIT_ENABLED", default_config.session.rate_limit.enabled),
+                default_interval=env_parser.parse_float(
+                    "SESSION_RATE_LIMIT_INTERVAL", default_config.session.rate_limit.default_interval
+                ),
+                cleanup_timeout=env_parser.parse_float(
+                    "SESSION_RATE_LIMIT_CLEANUP_TIMEOUT", default_config.session.rate_limit.cleanup_timeout
                 ),
             ),
         ),

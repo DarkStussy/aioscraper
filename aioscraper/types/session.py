@@ -89,6 +89,14 @@ class Request:
     state: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(slots=True, order=True)
+class PRequest:
+    "Priority Request Pair - for managing prioritized requests."
+
+    priority: int
+    request: Request = field(compare=False)
+
+
 class Response:
     "Represents an HTTP response with all its components."
 
@@ -102,7 +110,7 @@ class Response:
         headers: ResponseHeaders,
         cookies: SimpleCookie,
         read: Callable[[], Awaitable[bytes]],
-    ) -> None:
+    ):
         self._url = url
         self._method = method
         self._status = status
@@ -175,6 +183,9 @@ class Response:
     def get_encoding(self) -> str:
         """
         Resolve response encoding from the ``Content-Type`` header.
+
+        Parses the Content-Type header for a charset parameter. Returns "utf-8"
+        as a safe default if no charset is found or if the charset is invalid.
 
         Returns:
             str: Detected charset or ``"utf-8"`` as a safe default.

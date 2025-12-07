@@ -7,7 +7,6 @@ from aioscraper.config import load_config
 
 def test_load_config_reads_env_overrides(monkeypatch):
     monkeypatch.setenv("SESSION_REQUEST_TIMEOUT", "5.5")
-    monkeypatch.setenv("SESSION_REQUEST_DELAY", "0.2")
     monkeypatch.setenv("SESSION_SSL", "false")
     monkeypatch.setenv("SESSION_PROXY", "http://proxy:8080")
 
@@ -25,7 +24,6 @@ def test_load_config_reads_env_overrides(monkeypatch):
     config = load_config()
 
     assert config.session.timeout == 5.5
-    assert config.session.delay == 0.2
     assert config.session.ssl is False
     assert config.session.proxy == "http://proxy:8080"
 

@@ -1,30 +1,24 @@
 import asyncio
 import sys
-from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
+from aioscraper.config.models import RateLimitConfig
+
+from .rate_limiter import RateLimiterManager
 from .session import SessionMaker
 from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
-from ..types import Request, SendRequest
+from ..types.session import Request, PRequest, SendRequest
 from ..holders import MiddlewareHolder
 
 logger = getLogger(__name__)
 
 
-@dataclass(slots=True, order=True)
-class _PRequest:
-    "Priority Request Pair - Internal class for managing prioritized requests."
-
-    priority: int
-    request: Request = field(compare=False)
-
-
-_RequestQueue = asyncio.PriorityQueue[_PRequest]
+_RequestQueue = asyncio.PriorityQueue[PRequest]
 
 
 def _get_request_sender(queue: _RequestQueue) -> SendRequest:
@@ -37,7 +31,7 @@ def _get_request_sender(queue: _RequestQueue) -> SendRequest:
         if request.json_data is not None and request.files is not None:
             raise InvalidRequestData("Cannot send both files and json_data")
 
-        await queue.put(_PRequest(priority=request.priority, request=request))
+        await queue.put(PRequest(priority=request.priority, request=request))
         return request
 
     return sender
@@ -45,42 +39,46 @@ def _get_request_sender(queue: _RequestQueue) -> SendRequest:
 
 class RequestManager:
     """
-    Manages HTTP requests with priority queuing and middleware support.
+    Manages HTTP requests with priority queuing, rate limiting, and middleware support.
 
     Args:
-        session (BaseSession): HTTP session
-        schedule_request (Callable[[Coroutine], Awaitable]): Function to schedule request processing
-        queue (_RequestQueue): Priority queue for requests
-        delay (float): Delay between requests in seconds
-        shutdown_timeout (float): Timeout for graceful shutdown
-        dependencies (dict[str, Any]): Additional dependencies to request
-        middleware_holder (MiddlewareHolder): Buckets of outer/inner/exception/response middlewares
+        rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
+        sessionmaker (SessionMaker): A factory for creating session objects.
+        schedule (Callable[[Coroutine[Any, Any, None]], Awaitable[Any]]): Function to schedule request processing.
+        queue (_RequestQueue): Priority queue for requests.
+        dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
+        middleware_holder (MiddlewareHolder): A container for middleware collections.
     """
 
     def __init__(
         self,
+        rate_limit_config: RateLimitConfig,
         sessionmaker: SessionMaker,
-        schedule_request: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
+        schedule: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
         queue: _RequestQueue,
-        delay: float,
-        shutdown_timeout: float,
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
     ):
         self._session = sessionmaker()
-        self._schedule_request = schedule_request
+        self._schedule = schedule
         self._queue = queue
-        self._delay = delay
-        self._shutdown_timeout = shutdown_timeout
         self._request_sender = _get_request_sender(queue)
         self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}
         self._middleware_holder = middleware_holder
-        self._event = asyncio.Event()
+        self._rate_limiter_manager = RateLimiterManager(
+            rate_limit_config,
+            schedule=lambda pr: self._schedule(execute_coroutine(self._send_request(pr.request))),
+        )
+        self._closed = False
         self._task: asyncio.Task[None] | None = None
 
     @property
     def sender(self) -> SendRequest:
         return self._request_sender
+
+    @property
+    def active(self) -> bool:
+        return self._rate_limiter_manager.active or not self._queue.empty()
 
     async def _send_request(self, request: Request):
         try:
@@ -174,30 +172,32 @@ class RequestManager:
         self._task = asyncio.create_task(self._listen_queue())
 
     async def _listen_queue(self):
-        """Process requests from the queue with configured delay."""
+        """Process requests from the queue using the rate limiter."""
         while True:
-            r = await self._queue.get()
+            pr = await self._queue.get()
 
-            if self._event.is_set():
+            if self._closed:
                 break
 
             for outer_middleware in self._middleware_holder.outer:
                 try:
-                    await outer_middleware(**get_func_kwargs(outer_middleware, request=r.request, **self._dependencies))
+                    await outer_middleware(
+                        **get_func_kwargs(outer_middleware, request=pr.request, **self._dependencies)
+                    )
                 except (StopMiddlewareProcessing, StopRequestProcessing) as e:
                     logger.debug(f"{type(e).__name__} in outer middleware is ignored")
                 except Exception as e:
                     logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
 
-            await self._schedule_request(execute_coroutine(self._send_request(r.request)))
-            await asyncio.sleep(self._delay)
+            await self._rate_limiter_manager(pr)
 
     async def close(self):
         """Close the underlying session."""
-        self._event.set()
-        await self._queue.put(_PRequest(priority=sys.maxsize, request=Request(url="stub")))
+        self._closed = True
+        await self._queue.put(PRequest(priority=sys.maxsize, request=Request(url="stub")))
 
         if self._task is not None:
             await self._task
 
+        await self._rate_limiter_manager.close()
         await self._session.close()

@@ -14,10 +14,22 @@ Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :clas
 
     import logging
     from aioscraper import AIOScraper, run_scraper
-    from aioscraper.config import Config, SessionConfig, SchedulerConfig, ExecutionConfig, PipelineConfig
+    from aioscraper.config import (
+        Config,
+        SessionConfig,
+        SchedulerConfig,
+        ExecutionConfig,
+        PipelineConfig,
+        RateLimitConfig,
+    )
 
     config = Config(
-        session=SessionConfig(timeout=20, delay=0.05, ssl=True, proxy="http://localhost:8080"),
+        session=SessionConfig(
+            timeout=20,
+            rate_limit=RateLimitConfig(default_interval=0.05),
+            ssl=True,
+            proxy="http://localhost:8080",
+        ),
         scheduler=SchedulerConfig(concurrent_requests=32, pending_requests=4, close_timeout=0.5),
         execution=ExecutionConfig(
             timeout=60,
@@ -68,6 +80,58 @@ proxy URL, for example:
 ``http://username:password@localhost:8030``
 
 This works for both ``aiohttp`` and ``httpx`` proxy configurations.
+
+.. _rate-limit-config:
+
+Rate Limiting
+-------------
+
+Set :class:`SessionConfig.rate_limit <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable built-in rate limiting.
+
+Rate limiting groups requests by a key (by default, the URL hostname) and enforces a minimum interval between requests within each group. This helps avoid overwhelming target servers and getting blocked.
+
+.. code-block:: python
+
+   from aioscraper.config import RateLimitConfig
+
+   rate_limit_config = RateLimitConfig(
+       enabled=True,
+       default_interval=0.5,  # 500ms between requests per host
+       cleanup_timeout=60.0,  # Clean up idle groups after 60 seconds
+   )
+
+**Configuration options:**
+
+- ``enabled``: Toggle rate limiting on or off (default: ``False``).
+- ``group_by``: Custom function to group requests and specify per-group intervals. Must return ``tuple[Hashable, float]`` where the first element is the group key and the second is the interval in seconds.
+- ``default_interval``: Default delay in seconds between requests within each group (default: ``0.0``).
+- ``cleanup_timeout``: Timeout in seconds for cleaning up inactive request groups (default: ``60.0``).
+
+Custom grouping
+~~~~~~~~~~~~~~~
+
+You can define custom grouping logic to apply different rate limits per domain or endpoint:
+
+.. code-block:: python
+
+   from yarl import URL
+   from aioscraper.config import RateLimitConfig
+
+
+   def custom_group_by(request):
+      """Group by domain with custom intervals."""
+      host = URL(request.url).host
+      if host == "api.example.com":
+         return (host, 0.1)  # 100ms for API
+      elif host == "www.example.com":
+         return (host, 1.0)  # 1 second for website
+
+      return (host, 0.5)  # 500ms default
+
+
+   rate_limit_config = RateLimitConfig(enabled=True, group_by=custom_group_by)
+
+When ``enabled=False`` (default), group-based rate limiting is bypassed. However, if ``default_interval`` is set, it will still apply a simple delay between all requests without grouping logic.
 
 .. _retry-config:
 
@@ -127,6 +191,10 @@ You can override its priority/``stop_processing`` behaviour via ``RequestRetryCo
    :no-index:
 
 .. autoclass:: aioscraper.config.models.RequestRetryConfig
+   :members:
+   :no-index:
+
+.. autoclass:: aioscraper.config.models.RateLimitConfig
    :members:
    :no-index:
 

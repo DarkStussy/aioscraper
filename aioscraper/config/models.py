@@ -4,7 +4,9 @@ import random
 import ssl as ssl_module
 from enum import StrEnum, auto
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Hashable
+
+from ..types import Request
 
 
 @dataclass(slots=True, frozen=True)
@@ -20,6 +22,24 @@ class MiddlewareConfig:
 
     priority: int = 100
     stop_processing: bool = False
+
+
+@dataclass(slots=True, frozen=True)
+class RateLimitConfig:
+    """
+    Configuration for rate limiting.
+
+    Args:
+        enabled (bool): Toggle rate limiting on or off.
+        group_by (Callable[[Request], tuple[Hashable, float]] | None): Function to group requests by.
+        default_interval (float): Default interval for group.
+        cleanup_timeout (float): Timeout in seconds before cleaning up an idle request group.
+    """
+
+    enabled: bool = False
+    group_by: Callable[[Request], tuple[Hashable, float]] | None = None
+    default_interval: float = 0.0
+    cleanup_timeout: float = 60.0
 
 
 class BackoffStrategy(StrEnum):
@@ -92,19 +112,19 @@ class SessionConfig:
 
     Args:
         timeout (float): Request timeout in seconds
-        delay (float): Delay between requests in seconds
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``; ``None`` lets the factory auto-detect
         retry (RequestRetryConfig): Controls built-in retry middleware behaviour
+        rate_limit (RateLimitConfig): Controls built-in rate limiting behaviour
     """
 
     timeout: float = 60.0
-    delay: float = 0.0
     ssl: ssl_module.SSLContext | bool = True
     proxy: str | dict[str, str | None] | None = None
     http_backend: HttpBackend | None = None
     retry: RequestRetryConfig = RequestRetryConfig()
+    rate_limit: RateLimitConfig = RateLimitConfig()
 
 
 @dataclass(slots=True, frozen=True)
@@ -132,7 +152,8 @@ class ExecutionConfig:
         timeout (float | None): Overall execution timeout in seconds
         shutdown_timeout (float): Timeout for graceful shutdown in seconds
         shutdown_check_interval (float): Interval between shutdown checks in seconds
-        log_level (int): Log level when a timeout occurs
+        log_level (int): Log level for timeout events (e.g., logging.ERROR, logging.WARNING).
+            Defaults to logging.ERROR.
     """
 
     timeout: float | None = None

@@ -76,7 +76,6 @@ If the resolved :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` already
 Supported environment variables:
 
 - ``SESSION_REQUEST_TIMEOUT``: Request timeout (seconds).
-- ``SESSION_REQUEST_DELAY``: Delay between requests (seconds).
 - ``SESSION_SSL``: ``true``/``false`` to toggle verification, or a path to a CA bundle for custom certificates.
 - ``SESSION_PROXY``: Default proxy for the HTTP client (string ``http://user:pass@host:port`` or JSON ``{"http": "...", "https": "..."}``).
 - ``SESSION_HTTP_BACKEND``: Force ``aiohttp`` or ``httpx`` regardless of what is installed (falls back automatically otherwise).
@@ -89,6 +88,9 @@ Supported environment variables:
 - ``SESSION_RETRY_EXCEPTIONS``: Comma-separated list of fully qualified exception names to retry on (e.g., ``asyncio.TimeoutError``).
 - ``SESSION_RETRY_MIDDLEWARE_PRIORITY``: Override the retry middleware priority (lower runs earlier).
 - ``SESSION_RETRY_MIDDLEWARE_STOP``: ``true``/``false`` to raise ``StopRequestProcessing`` after re-queueing.
+- ``SESSION_RATE_LIMIT_ENABLED``: ``true``/``false`` to enable rate limiting (default: ``false``).
+- ``SESSION_RATE_LIMIT_INTERVAL``: Default interval in seconds between requests per group (default: ``0.0``).
+- ``SESSION_RATE_LIMIT_CLEANUP_TIMEOUT``: Timeout in seconds for cleaning up inactive rate limit groups (default: ``60.0``).
 - ``SCHEDULER_CONCURRENT_REQUESTS``: Max concurrent requests.
 - ``SCHEDULER_PENDING_REQUESTS``: Pending requests to maintain.
 - ``SCHEDULER_CLOSE_TIMEOUT``: Scheduler shutdown timeout (seconds).
