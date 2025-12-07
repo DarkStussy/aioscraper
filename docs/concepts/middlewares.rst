@@ -37,16 +37,11 @@ Middlewares let you intercept requests, responses and exceptions. Each hook runs
     async def log_response(response: Response, request: Request):
         print("response", response.status, "for", request.url)
 
-Built-in retry middleware
--------------------------
-
-`aioscraper` ships with :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>`. Enable it by configuring ``SessionConfig.retry`` (see :ref:`retry-config`).
-Once enabled, it is registered automatically in the exception phase and re-queues requests when the configured status codes or exceptions occur.
-
 Priority
 --------
 
-Middlewares run in ascending ``priority`` order (default ``100``). When registering via ``scraper.middleware.add`` or the decorator helper, pass ``priority=10`` (or any integer) to control execution ordering:
+Middlewares run in ascending ``priority`` order (default ``100``).
+When registering via ``scraper.middleware.add`` or the decorator helper, pass ``priority=10`` (or any integer) to control execution ordering:
 
 .. code-block:: python
 
@@ -55,3 +50,18 @@ Middlewares run in ascending ``priority`` order (default ``100``). When register
         ...
 
     scraper.middleware.add("inner", other_inner_middleware, priority=20)
+
+
+Built-in middlewares
+--------------------
+
+The framework provides several middlewares that extend request handling, error processing, and lifecycle management. These middlewares integrate directly
+into the request/response pipeline and can be enabled through configuration.
+
+Retry Middleware
+~~~~~~~~~~~~~~~~
+
+The :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is enabled through :ref:`retry config <retry-config>`.
+
+When active, it hooks into the exception phase and automatically re-queues requests whenever a configured status code or exception is encountered, applying
+the retry and backoff rules defined in the session configuration.

@@ -22,7 +22,8 @@ Entry rules:
 - With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>`: the CLI uses that instance.
 - With ``:attr`` pointing to a callable (sync **or async**): the CLI executes/awaits it and expects an :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` instance in return.
 
-Examples:
+Examples
+~~~~~~~~
 
 .. code-block:: bash
 

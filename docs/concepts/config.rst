@@ -49,40 +49,69 @@ These settings are honored by both the CLI and :func:`run_scraper <aioscraper.co
 Proxies
 -------
 
-``SessionConfig.proxy`` (and ``SESSION_PROXY``) accepts two shapes; pick the one your HTTP client supports:
+:class:`SessionConfig.proxy <aioscraper.config.models.SessionConfig>` accepts two shapes; pick the one your HTTP client supports:
 
-- ``aiohttp`` — ``"http://user:pass@127.0.0.1:8080"`` (single proxy applied to every request).
-- ``httpx`` (single proxy) — ``"http://socks5://localhost:9050"`` when one proxy handles all schemes.
-- ``httpx`` (per-scheme) — ``{"http": "http://corp-proxy:8080", "https": "http://secure-proxy:8443"}`` to route ``http``/``https`` separately.
+- ``aiohttp`` — ``"http://localhost:8000"`` (single proxy applied to every request).
+- ``httpx`` (single proxy) — ``"http://localhost:8000"`` when one proxy handles all schemes.
+- ``httpx`` (per-scheme) — ``{"http": "http://localhost:8000", "https": "http://localhost:8001"}`` to route ``http``/``https`` separately.
 
 .. warning::
 
    ``httpx`` only supports client-scoped proxies, so per-request overrides are ignored. ``aiohttp`` does the opposite: a proxy passed directly in ``Request(..., proxy=...)`` takes precedence over ``config.session.proxy``.
+
+Authentication
+~~~~~~~~~~~~~~
+
+Authenticated proxies can be provided by embedding credentials directly in the
+proxy URL, for example:
+
+``http://username:password@localhost:8030``
+
+This works for both ``aiohttp`` and ``httpx`` proxy configurations.
 
 .. _retry-config:
 
 Retries
 -------
 
-Set ``SessionConfig.retry`` or override values via :ref:`environment variables <cli-configuration>` to enable the built-in retry middleware.
+Set :class:`SessionConfig.retry <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable the built-in retry middleware.
 
 You can pick the number of retry attempts, backoff strategy, status codes, exception types:
+
+The ``backoff`` option accepts the following values:
+
+- ``CONSTANT``: uses a fixed delay for every retry attempt.
+
+- ``LINEAR``: delay increases linearly with each attempt:  
+  ``delay = base_delay * attempt``.
+
+- ``EXPONENTIAL``: delay grows exponentially with each attempt:  
+  ``delay = base_delay * (2 ** attempt)``.
+
+- ``EXPONENTIAL_JITTER``: exponential backoff with added randomness (jitter) to prevent thundering herd effects.
+
+For ``EXPONENTIAL_JITTER``, the delay is calculated as follows:
+
+.. code-block:: python
+
+   delay = base_delay * (2 ** attempt)
+   delay = (delay / 2) + random.uniform(0, delay / 2)
+
+For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the final delay to avoid excessively long waits.
 
 .. code-block:: python
 
    import asyncio
-   from aioscraper.config import SessionConfig, RequestRetryConfig, BackoffStrategy
+   from aioscraper.config import RequestRetryConfig, BackoffStrategy
 
-   session = SessionConfig(
-      retry=RequestRetryConfig(
-         enabled=True,
-         attempts=2,
-         backoff=BackoffStrategy.EXPONENTIAL,
-         base_delay=0.1,
-         max_delay=10.0,
-         statuses=(500, 502, 503),
-         exceptions=(asyncio.TimeoutError,),
-      )
+   retry_config = RequestRetryConfig(
+      enabled=True,
+      attempts=5,
+      backoff=BackoffStrategy.EXPONENTIAL_JITTER,
+      base_delay=1.0,
+      max_delay=5.0,
+      statuses=(500, 502, 503),
+      exceptions=(asyncio.TimeoutError,),
    )
 
 When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as an exception middleware and reschedules the request through the internal queue. 
