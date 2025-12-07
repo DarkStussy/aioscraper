@@ -16,14 +16,17 @@ Lifespan = Callable[["AIOScraper"], AsyncIterator[None]]
 
 
 class AIOScraper:
-    """
-    An asynchronous web scraping framework that manages multiple scrapers and their execution.
-
-    This class provides a comprehensive solution for running multiple web scrapers concurrently,
-    managing requests, handling middleware, and processing data through pipelines.
+    """Core entrypoint that wires scrapers, middlewares, and pipelines.
 
     Args:
-        scrapers (tuple[Scraper, ...]): List of scraper callables to execute
+        *scrapers (Scraper): Callable scrapers queued on startup.
+        config (Config | None): Pre-built configuration; when ``None`` the
+            scraper loads one lazily via :func:`load_config` on ``start``.
+        lifespan (Lifespan | None): Optional async context manager factory
+            that wraps the scraper's lifecycle (setup/teardown).
+        sessionmaker_factory (SessionMakerFactory | None): Override the
+            function that builds HTTP sessions (defaults to
+            :func:`aioscraper.session.factory.get_sessionmaker`).
     """
 
     def __init__(
@@ -91,7 +94,7 @@ class AIOScraper:
             await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
     async def start(self):
-        "Initialize and run the scraper."
+        """Initialize and run the scraper with the configured settings."""
         config = self.config or load_config()
         self._executor = ScraperExecutor(
             config=config,

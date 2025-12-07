@@ -19,6 +19,7 @@ Configuration
 .. autoclass:: aioscraper.config.SchedulerConfig
 .. autoclass:: aioscraper.config.ExecutionConfig
 .. autoclass:: aioscraper.config.PipelineConfig
+.. autoclass:: aioscraper.config.HttpBackend
 .. autofunction:: aioscraper.config.load_config
 
 
@@ -26,11 +27,14 @@ Session
 -------
 
 .. autoclass:: aioscraper.session.base.BaseRequestContextManager
+   :special-members: __aenter__, __aexit__
 .. autoclass:: aioscraper.session.base.BaseSession
 .. autoclass:: aioscraper.session.aiohttp.AiohttpSession
 .. autoclass:: aioscraper.session.aiohttp.AiohttpRequestContextManager
+   :special-members: __aenter__, __aexit__
 .. autoclass:: aioscraper.session.httpx.HttpxSession
 .. autoclass:: aioscraper.session.httpx.HttpxRequestContextManager
+   :special-members: __aenter__, __aexit__
 .. autofunction:: aioscraper.session.factory.get_sessionmaker
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response
@@ -42,9 +46,12 @@ Pipeline
 
 .. autoclass:: aioscraper.scraper.pipeline.PipelineDispatcher
 .. autoclass:: aioscraper.types.pipeline.Pipeline
+   :special-members: __call__
 .. autoclass:: aioscraper.types.pipeline.BasePipeline
 .. autoclass:: aioscraper.types.pipeline.PipelineMiddleware
+   :special-members: __call__
 .. autoclass:: aioscraper.types.pipeline.GlobalPipelineMiddleware
+   :special-members: __call__
 
 Execution
 ---------
@@ -74,4 +81,4 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.StopRequestProcessing
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing
 .. autoclass:: aioscraper.exceptions.InvalidRequestData
-.. autoclass:: aioscraper.cli.exceptions.CLIError
+.. autoclass:: aioscraper.exceptions.CLIError

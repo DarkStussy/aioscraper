@@ -64,7 +64,7 @@ This gives you the same signal handling and graceful shutdown behavior as the CL
 Configuration
 -------------
 
-Configuration precedence: CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults.
+Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults. If the resolved :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
 
 - ``--concurrent-requests``: Max concurrent requests (overrides ``SCHEDULER_CONCURRENT_REQUESTS``).
 - ``--pending-requests``: Pending requests to keep queued (overrides ``SCHEDULER_PENDING_REQUESTS``).
