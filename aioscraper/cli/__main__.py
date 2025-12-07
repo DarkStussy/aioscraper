@@ -4,10 +4,10 @@ import logging
 from typing import Sequence
 
 from ._args import parse_args
-from .exceptions import CLIError
 from ._entrypoint import resolve_entrypoint_factory
+from ..exceptions import CLIError
 from ..config import Config, load_config
-from ..scraper import run_scraper
+from ..scraper import AIOScraper, run_scraper
 
 logger = logging.getLogger("aioscraper.cli")
 
@@ -27,8 +27,12 @@ def _apply_uvloop_policy():
 
 async def _run(config: Config, entrypoint: str):
     init = resolve_entrypoint_factory(entrypoint)
-    scraper = await init() if inspect.iscoroutinefunction(init) else init()
-    await run_scraper(scraper, config=config)
+    scraper: AIOScraper = await init() if inspect.iscoroutinefunction(init) else init()
+
+    if scraper.config is None:
+        scraper.config = config
+
+    await run_scraper(scraper)
 
 
 def main(argv: Sequence[str] | None = None):

@@ -14,9 +14,8 @@ Callbacks drive the happy path, while error handlers keep failures contained. `a
 
     import logging
 
-    from aioscraper import AIOScraper
+    from aioscraper import AIOScraper, Request, Response, SendRequest, Pipeline
     from aioscraper.exceptions import HTTPException
-    from aioscraper.types import Request, Response, SendRequest, Pipeline
 
     scraper = AIOScraper()
 

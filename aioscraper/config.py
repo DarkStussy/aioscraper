@@ -1,3 +1,4 @@
+from enum import StrEnum
 import logging
 import ssl as ssl_module
 from dataclasses import dataclass
@@ -5,21 +6,28 @@ from dataclasses import dataclass
 from . import env_parser
 
 
+class HttpBackend(StrEnum):
+    AIOHTTP = "aiohttp"
+    HTTPX = "httpx"
+
+
 @dataclass(slots=True, frozen=True)
 class SessionConfig:
-    """Configuration for session.
+    """HTTP session settings shared by every request.
 
     Args:
         timeout (float): Request timeout in seconds
         delay (float): Delay between requests in seconds
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
+        http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``; ``None`` lets the factory auto-detect
     """
 
     timeout: float = 60.0
     delay: float = 0.0
     ssl: ssl_module.SSLContext | bool = True
     proxy: str | dict[str, str | None] | None = None
+    http_backend: HttpBackend | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -79,12 +87,7 @@ class Config:
 
 
 def load_config(concurrent_requests: int | None = None, pending_requests: int | None = None) -> Config:
-    """Load Config from environment variables, falling back to defaults and optional CLI overrides.
-
-    ``SESSION_SSL`` accepts:
-    - ``true``/``false`` (case-insensitive) to toggle verification
-    - Any other string is treated as a path passed to ``ssl.create_default_context().load_verify_locations``.
-    """
+    "Load config from environment variables, falling back to defaults and optional CLI overrides."
     default_config = Config()
 
     if concurrent_requests is None:
@@ -114,6 +117,7 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
             delay=env_parser.parse_float("SESSION_REQUEST_DELAY", default_config.session.delay),
             ssl=ssl_ctx,
             proxy=env_parser.parse_proxy("SESSION_PROXY", None),
+            http_backend=env_parser.parse("SESSION_HTTP_BACKEND", HttpBackend, default_config.session.http_backend),
         ),
         scheduler=SchedulerConfig(
             concurrent_requests=concurrent_requests,

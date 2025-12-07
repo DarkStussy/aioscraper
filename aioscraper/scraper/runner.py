@@ -4,8 +4,8 @@ import logging
 import signal
 from functools import partial
 
+
 from .core import AIOScraper
-from ..config import Config, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +36,18 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
                 logger.debug("Signal handler for %s was not installed", sig_name)
 
 
-async def _run_scraper_without_force_exit(scraper: AIOScraper, config: Config, shutdown_event: asyncio.Event):
+async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: asyncio.Event):
     "Run scraper with shutdown/timeout handling, ignoring force-exit logic."
-    execution_timeout = config.execution.timeout if config else None
+    config = scraper.config
+    assert config is not None
+
+    execution_timeout = config.execution.timeout
 
     shutdown_task = asyncio.create_task(shutdown_event.wait())
     timeout_task = asyncio.create_task(asyncio.sleep(execution_timeout)) if execution_timeout is not None else None
 
     async with scraper:
-        scraper_task = asyncio.create_task(scraper.start(config))
+        scraper_task = asyncio.create_task(scraper.start())
         wait_set = {scraper_task, shutdown_task}
         if timeout_task is not None:
             wait_set.add(timeout_task)
@@ -66,7 +69,7 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, config: Config, s
         if timeout_task is not None and timeout_task in done:
             logger.log(
                 level=config.execution.log_level,
-                msg=f"Execution timeout reached ({config.execution.timeout}s), cancelling tasks",
+                msg=f"Execution timeout reached ({execution_timeout}s), cancelling tasks",
             )
             shutdown_task.cancel()
         else:
@@ -90,7 +93,6 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, config: Config, s
 
 async def _run_scraper(
     scraper: AIOScraper,
-    config: Config,
     shutdown_event: asyncio.Event | None = None,
     force_exit_event: asyncio.Event | None = None,
     install_signal_handlers: bool = True,
@@ -103,7 +105,7 @@ async def _run_scraper(
         _setup_signal_handlers(loop, shutdown, force_exit)
 
     force_exit_task = asyncio.create_task(force_exit.wait())
-    scraper_task = asyncio.create_task(_run_scraper_without_force_exit(scraper, config, shutdown))
+    scraper_task = asyncio.create_task(_run_scraper_without_force_exit(scraper, shutdown))
 
     done, _ = await asyncio.wait([force_exit_task, scraper_task], return_when=asyncio.FIRST_COMPLETED)
 
@@ -117,6 +119,6 @@ async def _run_scraper(
     await scraper_task
 
 
-async def run_scraper(scraper: AIOScraper, *, config: Config | None = None):
+async def run_scraper(scraper: AIOScraper):
     "Public entrypoint to run scraper with signal handling."
-    await _run_scraper(scraper, config=config or load_config())
+    await _run_scraper(scraper)

@@ -33,8 +33,7 @@ pip install "aioscraper[httpx]"
 
 Create `scraper.py`:
 ```python
-from aioscraper import AIOScraper
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper import AIOScraper, Request, Response, SendRequest
 
 scraper = AIOScraper()
 

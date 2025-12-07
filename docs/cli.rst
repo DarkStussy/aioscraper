@@ -41,8 +41,8 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 .. code-block:: python
 
     import asyncio
-    from aioscraper import AIOScraper, run_scraper
-    from aioscraper.types import Request, SendRequest
+    from aioscraper import AIOScraper, Request, SendRequest, run_scraper
+    from aioscraper.config import load_config
 
 
     async def scrape(send_request: SendRequest):
@@ -50,7 +50,8 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 
 
     async def main():
-        await run_scraper(AIOScraper(scrape))
+        scraper = AIOScraper(scrape, config=load_config())
+        await run_scraper(scraper)
 
 
     if __name__ == "__main__":
@@ -58,6 +59,7 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 
 
 This gives you the same signal handling and graceful shutdown behavior as the CLI.
+``run_scraper`` expects ``scraper.config`` to be set ahead of time, which is why the example passes ``config=load_config()`` to the constructor.
 
 Configuration
 -------------
@@ -73,6 +75,7 @@ Supported environment variables:
 - ``SESSION_REQUEST_DELAY``: Delay between requests (seconds).
 - ``SESSION_SSL``: ``true``/``false`` to toggle verification, or a path to a CA bundle for custom certificates.
 - ``SESSION_PROXY``: Default proxy for the HTTP client (string ``http://user:pass@host:port`` or JSON ``{"http": "...", "https": "..."}``).
+- ``SESSION_HTTP_BACKEND``: Force ``aiohttp`` or ``httpx`` regardless of what is installed (falls back automatically otherwise).
 - ``SCHEDULER_CONCURRENT_REQUESTS``: Max concurrent requests.
 - ``SCHEDULER_PENDING_REQUESTS``: Pending requests to maintain.
 - ``SCHEDULER_CLOSE_TIMEOUT``: Scheduler shutdown timeout (seconds).

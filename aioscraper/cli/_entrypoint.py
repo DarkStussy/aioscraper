@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
 
-from .exceptions import CLIError
+from ..exceptions import CLIError
 from ..scraper.core import AIOScraper
 
 

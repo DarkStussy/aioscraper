@@ -75,10 +75,10 @@ async def test_global_timeout_from_config(mock_aioscraper: MockAIOScraper):
     scraper = Scraper(timeout=None)
     mock_aioscraper(scraper)
 
-    config = Config(session=SessionConfig(timeout=0.01))
+    mock_aioscraper.config = Config(session=SessionConfig(timeout=0.01))
 
     async with mock_aioscraper:
-        await mock_aioscraper.start(config)
+        await mock_aioscraper.start()
 
     assert scraper.result is None
     assert isinstance(scraper.error, (TimeoutException, asyncio.TimeoutError))

@@ -4,7 +4,7 @@ from textwrap import dedent
 import pytest
 
 from aioscraper.cli._entrypoint import resolve_entrypoint_factory
-from aioscraper.cli.exceptions import CLIError
+from aioscraper.exceptions import CLIError
 from aioscraper.scraper import AIOScraper
 
 

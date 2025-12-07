@@ -14,8 +14,7 @@ Dependencies
 
 .. code-block:: python
 
-    from aioscraper import AIOScraper
-    from aioscraper.types import Request, SendRequest
+    from aioscraper import AIOScraper, Request, SendRequest
 
 
     async def scrape_one(send_request: SendRequest):

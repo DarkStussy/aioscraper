@@ -13,8 +13,7 @@ What it does
 .. code-block:: python
 
     from typing import Iterable, Self
-    from aioscraper import AIOScraper
-    from aioscraper.types import Request, SendRequest, Response
+    from aioscraper import AIOScraper, Request, SendRequest, Response
 
 
     class DbClient:

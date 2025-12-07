@@ -3,9 +3,9 @@ Configuration
 
 `aioscraper` ships sane defaults but exposes configuration for sessions, scheduling, execution, and pipeline dispatching.
 
-You can build a :class:`Config <aioscraper.config.Config>` and pass it into :meth:`AIOScraper.start <aioscraper.scraper.core.AIOScraper.start>`, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
+You can build a :class:`Config <aioscraper.config.Config>` and pass it to :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` via ``AIOScraper(config=...)``, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
-The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. See :ref:`proxy-config` for how per-session proxies are configured.
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.HttpBackend>` if you want to force one client even when both are available. See :ref:`proxy-config` for how per-session proxies are configured.
 
 
 .. code-block:: python
@@ -28,8 +28,8 @@ The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherw
 
 
     async def main():
-        scraper = AIOScraper()
-        await run_scraper(scraper, config=config)
+        scraper = AIOScraper(config=config)
+        await run_scraper(scraper)
 
 Graceful shutdown
 -----------------
@@ -45,7 +45,7 @@ These settings are honored by both the CLI and :func:`run_scraper <aioscraper.sc
 .. _proxy-config:
 
 Proxies
------
+-------
 
 ``SessionConfig.proxy`` (and ``SESSION_PROXY``) accepts two shapes; pick the one your HTTP client supports:
 

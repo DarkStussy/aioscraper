@@ -2,18 +2,19 @@ import logging
 from typing import Callable
 
 from .base import BaseSession
-from ..config import Config
+from ..config import Config, HttpBackend
 from ..exceptions import AIOScraperException
 
 logger = logging.getLogger(__name__)
 
 
 SessionMaker = Callable[[], BaseSession]
+SessionMakerFactory = Callable[[Config], SessionMaker]
 
 
-def get_sessionmaker(config: Config, http_backend: str | None = None) -> SessionMaker:
+def get_sessionmaker(config: Config) -> SessionMaker:
     "Return a factory that builds a session using the chosen or available HTTP backend."
-    if http_backend != "httpx":
+    if config.session.http_backend != HttpBackend.HTTPX:
         try:
             from .aiohttp import AiohttpSession, ClientTimeout, TCPConnector
 
@@ -26,7 +27,7 @@ def get_sessionmaker(config: Config, http_backend: str | None = None) -> Session
         except ModuleNotFoundError:  # pragma: no cover
             pass
 
-    if http_backend != "aiohttp":
+    if config.session.http_backend != HttpBackend.AIOHTTP:
         try:
             from .httpx import HttpxSession
 

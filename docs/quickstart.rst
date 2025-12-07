@@ -12,8 +12,7 @@ Save as ``scraper.py``:
 
 .. code-block:: python
 
-   from aioscraper import AIOScraper
-   from aioscraper.types import Request, Response, SendRequest
+   from aioscraper import AIOScraper, Request, Response, SendRequest
 
 
    scraper = AIOScraper()

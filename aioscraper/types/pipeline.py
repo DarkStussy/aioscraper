@@ -36,11 +36,7 @@ class PipelineMiddleware(Protocol[PipelineItemType]):
 
 
 class Pipeline(Protocol[PipelineItemType]):
-    """
-    Callable interface produced by `PipelineDispatcher.build_handler`, injected as the `pipeline`
-    dependency. Invoking it runs global pipeline middlewares, then the type-specific
-    pre/pipelines/post chain for the given item.
-    """
+    """Protocol for callables that accept an item and return the processed item."""
 
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
 

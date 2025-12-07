@@ -62,3 +62,7 @@ class StopItemProcessing(AIOScraperException):
 
 class InvalidRequestData(AIOScraperException):
     "Raised when request payload fields conflict."
+
+
+class CLIError(AIOScraperException):
+    "Raised when CLI arguments are invalid or cannot be resolved."

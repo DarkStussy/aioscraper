@@ -5,10 +5,10 @@ from typing import AsyncIterator, Callable, Self, Type, Any
 
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
-from ..config import Config
+from ..config import Config, load_config
 from ..holders import MiddlewareHolder, PipelineHolder
 from ..types import Scraper
-from ..session import SessionMaker, get_sessionmaker
+from ..session import SessionMakerFactory, get_sessionmaker
 
 logger = getLogger(__name__)
 
@@ -26,15 +26,24 @@ class AIOScraper:
         scrapers (tuple[Scraper, ...]): List of scraper callables to execute
     """
 
-    def __init__(self, *scrapers: Scraper):
+    def __init__(
+        self,
+        *scrapers: Scraper,
+        config: Config | None = None,
+        lifespan: Lifespan | None = None,
+        sessionmaker_factory: SessionMakerFactory | None = None,
+    ):
         self.scrapers = [*scrapers]
+        self.config = config
         self.dependencies: dict[str, Any] = {}
+
+        self._sessionmaker_factory = sessionmaker_factory or get_sessionmaker
 
         @asynccontextmanager
         async def default_lifespan(_: Self):
             yield
 
-        self._lifespan = default_lifespan
+        self._lifespan = asynccontextmanager(lifespan) if lifespan is not None else default_lifespan
         self._lifespan_exit_stack = AsyncExitStack()
 
         self._middleware_holder = MiddlewareHolder()
@@ -81,17 +90,9 @@ class AIOScraper:
         finally:
             await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
-    def _get_sessionmaker(self, config: Config) -> SessionMaker:
-        return get_sessionmaker(config)
-
-    async def start(self, config: Config | None = None):
-        """
-        Initialize and run the scraper with the given configuration.
-
-        Args:
-            config (Config | None): Optional configuration; falls back to defaults when not provided.
-        """
-        config = config or Config()
+    async def start(self):
+        "Initialize and run the scraper."
+        config = self.config or load_config()
         self._executor = ScraperExecutor(
             config=config,
             scrapers=self.scrapers,
@@ -103,9 +104,8 @@ class AIOScraper:
                 global_middlewares=self._pipeline_holder.global_middlewares,
                 dependencies=self.dependencies,
             ),
-            sessionmaker=self._get_sessionmaker(config),
+            sessionmaker=self._sessionmaker_factory(config),
         )
-
         await self._executor.run()
 
     async def close(self):

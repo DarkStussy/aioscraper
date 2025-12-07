@@ -39,9 +39,6 @@ def parse(key: str, cast: Callable[[str], T], default: T | NotSetType | None = N
 
         return default  # type: ignore
 
-    if cast is None:
-        return raw
-
     try:
         return cast(raw)
     except Exception as e:

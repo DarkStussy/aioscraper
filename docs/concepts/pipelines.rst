@@ -15,8 +15,7 @@ Core
 .. code-block:: python
 
     from dataclasses import dataclass
-    from aioscraper import AIOScraper
-    from aioscraper.types import Response, Pipeline
+    from aioscraper import AIOScraper, Response, Pipeline
 
     scraper = AIOScraper()
 
@@ -59,7 +58,7 @@ If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcess
 
    @scraper.pipeline.global_middleware
    def wrap_pipeline(db):
-       async def middleware(call_next, item: Article) -> Article:
+       async def middleware(call_next, item):
            db.log("start")
            item = await call_next(item)
            db.log("end")
