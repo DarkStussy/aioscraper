@@ -56,6 +56,7 @@ class Request:
         timeout (float | None): Request timeout in seconds
         allow_redirects (bool): Whether to follow HTTP redirects
         max_redirects (int): Maximum number of redirects to follow
+        raise_for_status (bool): Raise an HTTPException automatically for error statuses
 
         priority (int): Priority of the request
         callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
@@ -79,6 +80,7 @@ class Request:
     timeout: float | None = None
     allow_redirects: bool = True
     max_redirects: int = 10
+    raise_for_status: bool = True
 
     # not http params
     priority: int = 0
@@ -95,49 +97,81 @@ class Request:
             raise InvalidRequestData("Cannot send both files and json_data")
 
 
-@dataclass(slots=True, frozen=True, kw_only=True)
 class Response:
-    """Represents an HTTP response with all its components.
+    "Represents an HTTP response with all its components."
 
-    Args:
-        url (str): Final URL of the response
-        method (str): HTTP method used
-        status (int): HTTP status code
-        headers (ResponseHeaders): Response headers
-        cookies (SimpleCookie): Parsed response cookies
-        content (bytes): Raw response body
-    """
+    __slots__ = ("_url", "_method", "_status", "_headers", "_cookies", "_read", "_content")
 
-    url: str
-    method: str
-    status: int
-    headers: ResponseHeaders
-    cookies: SimpleCookie
-    content: bytes
+    def __init__(
+        self,
+        url: str,
+        method: str,
+        status: int,
+        headers: ResponseHeaders,
+        cookies: SimpleCookie,
+        read: Callable[[], Awaitable[bytes]],
+    ) -> None:
+        self._url = url
+        self._method = method
+        self._status = status
+        self._headers = headers
+        self._cookies = cookies
+        self._read = read
+        self._content: bytes | None = None
 
-    def __repr__(self) -> str:
-        return f"Response[{self.method} {self.url}]"
+    @property
+    def url(self) -> str:
+        "Final URL of the response."
+        return self._url
+
+    @property
+    def method(self) -> str:
+        "HTTP method used."
+        return self._method
+
+    @property
+    def status(self) -> int:
+        "HTTP status code."
+        return self._status
+
+    @property
+    def headers(self) -> ResponseHeaders:
+        "Response headers."
+        return self._headers
+
+    @property
+    def cookies(self) -> SimpleCookie:
+        "Parsed response cookies."
+        return self._cookies
 
     @property
     def ok(self) -> bool:
         "Returns ``True`` if ``status`` is less than ``400``, ``False`` if not"
-        return 400 > self.status
+        return 400 > self._status
 
-    def text(self, encoding: str | None = "utf-8", errors: str = "strict") -> str:
-        "Read response payload and decode"
+    def __repr__(self) -> str:
+        return f"Response[{self._method} {self._url}]"
+
+    async def read(self) -> bytes:
+        "Read response payload."
+        if self._content is None:
+            self._content = await self._read()
+
+        return self._content
+
+    async def text(self, encoding: str | None = "utf-8", errors: str = "strict") -> str:
+        "Read response payload and decode."
         if encoding is None:
             encoding = self.get_encoding()
 
-        return self.content.decode(encoding, errors=errors)
+        content = await self.read()
+        return content.decode(encoding, errors=errors)
 
-    def json(
-        self,
-        *,
-        encoding: str | None = None,
-        loads: Callable[[str], Any] = json.loads,
-    ) -> Any:
-        "Read and decodes JSON response"
-        stripped_content = self.content.strip()
+    async def json(self, *, encoding: str | None = None, loads: Callable[[str], Any] = json.loads) -> Any:
+        "Read and decodes JSON response."
+        content = await self.read()
+
+        stripped_content = content.strip()
         if not stripped_content:
             return None
 

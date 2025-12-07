@@ -33,27 +33,25 @@ class RepoItem:
 @scraper.pipeline(RepoItem)
 class CollectPipeline:
     def __init__(self):
-        self.items: list[dict[str, Any]] = []
+        self.counter = 0
 
     async def put_item(self, item: RepoItem) -> RepoItem:
-        self.items.append(
-            {
-                "full_name": f"{item.owner}/{item.name}",
-                "description": item.data.get("description"),
-                "stars": item.data.get("stargazers_count"),
-                "forks": item.data.get("forks_count"),
-                "language": item.data.get("language"),
-            }
+        repo = {
+            "full_name": f"{item.owner}/{item.name}",
+            "description": item.data.get("description"),
+            "stars": item.data.get("stargazers_count"),
+            "forks": item.data.get("forks_count"),
+            "language": item.data.get("language"),
+        }
+        print(
+            f"{repo['full_name']}: ★{repo['stars']} forks:{repo['forks']} "
+            f"lang:{repo['language']} - {repo['description']}"
         )
+        self.counter += 1
         return item
 
     async def close(self):
-        print(f"Collected {len(self.items)} repos")
-        for repo in self.items:
-            print(
-                f"{repo['full_name']}: ★{repo['stars']} forks:{repo['forks']} "
-                f"lang:{repo['language']} - {repo['description']}"
-            )
+        print(f"Collected {self.counter} repos")
 
 
 @scraper
@@ -67,7 +65,7 @@ async def fetch_repos(send_request: SendRequest):
     ]
 
     async def parse_repo(response: Response, pipeline: Pipeline, owner: str, name: str):
-        await pipeline(RepoItem(owner, name, data=response.json()))
+        await pipeline(RepoItem(owner, name, data=await response.json()))
 
     for owner, name in repos:
         await send_request(

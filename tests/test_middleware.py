@@ -20,7 +20,7 @@ class MiddlewareScraper:
         await send_request(Request(url="https://api.test.com/error", errback=self.handle_error))
 
     async def parse(self, response: Response, request: Request, outer: bool, inner: bool):
-        self.response = response.json()
+        self.response = await response.json()
         self.outer = outer
         self.inner = inner
         self.response_flag = request.state.get("from_response")

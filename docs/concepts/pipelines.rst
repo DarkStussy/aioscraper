@@ -36,7 +36,7 @@ Core
 
 
     async def callback(response: Response, pipeline: Pipeline):
-        await pipeline(Article(title=response.json()["title"]))
+        await pipeline(Article(title=(await response.json())["title"]))
 
 
 Middlewares around pipelines

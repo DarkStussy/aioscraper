@@ -51,7 +51,7 @@ async def scrape(send_request: SendRequest):
 
 
 async def parse(response: Response, send_request: SendRequest, pipeline: Pipeline, page: int = 1):
-    soup = BeautifulSoup(response.text(), "html.parser")
+    soup = BeautifulSoup(await response.text(), "html.parser")
 
     for block in soup.select(".quote"):
         text_el = block.select_one(".text")

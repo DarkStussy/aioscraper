@@ -21,7 +21,7 @@ class Scraper:
         )
 
     async def parse(self, response: Response, request: Request):
-        self.seen_cookies = response.json()
+        self.seen_cookies = await response.json()
         self.response_cookies = response.cookies
 
 

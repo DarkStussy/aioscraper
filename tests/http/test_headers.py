@@ -21,7 +21,7 @@ class Scraper:
         )
 
     async def parse(self, response: Response, request: Request):
-        self.seen_headers = response.json()
+        self.seen_headers = await response.json()
         self.response_headers = response.headers
 
 

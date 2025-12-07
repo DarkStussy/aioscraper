@@ -22,7 +22,7 @@ class Scraper:
         )
 
     async def parse(self, response: Response):
-        response.json()  # should raise JSONDecodeError on broken data
+        await response.json()  # should raise JSONDecodeError on broken data
         self.parsed_ok = True
 
     async def on_error(self, exc: Exception):

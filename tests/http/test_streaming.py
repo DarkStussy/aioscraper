@@ -30,7 +30,7 @@ class Scraper:
         )
 
     async def store_body(self, response: Response, key: str):
-        self.bodies[key] = response.content
+        self.bodies[key] = await response.read()
 
 
 @pytest.mark.asyncio

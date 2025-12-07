@@ -91,41 +91,46 @@ class RequestManager:
             url = parse_url(request.url, request.params)
             logger.debug(f"send request: {request.method} {url}")
 
-            response = await self._session.make_request(request)
+            async with self._session.make_request(request) as response:
+                for response_middleware in self._middleware_holder.response:
+                    try:
+                        await response_middleware(
+                            **get_func_kwargs(
+                                response_middleware,
+                                request=request,
+                                response=response,
+                                **self._dependencies,
+                            )
+                        )
+                    except StopRequestProcessing:
+                        logger.debug("StopRequestProcessing in response middleware: aborting request processing")
+                        return
+                    except StopMiddlewareProcessing:
+                        logger.debug("StopMiddlewareProcessing in response middleware: stopping response chain")
+                        break
 
-            for response_middleware in self._middleware_holder.response:
-                try:
-                    await response_middleware(
-                        **get_func_kwargs(response_middleware, request=request, response=response, **self._dependencies)
+                if response.ok or not request.raise_for_status:
+                    if request.callback is not None:
+                        await request.callback(
+                            **get_func_kwargs(
+                                request.callback,
+                                request=request,
+                                response=response,
+                                **request.cb_kwargs,
+                                **self._dependencies,
+                            ),
+                        )
+                else:
+                    await self._handle_exception(
+                        request,
+                        exc=HTTPException(
+                            url=str(url),
+                            method=response.method,
+                            headers=response.headers,
+                            status_code=response.status,
+                            message=await response.text(errors="replace"),
+                        ),
                     )
-                except StopRequestProcessing:
-                    logger.debug("StopRequestProcessing in response middleware: aborting request processing")
-                    return
-                except StopMiddlewareProcessing:
-                    logger.debug("StopMiddlewareProcessing in response middleware: stopping response chain")
-                    break
-
-            if response.status >= 400:
-                await self._handle_exception(
-                    request,
-                    exc=HTTPException(
-                        status_code=response.status,
-                        message=response.text(errors="replace"),
-                        url=str(url),
-                        method=response.method,
-                        content=response.content,
-                    ),
-                )
-            elif request.callback is not None:
-                await request.callback(
-                    **get_func_kwargs(
-                        request.callback,
-                        request=request,
-                        response=response,
-                        **request.cb_kwargs,
-                        **self._dependencies,
-                    ),
-                )
         except Exception as exc:
             await self._handle_exception(request, exc)
 

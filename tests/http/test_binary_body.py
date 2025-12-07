@@ -22,7 +22,7 @@ class Scraper:
         )
 
     async def parse(self, response: Response):
-        self.response_data = response.json()
+        self.response_data = await response.json()
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,7 @@ class Scraper:
         )
 
     async def parse(self, response: Response, request: Request):
-        self.seen = response.json()
+        self.seen = await response.json()
 
 
 @pytest.mark.asyncio

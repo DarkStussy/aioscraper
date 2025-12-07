@@ -26,7 +26,7 @@ class Scraper:
         )
 
     async def parse(self, response: Response):
-        self.result = response.text()
+        self.result = await response.text()
 
     async def on_error(self, exc: Exception):
         self.error = exc

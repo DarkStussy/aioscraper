@@ -38,7 +38,7 @@ async def scrape(send_request: SendRequest):
 
 
 async def parse(response: Response, pipeline: Pipeline):
-    html = response.text()
+    html = await response.text()
     match = re.search(r"<title>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
     title = match.group(1).strip() if match else "unknown"
     await pipeline(Page(url=response.url, title=title))

@@ -25,9 +25,12 @@ Configuration
 Session
 -------
 
+.. autoclass:: aioscraper.session.base.BaseRequestContextManager
 .. autoclass:: aioscraper.session.base.BaseSession
 .. autoclass:: aioscraper.session.aiohttp.AiohttpSession
+.. autoclass:: aioscraper.session.aiohttp.AiohttpRequestContextManager
 .. autoclass:: aioscraper.session.httpx.HttpxSession
+.. autoclass:: aioscraper.session.httpx.HttpxRequestContextManager
 .. autofunction:: aioscraper.session.factory.get_sessionmaker
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response

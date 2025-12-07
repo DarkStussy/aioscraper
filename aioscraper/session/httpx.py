@@ -1,13 +1,54 @@
 from ssl import SSLContext
 from httpx import AsyncClient, BasicAuth, USE_CLIENT_DEFAULT, AsyncHTTPTransport
 
-from .base import BaseSession
+from .base import BaseRequestContextManager, BaseSession
 from ..types import Response, Request
 from .._helpers.http import parse_cookies, parse_url, to_simple_cookie
 
 
+class HttpxRequestContextManager(BaseRequestContextManager):
+    """httpx-backed context manager that executes a prepared HTTP request."""
+
+    def __init__(self, request: Request, client: AsyncClient):
+        super().__init__(request)
+        self._client = client
+
+    async def __aenter__(self) -> Response:
+        """Send the request with httpx and convert the response to internal ``Response``."""
+        if isinstance(self._request.data, dict):
+            content, data = None, self._request.data
+        else:
+            content, data = self._request.data, None
+
+        response = await self._client.request(
+            url=str(parse_url(self._request.url, self._request.params)),
+            method=self._request.method,
+            content=content,
+            data=data,
+            files=self._request.files,
+            json=self._request.json_data,
+            cookies=parse_cookies(self._request.cookies) if self._request.cookies is not None else None,
+            headers=self._request.headers,
+            auth=(
+                BasicAuth(username=self._request.auth["username"], password=self._request.auth.get("password", ""))
+                if self._request.auth is not None
+                else USE_CLIENT_DEFAULT
+            ),
+            timeout=self._request.timeout or USE_CLIENT_DEFAULT,
+            follow_redirects=self._request.allow_redirects,
+        )
+        return Response(
+            url=str(response.url),
+            method=response.request.method,
+            status=response.status_code,
+            headers=response.headers,
+            cookies=to_simple_cookie(response.cookies),
+            read=response.aread,
+        )
+
+
 class HttpxSession(BaseSession):
-    "Implementation of HTTP session using httpx."
+    """HTTP session implementation that wraps an :class:`httpx.AsyncClient`."""
 
     def __init__(
         self,
@@ -15,6 +56,7 @@ class HttpxSession(BaseSession):
         verify: SSLContext | bool,
         proxy: str | dict[str, str | None] | None,
     ):
+        """Instantiate an ``AsyncClient`` honoring timeout/SSL/proxy configuration."""
         if isinstance(proxy, dict):
             mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items() if proxy} or None
             proxy = None
@@ -23,40 +65,10 @@ class HttpxSession(BaseSession):
 
         self._client = AsyncClient(timeout=timeout, verify=verify, proxy=proxy, mounts=mounts)
 
-    async def make_request(self, request: Request) -> Response:
-        "Perform an HTTP request via httpx and wrap the result in `Response`."
-
-        if isinstance(request.data, dict):
-            content, data = None, request.data
-        else:
-            content, data = request.data, None
-
-        response = await self._client.request(
-            url=str(parse_url(request.url, request.params)),
-            method=request.method,
-            content=content,
-            data=data,
-            files=request.files,
-            json=request.json_data,
-            cookies=parse_cookies(request.cookies) if request.cookies is not None else None,
-            headers=request.headers,
-            auth=(
-                BasicAuth(username=request.auth["username"], password=request.auth.get("password", ""))
-                if request.auth is not None
-                else USE_CLIENT_DEFAULT
-            ),
-            timeout=request.timeout or USE_CLIENT_DEFAULT,
-            follow_redirects=request.allow_redirects,
-        )
-
-        return Response(
-            url=str(response.url),
-            method=request.method,
-            status=response.status_code,
-            headers=response.headers,
-            cookies=to_simple_cookie(response.cookies),
-            content=await response.aread(),
-        )
+    def make_request(self, request: Request) -> HttpxRequestContextManager:
+        """Create a request context manager coupled with the shared client."""
+        return HttpxRequestContextManager(request, self._client)
 
     async def close(self):
+        """Close the ``AsyncClient`` to free connectors and sockets."""
         await self._client.aclose()

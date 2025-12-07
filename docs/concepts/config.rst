@@ -5,9 +5,8 @@ Configuration
 
 You can build a :class:`Config <aioscraper.config.Config>` and pass it into :meth:`AIOScraper.start <aioscraper.scraper.core.AIOScraper.start>`, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
-The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. See :ref:`proxy-config` for how per-session proxies are configured.
 
-For ``httpx``, proxies are client-scoped, so set :class:`SessionConfig.proxy <aioscraper.config.SessionConfig>` (or ``SESSION_PROXY``) if you need to route traffic through a proxy.
 
 .. code-block:: python
 
@@ -41,6 +40,22 @@ Graceful shutdown
 - Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
 
 These settings are honored by both the CLI and :func:`run_scraper <aioscraper.scraper.runner.run_scraper>`, giving consistent stop behavior in code or from the terminal.
+
+
+.. _proxy-config:
+
+Proxies
+-----
+
+``SessionConfig.proxy`` (and ``SESSION_PROXY``) accepts two shapes; pick the one your HTTP client supports:
+
+- ``aiohttp`` — ``"http://user:pass@127.0.0.1:8080"`` (single proxy applied to every request).
+- ``httpx`` (single proxy) — ``"http://socks5://localhost:9050"`` when one proxy handles all schemes.
+- ``httpx`` (per-scheme) — ``{"http": "http://corp-proxy:8080", "https": "http://secure-proxy:8443"}`` to route ``http``/``https`` separately.
+
+.. warning::
+
+   ``httpx`` only supports client-scoped proxies, so per-request overrides are ignored. ``aiohttp`` does the opposite: a proxy passed directly in ``Request(..., proxy=...)`` takes precedence over ``config.session.proxy``.
 
 
 .. autoclass:: aioscraper.config.Config

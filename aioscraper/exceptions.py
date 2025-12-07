@@ -1,3 +1,6 @@
+from typing import Mapping
+
+
 class AIOScraperException(Exception):
     "Base scraper exception."
 
@@ -22,12 +25,12 @@ class HTTPException(ClientException):
         content (bytes): The raw response content
     """
 
-    def __init__(self, status_code: int, message: str, url: str, method: str, content: bytes):
-        self.status_code = status_code
-        self.message = message
+    def __init__(self, url: str, method: str, status_code: int, headers: Mapping[str, str], message: str):
         self.url = url
         self.method = method
-        self.content = content
+        self.status_code = status_code
+        self.headers = headers
+        self.message = message
 
     def __str__(self) -> str:
         return f"{self.method} {self.url}: {self.status_code}: {self.message}"

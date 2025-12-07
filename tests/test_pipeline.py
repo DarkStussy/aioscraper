@@ -59,7 +59,7 @@ class Scraper:
         await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
 
     async def parse(self, response: Response, pipeline: Pipeline):
-        await pipeline(RealItem(response.text()))
+        await pipeline(RealItem(await response.text()))
 
 
 def _add_via_decorator(
