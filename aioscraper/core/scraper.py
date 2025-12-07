@@ -8,6 +8,7 @@ from .pipeline import PipelineDispatcher
 from .session import SessionMakerFactory, get_sessionmaker
 from ..config import Config, load_config
 from ..holders import MiddlewareHolder, PipelineHolder
+from ..middlewares import RetryMiddleware
 from ..types import Scraper
 
 logger = getLogger(__name__)
@@ -96,6 +97,7 @@ class AIOScraper:
     async def start(self):
         """Initialize and run the scraper with the configured settings."""
         config = self.config or load_config()
+        self._install_builtin_middlewares(config)
         self._executor = ScraperExecutor(
             config=config,
             scrapers=self.scrapers,
@@ -115,3 +117,14 @@ class AIOScraper:
         "Close the scraper and its associated resources."
         if self._executor is not None:
             await self._executor.close()
+
+    def _install_builtin_middlewares(self, config: Config):
+        retry_config = config.session.retry
+        if retry_config.enabled and not any(
+            isinstance(mw, RetryMiddleware) for mw in self._middleware_holder.exception
+        ):
+            self._middleware_holder.add(
+                "exception",
+                RetryMiddleware(retry_config),
+                priority=retry_config.middleware.priority,
+            )

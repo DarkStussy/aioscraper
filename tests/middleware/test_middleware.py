@@ -92,6 +92,35 @@ async def test_middleware(
 
 
 @pytest.mark.asyncio
+async def test_middleware_priority_controls_execution_order(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
+
+    order: list[str] = []
+
+    async def low():
+        order.append("low")
+
+    async def high():
+        order.append("high")
+
+    mock_aioscraper.middleware.add("inner", low, priority=10)
+    mock_aioscraper.middleware.add("inner", high, priority=0)
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/v1", callback=handle))
+
+    async def handle():
+        return None
+
+    mock_aioscraper(scrape)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.start()
+
+    assert order == ["high", "low"]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("middleware_type", ["inner", "response"])
 async def test_stop_middleware_processing_short_circuits_chain(
     mock_aioscraper: MockAIOScraper,

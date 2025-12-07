@@ -16,9 +16,11 @@ Configuration
 
 .. autoclass:: aioscraper.config.Config
 .. autoclass:: aioscraper.config.SessionConfig
+.. autoclass:: aioscraper.config.RequestRetryConfig
 .. autoclass:: aioscraper.config.SchedulerConfig
 .. autoclass:: aioscraper.config.ExecutionConfig
 .. autoclass:: aioscraper.config.PipelineConfig
+.. autoclass:: aioscraper.config.MiddlewareConfig
 .. autoclass:: aioscraper.config.HttpBackend
 .. autofunction:: aioscraper.config.load_config
 
@@ -52,6 +54,11 @@ Pipeline
    :special-members: __call__
 .. autoclass:: aioscraper.types.pipeline.GlobalPipelineMiddleware
    :special-members: __call__
+
+Middlewares
+-----------
+
+.. autoclass:: aioscraper.middlewares.retry.RetryMiddleware
 
 Execution
 ---------

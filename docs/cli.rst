@@ -61,10 +61,13 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 This gives you the same signal handling and graceful shutdown behavior as the CLI.
 ``run_scraper`` expects ``scraper.config`` to be set ahead of time, which is why the example passes ``config=load_config()`` to the constructor.
 
+.. _cli-configuration:
+
 Configuration
 -------------
 
-Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults. If the resolved :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
+Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults. 
+If the resolved :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
 
 - ``--concurrent-requests``: Max concurrent requests (overrides ``SCHEDULER_CONCURRENT_REQUESTS``).
 - ``--pending-requests``: Pending requests to keep queued (overrides ``SCHEDULER_PENDING_REQUESTS``).
@@ -76,6 +79,13 @@ Supported environment variables:
 - ``SESSION_SSL``: ``true``/``false`` to toggle verification, or a path to a CA bundle for custom certificates.
 - ``SESSION_PROXY``: Default proxy for the HTTP client (string ``http://user:pass@host:port`` or JSON ``{"http": "...", "https": "..."}``).
 - ``SESSION_HTTP_BACKEND``: Force ``aiohttp`` or ``httpx`` regardless of what is installed (falls back automatically otherwise).
+- ``SESSION_RETRY_ENABLED``: ``true``/``false`` to toggle the built-in retry middleware.
+- ``SESSION_RETRY_ATTEMPTS``: Maximum number of retry attempts per request.
+- ``SESSION_RETRY_DELAY``: Delay between retry attempts (seconds).
+- ``SESSION_RETRY_STATUSES``: Comma-separated list of HTTP status codes that trigger retries (e.g., ``500,502``).
+- ``SESSION_RETRY_EXCEPTIONS``: Comma-separated list of fully qualified exception names to retry on (e.g., ``asyncio.TimeoutError``).
+- ``SESSION_RETRY_MIDDLEWARE_PRIORITY``: Override the retry middleware priority (lower runs earlier).
+- ``SESSION_RETRY_MIDDLEWARE_STOP``: ``true``/``false`` to raise ``StopRequestProcessing`` after re-queueing.
 - ``SCHEDULER_CONCURRENT_REQUESTS``: Max concurrent requests.
 - ``SCHEDULER_PENDING_REQUESTS``: Pending requests to maintain.
 - ``SCHEDULER_CLOSE_TIMEOUT``: Scheduler shutdown timeout (seconds).

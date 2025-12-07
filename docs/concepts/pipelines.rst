@@ -40,7 +40,8 @@ Core
 
 Middlewares around pipelines
 ----------------------------
-Pipeline middlewares let you step in before the first pipeline sees an item and after the last one finishes. Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out. 
+Pipeline middlewares let you step in before the first pipeline sees an item and after the last one finishes.
+Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out. 
 
 Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await call_next(item)`` to keep the item moving. 
 

@@ -6,7 +6,8 @@ Orchestrates asynchronous scrapers, middlewares, and pipelines for high-volume, 
 .. warning::
    Beta status: APIs and behavior may change, so pin versions and expect occasional breakage while things stabilize.
 
-You define scraping tasks that queue requests. A scheduler dispatches them with your chosen concurrency and priorities. HTTP clients perform the calls and return responses. Callbacks handle those responses and hand items off to pipelines, which process items in order and then shut down cleanly.
+You define scraping tasks that queue requests. A scheduler dispatches them with your chosen concurrency and priorities.
+HTTP clients perform the calls and return responses. Callbacks handle those responses and hand items off to pipelines, which process items in order and then shut down cleanly.
 
 .. toctree::
    :maxdepth: 2

@@ -3,9 +3,11 @@ Configuration
 
 `aioscraper` ships sane defaults but exposes configuration for sessions, scheduling, execution, and pipeline dispatching.
 
-You can build a :class:`Config <aioscraper.config.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
+You can build a :class:`Config <aioscraper.config.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`. 
+The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
-The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.HttpBackend>` if you want to force one client even when both are available. See :ref:`proxy-config` for how per-session proxies are configured.
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
+Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.HttpBackend>` if you want to force one client even when both are available. 
 
 
 .. code-block:: python
@@ -57,12 +59,43 @@ Proxies
 
    ``httpx`` only supports client-scoped proxies, so per-request overrides are ignored. ``aiohttp`` does the opposite: a proxy passed directly in ``Request(..., proxy=...)`` takes precedence over ``config.session.proxy``.
 
+.. _retry-config:
+
+Retries
+-------
+
+Set ``SessionConfig.retry`` or override values via :ref:`environment variables <cli-configuration>` to enable the built-in retry middleware.
+
+You can pick the number of retry attempts, status codes, exception types:
+
+.. code-block:: python
+
+    import asyncio
+    from aioscraper.config import SessionConfig, RequestRetryConfig
+
+    session = SessionConfig(
+        retry=RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            delay=1,
+            statuses=(500, 502, 503),
+            exceptions=(asyncio.TimeoutError,),
+        )
+    )
+
+When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as an exception middleware and reschedules the request through the internal queue. 
+You can override its priority/``stop_processing`` behaviour via ``RequestRetryConfig.middleware``.
+
 
 .. autoclass:: aioscraper.config.Config
    :members:
    :no-index:
 
 .. autoclass:: aioscraper.config.SessionConfig
+   :members:
+   :no-index:
+
+.. autoclass:: aioscraper.config.RequestRetryConfig
    :members:
    :no-index:
 
@@ -75,5 +108,9 @@ Proxies
    :no-index:
 
 .. autoclass:: aioscraper.config.PipelineConfig
+   :members:
+   :no-index:
+
+.. autoclass:: aioscraper.config.MiddlewareConfig
    :members:
    :no-index:
