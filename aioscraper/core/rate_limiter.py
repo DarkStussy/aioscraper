@@ -32,7 +32,8 @@ class RequestGroup:
         interval (float): Delay in seconds between processing requests in this group.
         cleanup_timeout (float): Timeout in seconds before cleaning up an idle group.
         schedule (Callable[[PRequest], Awaitable[None]]): Callback function to schedule request execution.
-        on_finished (Callable[[Hashable, RequestGroup], None]): Callback invoked when the group finishes or becomes idle.
+        on_finished (Callable[[Hashable, RequestGroup], None]):
+            Callback invoked when the group finishes or becomes idle.
     """
 
     def __init__(
