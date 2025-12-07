@@ -1,6 +1,8 @@
 import asyncio
+import heapq
 import sys
 from logging import getLogger
+from time import monotonic
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
@@ -19,19 +21,25 @@ logger = getLogger(__name__)
 
 
 _RequestQueue = asyncio.PriorityQueue[PRequest]
+_RequestHead = list[PRequest]
 
 
-def _get_request_sender(queue: _RequestQueue) -> SendRequest:
+def _get_request_sender(queue: _RequestQueue, heap: _RequestHead) -> SendRequest:
     "Creates a request sender function that adds requests to the priority queue."
 
     async def sender(request: Request) -> Request:
+        now = monotonic()
         if request.json_data is not None and request.data is not None:
             raise InvalidRequestData("Cannot send both data and json_data")
 
         if request.json_data is not None and request.files is not None:
             raise InvalidRequestData("Cannot send both files and json_data")
 
-        await queue.put(PRequest(priority=request.priority, request=request))
+        if request.delay:
+            heapq.heappush(heap, PRequest(priority=now + request.delay, request=request))
+        else:
+            await queue.put(PRequest(priority=request.priority, request=request))
+
         return request
 
     return sender
@@ -55,14 +63,14 @@ class RequestManager:
         rate_limit_config: RateLimitConfig,
         sessionmaker: SessionMaker,
         schedule: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
-        queue: _RequestQueue,
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
     ):
         self._session = sessionmaker()
         self._schedule = schedule
-        self._queue = queue
-        self._request_sender = _get_request_sender(queue)
+        self._ready_queue: _RequestQueue = asyncio.PriorityQueue()
+        self._delayed_heap: _RequestHead = []
+        self._request_sender = _get_request_sender(self._ready_queue, self._delayed_heap)
         self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}
         self._middleware_holder = middleware_holder
         self._rate_limiter_manager = RateLimiterManager(
@@ -78,7 +86,7 @@ class RequestManager:
 
     @property
     def active(self) -> bool:
-        return self._rate_limiter_manager.active or not self._queue.empty()
+        return self._rate_limiter_manager.active or not self._ready_queue.empty() or len(self._delayed_heap) > 0
 
     async def _send_request(self, request: Request):
         try:
@@ -167,14 +175,20 @@ class RequestManager:
         else:
             logger.error(f"{request.method}: {request.url}: {exc}", exc_info=exc)
 
-    def listen_queue(self):
+    def start_listening(self):
         """Start listening to the request queue."""
         self._task = asyncio.create_task(self._listen_queue())
 
     async def _listen_queue(self):
         """Process requests from the queue using the rate limiter."""
-        while True:
-            pr = await self._queue.get()
+        while not self._closed:
+            await self._pop_due_delayed()
+
+            timeout = self._next_timeout()
+            try:
+                pr = await asyncio.wait_for(self._ready_queue.get(), timeout)
+            except asyncio.TimeoutError:
+                continue
 
             if self._closed:
                 break
@@ -191,10 +205,30 @@ class RequestManager:
 
             await self._rate_limiter_manager(pr)
 
+    async def _pop_due_delayed(self):
+        """Pop the next due delayed request from the heap."""
+        now = monotonic()
+        while self._delayed_heap and self._delayed_heap[0].priority <= now:
+            pr = heapq.heappop(self._delayed_heap)
+            pr.request.delay = None
+            await self._ready_queue.put(pr)
+
+    def _next_timeout(self) -> float | None:
+        if not self._delayed_heap:
+            return 0.05
+
+        pr = self._delayed_heap[0]
+        timeout = pr.priority - monotonic()
+
+        if timeout <= 0:
+            return 0.0
+
+        return timeout
+
     async def close(self):
         """Close the underlying session."""
         self._closed = True
-        await self._queue.put(PRequest(priority=sys.maxsize, request=Request(url="stub")))
+        await self._ready_queue.put(PRequest(priority=sys.maxsize, request=Request(url="stub")))
 
         if self._task is not None:
             await self._task

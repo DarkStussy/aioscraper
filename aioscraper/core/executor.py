@@ -1,5 +1,4 @@
 import asyncio
-import time
 from logging import getLogger
 from typing import Any
 
@@ -44,20 +43,17 @@ class ScraperExecutor:
             pending_limit=self._config.scheduler.pending_requests,
             close_timeout=self._config.scheduler.close_timeout,
         )
-        self._request_queue = asyncio.PriorityQueue()
         self._request_manager = RequestManager(
             rate_limit_config=self._config.session.rate_limit,
             sessionmaker=sessionmaker,
             schedule=self._scheduler.spawn,
-            queue=self._request_queue,
             dependencies=self._dependencies,
             middleware_holder=middleware_holder,
         )
 
     async def run(self):
         "Start the scraping process."
-        self._start_time = time.time()
-        self._request_manager.listen_queue()
+        self._request_manager.start_listening()
 
         try:
             await asyncio.gather(

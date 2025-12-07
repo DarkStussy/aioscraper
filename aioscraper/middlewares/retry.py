@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 
@@ -44,10 +43,13 @@ class RetryMiddleware:
             return
 
         attempts = request.state[RETRY_STATE_KEY] = attempts_used + 1
-        await asyncio.sleep(round(self._retry_delay_factory(attempts), 6))
-        await send_request(request)
+        request.delay = round(self._retry_delay_factory(attempts), 6)
+
         if self._stop_processing:
+            await send_request(request)
             raise StopRequestProcessing
+
+        await send_request(request.clone())
 
     def _should_retry(self, exc: Exception) -> bool:
         if self._statuses and isinstance(exc, HTTPException) and exc.status_code in self._statuses:

@@ -98,7 +98,6 @@ def base_manager_factory(middleware_holder: MiddlewareHolder):
             rate_limit_config=RateLimitConfig(default_interval=default_interval),
             sessionmaker=session_factory,
             schedule=schedule_request or (lambda coro: coro),
-            queue=asyncio.PriorityQueue(),
             dependencies={},
             middleware_holder=middleware_holder,
         )
@@ -117,7 +116,6 @@ async def test_errback_failure_wrapped_in_exception_group():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,  # not used in this test
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -155,7 +153,7 @@ async def test_request_manager_respects_delay_between_requests(base_manager_fact
         default_interval=default_interval,
     )
 
-    manager.listen_queue()
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/first", callback=callback))
     await manager.sender(Request(url="https://api.test.com/second", callback=callback))
@@ -283,7 +281,6 @@ async def test_dependencies_injected_into_callback():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={"custom_dep": "injected_value"},
         middleware_holder=MiddlewareHolder(),
     )
@@ -310,7 +307,6 @@ async def test_dependencies_injected_into_middleware():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={"custom_dep": "middleware_value"},
         middleware_holder=middleware_holder,
     )
@@ -334,7 +330,6 @@ async def test_send_request_available_in_dependencies():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -352,7 +347,6 @@ async def test_active_property_reflects_queue_and_rate_limiter():
         rate_limit_config=RateLimitConfig(enabled=False, default_interval=0.05),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -367,7 +361,7 @@ async def test_active_property_reflects_queue_and_rate_limiter():
     assert manager.active
 
     # Get item from queue
-    await manager._queue.get()
+    await manager._ready_queue.get()
 
     # Should be inactive again
     assert not manager.active
@@ -393,12 +387,11 @@ async def test_outer_middleware_execution_in_listen_queue():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=middleware_holder,
     )
 
-    manager.listen_queue()
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
 
@@ -430,12 +423,11 @@ async def test_outer_middleware_exception_is_logged():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=middleware_holder,
     )
 
-    manager.listen_queue()
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
 
@@ -453,7 +445,6 @@ async def test_exception_logged_when_no_errback(caplog):
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FixedStatusSession(status=500, body="server error"),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -478,7 +469,6 @@ async def test_url_with_params_is_parsed():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -503,12 +493,11 @@ async def test_close_stops_queue_processing():
         rate_limit_config=RateLimitConfig(),
         sessionmaker=lambda: FakeSession(),
         schedule=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
 
-    manager.listen_queue()
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
     await asyncio.sleep(0.05)  # Let it process
