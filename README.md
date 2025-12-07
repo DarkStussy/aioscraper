@@ -71,14 +71,7 @@ aioscraper scraper
 
 ## Contributing
 
-Contributions are welcome!
-
-If you’d like to open an issue or submit a pull request, please follow these guidelines:
-
-- Format and lint your code using the tools defined in pyproject.toml, and run Pyright (Basic mode). Type checking must pass — the project enforces strict typing discipline even in Basic mode.
-- Include tests for any new behavior or bug fixes so CI can verify the change.
-- Update the relevant docs or examples if your change affects the public API or usage patterns.
-- Small, self-contained pull requests are easier to review and merge.
+Please see the [Contributing guide](https://aioscraper.readthedocs.io/en/latest/contributing.html) for workflow, tooling, and review expectations.
 
 ## License
 
