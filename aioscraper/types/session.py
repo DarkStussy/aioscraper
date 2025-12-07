@@ -1,4 +1,5 @@
 import json
+from http import HTTPMethod
 from http.cookies import BaseCookie, Morsel, SimpleCookie
 from dataclasses import dataclass, field
 from typing import (
@@ -66,7 +67,7 @@ class Request:
     """
 
     url: str
-    method: str = "GET"
+    method: str = HTTPMethod.GET
     params: QueryParams | None = None
     data: Any = None
     json_data: Any = None

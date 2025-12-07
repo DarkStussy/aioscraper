@@ -1,6 +1,8 @@
 import asyncio
-from unittest.mock import patch
 import pytest
+from unittest.mock import patch
+from datetime import datetime, timezone, timedelta
+from email.utils import format_datetime
 
 from aioscraper.config import BackoffStrategy, Config, RequestRetryConfig, SessionConfig
 from aioscraper.exceptions import HTTPException, StopRequestProcessing
@@ -369,3 +371,147 @@ async def test_retry_middleware_exhausts_attempts(mock_aioscraper: MockAIOScrape
     assert scraper.callbacks == 0
     assert scraper.errbacks == 1
     mock_aioscraper.server.assert_all_routes_handled()
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_respects_retry_after_seconds():
+    """Test that Retry-After header (in seconds) overrides backoff strategy."""
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            base_delay=1.0,
+            backoff=BackoffStrategy.CONSTANT,
+            statuses=(429,),
+        )
+    )
+    request = Request(url="https://example.com")
+    exc = HTTPException(
+        url="https://example.com",
+        method="GET",
+        status_code=429,
+        headers={"Retry-After": "5"},
+        message="rate limited",
+    )
+
+    received_request = None
+
+    async def mock_send_request(req: Request):
+        nonlocal received_request
+        received_request = req
+        raise StopRequestProcessing
+
+    with pytest.raises(StopRequestProcessing):
+        await middleware(request=request, exc=exc, send_request=mock_send_request)
+
+    assert received_request is not None
+    assert received_request.delay == 5.0
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_respects_retry_after_http_date():
+    """Test that Retry-After header (HTTP-date) overrides backoff strategy."""
+
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            base_delay=1.0,
+            backoff=BackoffStrategy.CONSTANT,
+            statuses=(503,),
+        )
+    )
+    request = Request(url="https://example.com")
+
+    retry_time = datetime.now(timezone.utc) + timedelta(seconds=10)
+    exc = HTTPException(
+        url="https://example.com",
+        method="GET",
+        status_code=503,
+        headers={"Retry-After": format_datetime(retry_time, usegmt=True)},
+        message="service unavailable",
+    )
+
+    received_request = None
+
+    async def mock_send_request(req: Request):
+        nonlocal received_request
+        received_request = req
+        raise StopRequestProcessing
+
+    with pytest.raises(StopRequestProcessing):
+        await middleware(request=request, exc=exc, send_request=mock_send_request)
+
+    assert received_request is not None
+    # Allow 1 second tolerance for test execution time
+    assert 9.0 <= received_request.delay <= 11.0
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_retry_after_case_insensitive():
+    """Test that retry-after header is case-insensitive."""
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            base_delay=1.0,
+            backoff=BackoffStrategy.CONSTANT,
+            statuses=(429,),
+        )
+    )
+    request = Request(url="https://example.com")
+    exc = HTTPException(
+        url="https://example.com",
+        method="GET",
+        status_code=429,
+        headers={"retry-after": "3"},
+        message="rate limited",
+    )
+
+    received_request = None
+
+    async def mock_send_request(req: Request):
+        nonlocal received_request
+        received_request = req
+        raise StopRequestProcessing
+
+    with pytest.raises(StopRequestProcessing):
+        await middleware(request=request, exc=exc, send_request=mock_send_request)
+
+    assert received_request is not None
+    assert received_request.delay == 3.0
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_fallback_to_backoff_without_retry_after():
+    """Test that backoff is used when Retry-After is not present."""
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            base_delay=2.0,
+            backoff=BackoffStrategy.CONSTANT,
+            statuses=(500,),
+        )
+    )
+    request = Request(url="https://example.com")
+    exc = HTTPException(
+        url="https://example.com",
+        method="GET",
+        status_code=500,
+        headers={},
+        message="internal error",
+    )
+
+    received_request = None
+
+    async def mock_send_request(req: Request):
+        nonlocal received_request
+        received_request = req
+        raise StopRequestProcessing
+
+    with pytest.raises(StopRequestProcessing):
+        await middleware(request=request, exc=exc, send_request=mock_send_request)
+
+    assert received_request is not None
+    assert received_request.delay == 2.0
