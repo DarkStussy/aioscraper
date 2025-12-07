@@ -7,7 +7,7 @@ You can build a :class:`Config <aioscraper.config.models.Config>` and pass it to
 The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
 The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
-Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when both are available. 
+Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when both are available. 
 
 
 .. code-block:: python
@@ -86,7 +86,7 @@ This works for both ``aiohttp`` and ``httpx`` proxy configurations.
 Rate Limiting
 -------------
 
-Set :class:`SessionConfig.rate_limit <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable built-in rate limiting.
+Set :class:`SessionConfig.rate_limit <aioscraper.config.models.RateLimitConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable built-in rate limiting.
 
 Rate limiting groups requests by a key (by default, the URL hostname) and enforces a minimum interval between requests within each group. This helps avoid overwhelming target servers and getting blocked.
 
