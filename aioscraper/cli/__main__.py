@@ -40,6 +40,9 @@ def main(argv: Sequence[str] | None = None):
     config = load_config(args.concurrent_requests, args.pending_requests)
 
     try:
+        if args.logging:
+            logging.basicConfig(level=args.log_level)
+
         if args.uvloop:
             _apply_uvloop_policy()
 

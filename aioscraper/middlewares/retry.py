@@ -22,7 +22,14 @@ class RetryMiddleware:
         self._stop_processing = config.middleware.stop_processing
 
         if self._enabled:
-            logger.info("retry middleware enabled")
+            logger.info(
+                "Retry middleware enabled: attempts=%d, delay=%0.10g, stop_processing=%s, statuses=%s, exceptions=%s",
+                self._attempts,
+                self._delay,
+                self._stop_processing,
+                ",".join(map(str, sorted(self._statuses))),
+                ",".join(exc.__module__ + "." + exc.__qualname__ for exc in self._exception_types),
+            )
 
     async def __call__(self, request: Request, exc: Exception, send_request: SendRequest):
         if not self._enabled or not self._should_retry(exc):

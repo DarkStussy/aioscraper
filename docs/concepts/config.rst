@@ -3,11 +3,11 @@ Configuration
 
 `aioscraper` ships sane defaults but exposes configuration for sessions, scheduling, execution, and pipeline dispatching.
 
-You can build a :class:`Config <aioscraper.config.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`. 
+You can build a :class:`Config <aioscraper.config.models.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`. 
 The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
 The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
-Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.HttpBackend>` if you want to force one client even when both are available. 
+Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when both are available. 
 
 
 .. code-block:: python
@@ -87,30 +87,30 @@ When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddlew
 You can override its priority/``stop_processing`` behaviour via ``RequestRetryConfig.middleware``.
 
 
-.. autoclass:: aioscraper.config.Config
+.. autoclass:: aioscraper.config.models.Config
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.SessionConfig
+.. autoclass:: aioscraper.config.models.SessionConfig
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.RequestRetryConfig
+.. autoclass:: aioscraper.config.models.RequestRetryConfig
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.SchedulerConfig
+.. autoclass:: aioscraper.config.models.SchedulerConfig
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.ExecutionConfig
+.. autoclass:: aioscraper.config.models.ExecutionConfig
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.PipelineConfig
+.. autoclass:: aioscraper.config.models.PipelineConfig
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.MiddlewareConfig
+.. autoclass:: aioscraper.config.models.MiddlewareConfig
    :members:
    :no-index:

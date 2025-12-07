@@ -14,15 +14,15 @@ Core
 Configuration
 -------------
 
-.. autoclass:: aioscraper.config.Config
-.. autoclass:: aioscraper.config.SessionConfig
-.. autoclass:: aioscraper.config.RequestRetryConfig
-.. autoclass:: aioscraper.config.SchedulerConfig
-.. autoclass:: aioscraper.config.ExecutionConfig
-.. autoclass:: aioscraper.config.PipelineConfig
-.. autoclass:: aioscraper.config.MiddlewareConfig
-.. autoclass:: aioscraper.config.HttpBackend
-.. autofunction:: aioscraper.config.load_config
+.. autoclass:: aioscraper.config.models.Config
+.. autoclass:: aioscraper.config.models.SessionConfig
+.. autoclass:: aioscraper.config.models.RequestRetryConfig
+.. autoclass:: aioscraper.config.models.SchedulerConfig
+.. autoclass:: aioscraper.config.models.ExecutionConfig
+.. autoclass:: aioscraper.config.models.PipelineConfig
+.. autoclass:: aioscraper.config.models.MiddlewareConfig
+.. autoclass:: aioscraper.config.models.HttpBackend
+.. autofunction:: aioscraper.config.loader.load_config
 
 
 Session
