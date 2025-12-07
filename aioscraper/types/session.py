@@ -50,7 +50,7 @@ class Request:
         cookies (RequestCookies | None): Request cookies
         headers (RequestHeaders | None): Request headers
         auth (BasicAuth | None): Basic authentication credentials
-        proxy (str | None): Proxy URL
+        proxy (str | None): Proxy URL (per-request proxies are honored only by the ``aiohttp`` backend)
         proxy_auth (BasicAuth | None): Proxy authentication credentials
         proxy_headers (RequestHeaders | None): Proxy headers
         timeout (float | None): Request timeout in seconds
