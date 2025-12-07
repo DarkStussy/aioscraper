@@ -18,9 +18,9 @@ The CLI loads a module (file path or ``module.path``) and optionally a specific 
 
 Entry rules:
 
-- Without ``:attr``: the CLI looks for a ``scraper`` attribute that is either an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance or a callable returning one.
-- With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>`: the CLI uses that instance.
-- With ``:attr`` pointing to a callable (sync **or async**): the CLI executes/awaits it and expects an :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance in return.
+- Without ``:attr``: the CLI looks for a ``scraper`` attribute that is either an :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` instance or a callable returning one.
+- With ``:attr`` pointing to an :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>`: the CLI uses that instance.
+- With ``:attr`` pointing to a callable (sync **or async**): the CLI executes/awaits it and expects an :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` instance in return.
 
 Examples:
 
@@ -36,7 +36,7 @@ For resource setup/teardown around the same scraper instance, attach a ``lifespa
 Running without the CLI
 -----------------------
 
-You can run the same scraper programmatically using :func:`run_scraper <aioscraper.scraper.runner.run_scraper>`:
+You can run the same scraper programmatically using :func:`run_scraper <aioscraper.core.runner.run_scraper>`:
 
 .. code-block:: python
 
@@ -64,7 +64,7 @@ This gives you the same signal handling and graceful shutdown behavior as the CL
 Configuration
 -------------
 
-Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults. If the resolved :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
+Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.Config>` defaults. If the resolved :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
 
 - ``--concurrent-requests``: Max concurrent requests (overrides ``SCHEDULER_CONCURRENT_REQUESTS``).
 - ``--pending-requests``: Pending requests to keep queued (overrides ``SCHEDULER_PENDING_REQUESTS``).

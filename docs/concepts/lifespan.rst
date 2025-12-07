@@ -1,12 +1,12 @@
 Lifespan
 ========
 
-Lifespan is an async context manager ``lifespan(scraper)`` that wraps the same :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` instance before startup. Use it to create and tear down resources in one place.
+Lifespan is an async context manager ``lifespan(scraper)`` that wraps the same :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` instance before startup. Use it to create and tear down resources in one place.
 
 What it does
 ------------
 - Runs once before the scraper starts; you can add scrapers, pipelines, and middlewares here.
-- Injects dependencies via :meth:`add_dependencies <aioscraper.scraper.core.AIOScraper.add_dependencies>` so callbacks receive them.
+- Injects dependencies via :meth:`add_dependencies <aioscraper.core.scraper.AIOScraper.add_dependencies>` so callbacks receive them.
 - Ensures teardown (closing clients, flushing buffers) happens even on errors.
 
 

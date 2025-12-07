@@ -5,11 +5,11 @@ Wiring scrapers and dependencies
 
 Scrapers
 --------
-- :meth:`__call__ <aioscraper.scraper.core.AIOScraper.__call__>`: Add one or more async scraper callables; returns the first so you can use it as a decorator.
+- :meth:`__call__ <aioscraper.core.scraper.AIOScraper.__call__>`: Add one or more async scraper callables; returns the first so you can use it as a decorator.
 
 Dependencies
 ------------
-- :meth:`add_dependencies <aioscraper.scraper.core.AIOScraper.add_dependencies>`: Attach arbitrary objects (clients, configs, services) that become injectable into callbacks via dependency resolution.
+- :meth:`add_dependencies <aioscraper.core.scraper.AIOScraper.add_dependencies>`: Attach arbitrary objects (clients, configs, services) that become injectable into callbacks via dependency resolution.
 
 
 .. code-block:: python

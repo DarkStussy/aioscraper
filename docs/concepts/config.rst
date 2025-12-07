@@ -3,7 +3,7 @@ Configuration
 
 `aioscraper` ships sane defaults but exposes configuration for sessions, scheduling, execution, and pipeline dispatching.
 
-You can build a :class:`Config <aioscraper.config.Config>` and pass it to :class:`AIOScraper <aioscraper.scraper.core.AIOScraper>` via ``AIOScraper(config=...)``, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
+You can build a :class:`Config <aioscraper.config.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via environment variables (see :doc:`/cli`). The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
 The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. Set ``session.http_backend`` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.HttpBackend>` if you want to force one client even when both are available. See :ref:`proxy-config` for how per-session proxies are configured.
 
@@ -39,7 +39,7 @@ Graceful shutdown
 - ``execution.shutdown_check_interval`` — pause between drain checks while waiting for the scheduler/queue to empty.
 - Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
 
-These settings are honored by both the CLI and :func:`run_scraper <aioscraper.scraper.runner.run_scraper>`, giving consistent stop behavior in code or from the terminal.
+These settings are honored by both the CLI and :func:`run_scraper <aioscraper.core.runner.run_scraper>`, giving consistent stop behavior in code or from the terminal.
 
 
 .. _proxy-config:

@@ -4,11 +4,11 @@ API
 Core
 ----
 
-.. autoclass:: aioscraper.scraper.core.AIOScraper
+.. autoclass:: aioscraper.core.scraper.AIOScraper
    :members:
    :special-members: __call__
 
-.. autofunction:: aioscraper.scraper.runner.run_scraper
+.. autofunction:: aioscraper.core.runner.run_scraper
 
 
 Configuration
@@ -44,7 +44,7 @@ Session
 Pipeline
 --------
 
-.. autoclass:: aioscraper.scraper.pipeline.PipelineDispatcher
+.. autoclass:: aioscraper.core.pipeline.PipelineDispatcher
 .. autoclass:: aioscraper.types.pipeline.Pipeline
    :special-members: __call__
 .. autoclass:: aioscraper.types.pipeline.BasePipeline
@@ -56,8 +56,8 @@ Pipeline
 Execution
 ---------
 
-.. autoclass:: aioscraper.scraper.executor.ScraperExecutor
-.. autoclass:: aioscraper.scraper.request_manager.RequestManager
+.. autoclass:: aioscraper.core.executor.ScraperExecutor
+.. autoclass:: aioscraper.core.request_manager.RequestManager
 
 Holders
 -------
