@@ -74,7 +74,7 @@ class RequestGroup:
                     # Wait for next request with timeout. If no requests arrive within
                     # cleanup_timeout, the group is considered idle and will be cleaned up.
                     pr = await asyncio.wait_for(self._queue.get(), timeout=self._cleanup_timeout)
-                except asyncio.TimeoutError as e:
+                except asyncio.TimeoutError:
                     # Race condition: item may have been added while timeout was firing
                     if not self._queue.empty():
                         continue
