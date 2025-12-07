@@ -5,10 +5,10 @@ from typing import AsyncIterator, Callable, Self, Type, Any
 
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
+from .session import SessionMakerFactory, get_sessionmaker
 from ..config import Config, load_config
 from ..holders import MiddlewareHolder, PipelineHolder
 from ..types import Scraper
-from ..session import SessionMakerFactory, get_sessionmaker
 
 logger = getLogger(__name__)
 
@@ -26,7 +26,7 @@ class AIOScraper:
             that wraps the scraper's lifecycle (setup/teardown).
         sessionmaker_factory (SessionMakerFactory | None): Override the
             function that builds HTTP sessions (defaults to
-            :func:`aioscraper.session.factory.get_sessionmaker`).
+            :func:`aioscraper.core.session.factory.get_sessionmaker`).
     """
 
     def __init__(

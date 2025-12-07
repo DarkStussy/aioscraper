@@ -2,7 +2,7 @@ from aiohttp import ClientSession, ClientTimeout, TCPConnector, FormData
 from aiohttp.helpers import BasicAuth
 
 from .base import BaseRequestContextManager, BaseSession
-from ..types import Response, Request
+from ...types import Response, Request
 
 
 class AiohttpRequestContextManager(BaseRequestContextManager):

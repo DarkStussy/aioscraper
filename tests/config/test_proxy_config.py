@@ -1,4 +1,4 @@
-from aioscraper.session.httpx import HttpxSession
+from aioscraper.core.session.httpx import HttpxSession
 
 
 def test_httpx_session_uses_proxy_string(monkeypatch):
@@ -11,7 +11,7 @@ def test_httpx_session_uses_proxy_string(monkeypatch):
             captured["proxy"] = proxy
             captured["mounts"] = mounts
 
-    monkeypatch.setattr("aioscraper.session.httpx.AsyncClient", DummyClient)
+    monkeypatch.setattr("aioscraper.core.session.httpx.AsyncClient", DummyClient)
 
     HttpxSession(timeout=5, verify=True, proxy="http://proxy:8080")
 
@@ -34,8 +34,8 @@ def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch):
             captured["proxy"] = proxy
             captured["mounts"] = mounts
 
-    monkeypatch.setattr("aioscraper.session.httpx.AsyncHTTPTransport", DummyTransport)
-    monkeypatch.setattr("aioscraper.session.httpx.AsyncClient", DummyClient)
+    monkeypatch.setattr("aioscraper.core.session.httpx.AsyncHTTPTransport", DummyTransport)
+    monkeypatch.setattr("aioscraper.core.session.httpx.AsyncClient", DummyClient)
 
     proxy_map: dict[str, str | None] = {"http://": "http://proxy:8080", "https://": "http://proxy:8443"}
 

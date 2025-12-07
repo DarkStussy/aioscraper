@@ -3,7 +3,7 @@ from contextlib import AsyncExitStack
 from types import TracebackType
 from typing import Type
 
-from ..types import Request, Response
+from ...types import Request, Response
 
 
 class BaseRequestContextManager(abc.ABC):

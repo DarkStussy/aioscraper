@@ -2,8 +2,8 @@ import logging
 from typing import Callable
 
 from .base import BaseSession
-from ..config import Config, HttpBackend
-from ..exceptions import AIOScraperException
+from ...config import Config, HttpBackend
+from ...exceptions import AIOScraperException
 
 logger = logging.getLogger(__name__)
 

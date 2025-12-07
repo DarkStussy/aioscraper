@@ -26,16 +26,16 @@ Configuration
 Session
 -------
 
-.. autoclass:: aioscraper.session.base.BaseRequestContextManager
+.. autoclass:: aioscraper.core.session.base.BaseRequestContextManager
    :special-members: __aenter__, __aexit__
-.. autoclass:: aioscraper.session.base.BaseSession
-.. autoclass:: aioscraper.session.aiohttp.AiohttpSession
-.. autoclass:: aioscraper.session.aiohttp.AiohttpRequestContextManager
+.. autoclass:: aioscraper.core.session.base.BaseSession
+.. autoclass:: aioscraper.core.session.aiohttp.AiohttpSession
+.. autoclass:: aioscraper.core.session.aiohttp.AiohttpRequestContextManager
    :special-members: __aenter__, __aexit__
-.. autoclass:: aioscraper.session.httpx.HttpxSession
-.. autoclass:: aioscraper.session.httpx.HttpxRequestContextManager
+.. autoclass:: aioscraper.core.session.httpx.HttpxSession
+.. autoclass:: aioscraper.core.session.httpx.HttpxRequestContextManager
    :special-members: __aenter__, __aexit__
-.. autofunction:: aioscraper.session.factory.get_sessionmaker
+.. autofunction:: aioscraper.core.session.factory.get_sessionmaker
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth

@@ -2,8 +2,8 @@ from ssl import SSLContext
 from httpx import AsyncClient, BasicAuth, USE_CLIENT_DEFAULT, AsyncHTTPTransport
 
 from .base import BaseRequestContextManager, BaseSession
-from ..types import Response, Request
-from .._helpers.http import parse_cookies, parse_url, to_simple_cookie
+from ...types import Response, Request
+from ..._helpers.http import parse_cookies, parse_url, to_simple_cookie
 
 
 class HttpxRequestContextManager(BaseRequestContextManager):

@@ -7,7 +7,7 @@ import pytest
 from aioscraper.exceptions import HTTPException
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.core.request_manager import RequestManager
-from aioscraper.session.base import BaseSession, BaseRequestContextManager
+from aioscraper.core.session import BaseSession, BaseRequestContextManager
 from aioscraper.types import Request, Response
 
 

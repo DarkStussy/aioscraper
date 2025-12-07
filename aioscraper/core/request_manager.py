@@ -5,11 +5,11 @@ from logging import getLogger
 from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
+from .session import SessionMaker
 from ..exceptions import HTTPException, StopMiddlewareProcessing, StopRequestProcessing
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
-from ..session import SessionMaker
 from ..types import Request, SendRequest
 from ..holders import MiddlewareHolder
 
