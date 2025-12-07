@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from aioscraper.exceptions import HTTPException
+from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseSession, BaseRequestContextManager
-from aioscraper.types import Request, Response
+from aioscraper.types import Request, Response, File
 
 
 async def _read() -> bytes:
@@ -77,6 +77,35 @@ class FixedStatusSession(BaseSession):
         pass
 
 
+class NoopSession(BaseSession):
+    def make_request(self, request: Request) -> BaseRequestContextManager:
+        raise AssertionError("should not be called when validation fails")
+
+    async def close(self):  # pragma: no cover - nothing to clean up
+        pass
+
+
+@pytest.fixture
+def middleware_holder() -> MiddlewareHolder:
+    return MiddlewareHolder()
+
+
+@pytest.fixture
+def base_manager_factory(middleware_holder: MiddlewareHolder):
+    def factory(*, session_factory, schedule_request=None, delay=0.0):
+        return RequestManager(
+            sessionmaker=session_factory,
+            schedule_request=schedule_request or (lambda coro: coro),
+            queue=asyncio.PriorityQueue(),
+            delay=delay,
+            shutdown_timeout=0.1,
+            dependencies={},
+            middleware_holder=middleware_holder,
+        )
+
+    return factory
+
+
 @pytest.mark.asyncio
 async def test_errback_failure_wrapped_in_exception_group():
     async def errback(exc: Exception):
@@ -103,7 +132,7 @@ async def test_errback_failure_wrapped_in_exception_group():
 
 
 @pytest.mark.asyncio
-async def test_request_manager_respects_delay_between_requests():
+async def test_request_manager_respects_delay_between_requests(base_manager_factory):
     call_times: list[float] = []
     seen: list[str] = []
     delay = 0.1
@@ -118,15 +147,7 @@ async def test_request_manager_respects_delay_between_requests():
         if len(seen) == 2:
             finished.set()
 
-    manager = RequestManager(
-        sessionmaker=lambda: FakeSession(),
-        schedule_request=schedule_request,
-        queue=asyncio.PriorityQueue(),
-        delay=delay,
-        shutdown_timeout=0.1,
-        dependencies={},
-        middleware_holder=MiddlewareHolder(),
-    )
+    manager = base_manager_factory(session_factory=lambda: FakeSession(), schedule_request=schedule_request, delay=delay)
 
     manager.listen_queue()
 
@@ -144,22 +165,14 @@ async def test_request_manager_respects_delay_between_requests():
 
 
 @pytest.mark.asyncio
-async def test_raise_for_status_triggers_errback_when_enabled():
+async def test_raise_for_status_triggers_errback_when_enabled(base_manager_factory):
     captured: dict[str, Any] = {}
 
     async def errback(exc: Exception, request: Request):
         captured["exc"] = exc
         captured["request"] = request
 
-    manager = RequestManager(
-        sessionmaker=lambda: FixedStatusSession(status=502, body="bad gateway"),
-        schedule_request=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
-        delay=0,
-        shutdown_timeout=0.1,
-        dependencies={},
-        middleware_holder=MiddlewareHolder(),
-    )
+    manager = base_manager_factory(session_factory=lambda: FixedStatusSession(status=502, body="bad gateway"))
 
     await manager._send_request(Request(url="https://api.test.com/error", errback=errback))
 
@@ -170,7 +183,7 @@ async def test_raise_for_status_triggers_errback_when_enabled():
 
 
 @pytest.mark.asyncio
-async def test_raise_for_status_false_skips_errback():
+async def test_raise_for_status_false_skips_errback(base_manager_factory):
     called: dict[str, Any] = {"errback": False}
 
     async def callback(response: Response):
@@ -179,15 +192,7 @@ async def test_raise_for_status_false_skips_errback():
     async def errback(exc: Exception, request: Request):
         called["errback"] = True
 
-    manager = RequestManager(
-        sessionmaker=lambda: FixedStatusSession(status=500, body="boom"),
-        schedule_request=lambda coro: coro,
-        queue=asyncio.PriorityQueue(),
-        delay=0,
-        shutdown_timeout=0.1,
-        dependencies={},
-        middleware_holder=MiddlewareHolder(),
-    )
+    manager = base_manager_factory(session_factory=lambda: FixedStatusSession(status=500, body="boom"))
 
     await manager._send_request(
         Request(
@@ -200,3 +205,37 @@ async def test_raise_for_status_false_skips_errback():
 
     assert called["response"].status == 500
     assert called["errback"] is False
+
+
+@pytest.mark.asyncio
+async def test_sender_raises_on_data_and_json(base_manager_factory):
+    manager = base_manager_factory(session_factory=lambda: NoopSession())
+
+    with pytest.raises(InvalidRequestData, match="data and json_data"):
+        await manager.sender(
+            Request(
+                url="https://api.test.com/bad",
+                method="POST",
+                data={"x": 1},
+                json_data={"y": 2},
+            )
+        )
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_sender_raises_on_files_and_json(base_manager_factory):
+    manager = base_manager_factory(session_factory=lambda: NoopSession())
+
+    with pytest.raises(InvalidRequestData, match="files and json_data"):
+        await manager.sender(
+            Request(
+                url="https://api.test.com/bad",
+                method="POST",
+                files={"file": File("name", b"content")},
+                json_data={"y": 2},
+            )
+        )
+
+    await manager.close()

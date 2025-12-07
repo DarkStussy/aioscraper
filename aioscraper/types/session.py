@@ -12,7 +12,6 @@ from typing import (
     TypedDict,
 )
 
-from ..exceptions import InvalidRequestData
 
 QueryParams = MutableMapping[str, str | int | float]
 RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
@@ -88,13 +87,6 @@ class Request:
     cb_kwargs: dict[str, Any] = field(default_factory=dict)
     errback: Callable[..., Awaitable[Any]] | None = None
     state: dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self):
-        if self.json_data is not None and self.data is not None:
-            raise InvalidRequestData("Cannot send both data and json_data")
-
-        if self.json_data is not None and self.files is not None:
-            raise InvalidRequestData("Cannot send both files and json_data")
 
 
 class Response:

@@ -6,7 +6,7 @@ from typing import Callable, Awaitable, Any
 from typing import Coroutine
 
 from .session import SessionMaker
-from ..exceptions import HTTPException, StopMiddlewareProcessing, StopRequestProcessing
+from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
 from .._helpers.asyncio import execute_coroutine
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
@@ -31,6 +31,12 @@ def _get_request_sender(queue: _RequestQueue) -> SendRequest:
     "Creates a request sender function that adds requests to the priority queue."
 
     async def sender(request: Request) -> Request:
+        if request.json_data is not None and request.data is not None:
+            raise InvalidRequestData("Cannot send both data and json_data")
+
+        if request.json_data is not None and request.files is not None:
+            raise InvalidRequestData("Cannot send both files and json_data")
+
         await queue.put(_PRequest(priority=request.priority, request=request))
         return request
 
