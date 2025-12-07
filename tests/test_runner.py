@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from aioscraper.config import Config, ExecutionConfig
-from aioscraper.scraper.runner import _run_scraper, _run_scraper_without_force_exit
+from aioscraper.core.runner import _run_scraper, _run_scraper_without_force_exit
 
 
 def make_scraper_mock() -> AsyncMock:

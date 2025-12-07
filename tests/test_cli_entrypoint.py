@@ -5,7 +5,7 @@ import pytest
 
 from aioscraper.cli._entrypoint import resolve_entrypoint_factory
 from aioscraper.exceptions import CLIError
-from aioscraper.scraper import AIOScraper
+from aioscraper.core import AIOScraper
 
 
 def _write_module(tmp_path: Path, code: str) -> Path:

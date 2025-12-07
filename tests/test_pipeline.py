@@ -13,7 +13,7 @@ from aioscraper.types.pipeline import (
     PipelineMiddlewareStage,
     PipelineContainer,
 )
-from aioscraper.scraper.pipeline import PipelineDispatcher
+from aioscraper.core.pipeline import PipelineDispatcher
 from tests.mocks import MockAIOScraper, MockResponse
 
 

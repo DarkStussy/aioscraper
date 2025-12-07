@@ -7,7 +7,7 @@ from types import ModuleType
 from typing import Any, Callable
 
 from ..exceptions import CLIError
-from ..scraper.core import AIOScraper
+from ..core.scraper import AIOScraper
 
 
 def _resolve_file_path(module_ref: str) -> Path | None:

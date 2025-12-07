@@ -7,7 +7,7 @@ from ._args import parse_args
 from ._entrypoint import resolve_entrypoint_factory
 from ..exceptions import CLIError
 from ..config import Config, load_config
-from ..scraper import AIOScraper, run_scraper
+from ..core import AIOScraper, run_scraper
 
 logger = logging.getLogger("aioscraper.cli")
 

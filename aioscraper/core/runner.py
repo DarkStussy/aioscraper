@@ -4,8 +4,7 @@ import logging
 import signal
 from functools import partial
 
-
-from .core import AIOScraper
+from .scraper import AIOScraper
 
 logger = logging.getLogger(__name__)
 

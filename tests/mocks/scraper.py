@@ -1,5 +1,5 @@
 from aioscraper.config import Config
-from aioscraper.scraper import AIOScraper
+from aioscraper.core import AIOScraper
 from aioscraper.types import Scraper
 
 from .server import MockServer
