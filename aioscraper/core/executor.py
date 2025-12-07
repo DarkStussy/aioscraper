@@ -4,7 +4,6 @@ from typing import Any
 
 from aiojobs import Scheduler
 
-
 from .request_manager import RequestManager
 from .pipeline import PipelineDispatcher
 from .session import SessionMaker

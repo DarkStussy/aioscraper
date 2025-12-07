@@ -1,6 +1,6 @@
 import asyncio
-from contextlib import suppress
 import logging
+from contextlib import suppress
 from typing import Awaitable, Callable, Hashable
 
 from yarl import URL

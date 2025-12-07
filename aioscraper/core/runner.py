@@ -1,7 +1,7 @@
 import asyncio
-from contextlib import suppress
 import logging
 import signal
+from contextlib import suppress
 from functools import partial
 
 from .scraper import AIOScraper

@@ -1,6 +1,5 @@
 import ssl as ssl_module
 
-
 from .models import (
     Config,
     MiddlewareConfig,
