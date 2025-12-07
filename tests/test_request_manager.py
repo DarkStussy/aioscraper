@@ -109,6 +109,7 @@ def base_manager_factory(middleware_holder: MiddlewareHolder):
 @pytest.mark.asyncio
 async def test_errback_failure_wrapped_in_exception_group():
     """Test that errback exceptions are wrapped in ExceptionGroup with original exception."""
+
     async def errback(exc: Exception):
         raise ValueError("errback failed")
 
