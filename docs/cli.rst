@@ -81,7 +81,9 @@ Supported environment variables:
 - ``SESSION_HTTP_BACKEND``: Force ``aiohttp`` or ``httpx`` regardless of what is installed (falls back automatically otherwise).
 - ``SESSION_RETRY_ENABLED``: ``true``/``false`` to toggle the built-in retry middleware.
 - ``SESSION_RETRY_ATTEMPTS``: Maximum number of retry attempts per request.
-- ``SESSION_RETRY_DELAY``: Delay between retry attempts (seconds).
+- ``SESSION_RETRY_BACKOFF``: Backoff strategy for retries (e.g. constant, linear, exponential, exponential_jitter).
+- ``SESSION_RETRY_BASE_DELAY``: Base delay between retries in seconds.
+- ``SESSION_RETRY_MAX_DELAY``: Maximum delay between retries in seconds.
 - ``SESSION_RETRY_STATUSES``: Comma-separated list of HTTP status codes that trigger retries (e.g., ``500,502``).
 - ``SESSION_RETRY_EXCEPTIONS``: Comma-separated list of fully qualified exception names to retry on (e.g., ``asyncio.TimeoutError``).
 - ``SESSION_RETRY_MIDDLEWARE_PRIORITY``: Override the retry middleware priority (lower runs earlier).

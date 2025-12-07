@@ -9,6 +9,7 @@ from .models import (
     ExecutionConfig,
     PipelineConfig,
     HttpBackend,
+    BackoffStrategy,
 )
 from .._helpers.module import import_exception
 from .. import env_parser
@@ -55,7 +56,9 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
             retry=RequestRetryConfig(
                 enabled=env_parser.parse_bool("SESSION_RETRY_ENABLED", default_retry.enabled),
                 attempts=env_parser.parse_int("SESSION_RETRY_ATTEMPTS", default_retry.attempts),
-                delay=env_parser.parse_float("SESSION_RETRY_DELAY", default_retry.delay),
+                backoff=env_parser.parse("SESSION_RETRY_BACKOFF", BackoffStrategy, default_retry.backoff),
+                base_delay=env_parser.parse_float("SESSION_RETRY_BASE_DELAY", default_retry.base_delay),
+                max_delay=env_parser.parse_float("SESSION_RETRY_MAX_DELAY", default_retry.max_delay),
                 statuses=env_parser.parse_tuple("SESSION_RETRY_STATUSES", int, default_retry.statuses),
                 exceptions=retry_exceptions,
                 middleware=MiddlewareConfig(

@@ -22,6 +22,7 @@ Configuration
 .. autoclass:: aioscraper.config.models.PipelineConfig
 .. autoclass:: aioscraper.config.models.MiddlewareConfig
 .. autoclass:: aioscraper.config.models.HttpBackend
+.. autoclass:: aioscraper.config.models.BackoffStrategy
 .. autofunction:: aioscraper.config.loader.load_config
 
 

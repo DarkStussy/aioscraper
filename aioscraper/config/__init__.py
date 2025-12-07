@@ -7,6 +7,7 @@ from .models import (
     ExecutionConfig,
     PipelineConfig,
     HttpBackend,
+    BackoffStrategy,
 )
 from .loader import load_config
 
@@ -20,5 +21,6 @@ __all__ = (
     "ExecutionConfig",
     "PipelineConfig",
     "HttpBackend",
+    "BackoffStrategy",
     "load_config",
 )

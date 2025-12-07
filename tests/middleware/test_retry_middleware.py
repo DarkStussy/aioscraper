@@ -1,8 +1,8 @@
 import asyncio
-
+from unittest.mock import patch
 import pytest
 
-from aioscraper.config import Config, SessionConfig, RequestRetryConfig
+from aioscraper.config import BackoffStrategy, Config, RequestRetryConfig, SessionConfig
 from aioscraper.exceptions import HTTPException, StopRequestProcessing
 from aioscraper.middlewares.retry import RETRY_STATE_KEY, RetryMiddleware
 from aioscraper.types import Request, Response, SendRequest
@@ -15,7 +15,16 @@ async def _noop_send(req: Request):
 
 @pytest.mark.asyncio
 async def test_retry_middleware_retries_on_status():
-    middleware = RetryMiddleware(RequestRetryConfig(enabled=True, attempts=2, statuses=(502,), exceptions=()))
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            base_delay=0.1,
+            max_delay=0.1,
+            statuses=(502,),
+            exceptions=(),
+        )
+    )
     request = Request(url="https://example.com")
     send_calls = 0
 
@@ -41,7 +50,16 @@ async def test_retry_middleware_retries_on_status():
 
 @pytest.mark.asyncio
 async def test_retry_middleware_respects_exception_types():
-    middleware = RetryMiddleware(RequestRetryConfig(enabled=True, attempts=1, exceptions=(asyncio.TimeoutError,)))
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=1,
+            base_delay=0.1,
+            max_delay=0.1,
+            exceptions=(asyncio.TimeoutError,),
+            backoff=BackoffStrategy.CONSTANT,
+        )
+    )
     request = Request(url="https://example.com")
 
     with pytest.raises(StopRequestProcessing):
@@ -50,7 +68,16 @@ async def test_retry_middleware_respects_exception_types():
 
 @pytest.mark.asyncio
 async def test_retry_middleware_stops_after_max_attempts():
-    middleware = RetryMiddleware(RequestRetryConfig(enabled=True, attempts=1, statuses=(500,)))
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=1,
+            base_delay=0.1,
+            max_delay=0.1,
+            statuses=(500,),
+            backoff=BackoffStrategy.CONSTANT,
+        )
+    )
     request = Request(url="https://example.com")
     request.state[RETRY_STATE_KEY] = 1
 
@@ -68,7 +95,15 @@ async def test_retry_middleware_stops_after_max_attempts():
 @pytest.mark.asyncio
 async def test_retry_middleware_disabled():
     middleware = RetryMiddleware(
-        RequestRetryConfig(enabled=False, attempts=3, statuses=(500,), exceptions=(RuntimeError,))
+        RequestRetryConfig(
+            enabled=False,
+            attempts=3,
+            statuses=(500,),
+            base_delay=0.1,
+            max_delay=0.1,
+            exceptions=(RuntimeError,),
+            backoff=BackoffStrategy.CONSTANT,
+        )
     )
     request = Request(url="https://example.com")
 
@@ -83,6 +118,132 @@ async def test_retry_middleware_disabled():
         ),
         send_request=_noop_send,
     )
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_constant_backoff():
+    with patch("asyncio.sleep") as sleep_mock:
+        middleware = RetryMiddleware(
+            RequestRetryConfig(
+                enabled=True,
+                attempts=2,
+                base_delay=0.1,
+                backoff=BackoffStrategy.CONSTANT,
+                statuses=(500,),
+            )
+        )
+        request = Request(url="https://example.com")
+        exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
+
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+        sleep_mock.assert_called_once_with(0.1)
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_linear_backoff():
+    with patch("asyncio.sleep") as sleep_mock:
+        middleware = RetryMiddleware(
+            RequestRetryConfig(
+                enabled=True,
+                attempts=3,
+                base_delay=0.1,
+                backoff=BackoffStrategy.LINEAR,
+                statuses=(500,),
+            )
+        )
+        request = Request(url="https://example.com")
+        exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
+
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+
+        sleep_mock.assert_called_once_with(0.1)
+
+        sleep_mock.reset_mock()
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+
+        sleep_mock.assert_called_once_with(0.2)
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_exponential_backoff():
+    with patch("asyncio.sleep") as sleep_mock:
+        middleware = RetryMiddleware(
+            RequestRetryConfig(
+                enabled=True,
+                attempts=4,
+                base_delay=0.1,
+                max_delay=1.0,
+                backoff=BackoffStrategy.EXPONENTIAL,
+                statuses=(500,),
+            )
+        )
+        request = Request(url="https://example.com")
+        exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
+
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+
+        sleep_mock.assert_called_once_with(0.2)  # 0.1 * (2**1)
+
+        sleep_mock.reset_mock()
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+
+        sleep_mock.assert_called_once_with(0.4)  # 0.1 * (2**2)
+
+        sleep_mock.reset_mock()
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+
+        sleep_mock.assert_called_once_with(0.8)  # 0.1 * (2**3)
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_exponential_backoff_with_max_delay():
+    with patch("asyncio.sleep") as sleep_mock:
+        middleware = RetryMiddleware(
+            RequestRetryConfig(
+                enabled=True,
+                attempts=2,
+                base_delay=0.5,
+                max_delay=0.8,
+                backoff=BackoffStrategy.EXPONENTIAL,
+                statuses=(500,),
+            )
+        )
+        request = Request(url="https://example.com")
+        exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
+
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+        sleep_mock.assert_called_once_with(0.8)  # min(0.8, 0.5 * (2**1))
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_exponential_jitter_backoff():
+    with patch("random.uniform", return_value=0.05), patch("asyncio.sleep") as sleep_mock:
+        middleware = RetryMiddleware(
+            RequestRetryConfig(
+                enabled=True,
+                attempts=2,
+                base_delay=0.1,
+                max_delay=1.0,
+                backoff=BackoffStrategy.EXPONENTIAL_JITTER,
+                statuses=(500,),
+            )
+        )
+        request = Request(url="https://example.com")
+        exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
+
+        with pytest.raises(StopRequestProcessing):
+            await middleware(request=request, exc=exc, send_request=_noop_send)
+
+        # delay = 0.1 * (2**1) = 0.2
+        # (delay / 2) + random.uniform(0, delay / 2) = 0.1 + 0.05 = 0.15
+        sleep_mock.assert_called_once_with(0.15)
 
 
 class RetryScraper:
@@ -119,7 +280,15 @@ async def test_retry_middleware_integration(mock_aioscraper: MockAIOScraper):
     scraper = RetryScraper("https://api.test.com/flaky")
     mock_aioscraper(scraper)
     mock_aioscraper.config = Config(
-        session=SessionConfig(retry=RequestRetryConfig(enabled=True, attempts=2, statuses=(502,)))
+        session=SessionConfig(
+            retry=RequestRetryConfig(
+                enabled=True,
+                attempts=2,
+                base_delay=0.1,
+                statuses=(502,),
+                backoff=BackoffStrategy.CONSTANT,
+            )
+        )
     )
 
     async with mock_aioscraper:
@@ -141,7 +310,15 @@ async def test_retry_middleware_exhausts_attempts(mock_aioscraper: MockAIOScrape
     scraper = RetryScraper("https://api.test.com/always-bad")
     mock_aioscraper(scraper)
     mock_aioscraper.config = Config(
-        session=SessionConfig(retry=RequestRetryConfig(enabled=True, attempts=2, statuses=(502,)))
+        session=SessionConfig(
+            retry=RequestRetryConfig(
+                enabled=True,
+                attempts=2,
+                base_delay=0.1,
+                statuses=(502,),
+                backoff=BackoffStrategy.CONSTANT,
+            )
+        )
     )
 
     async with mock_aioscraper:

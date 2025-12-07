@@ -1,13 +1,10 @@
 import asyncio
 import logging
+import random
 import ssl as ssl_module
-from enum import StrEnum
+from enum import StrEnum, auto
 from dataclasses import dataclass
-
-
-class HttpBackend(StrEnum):
-    AIOHTTP = "aiohttp"
-    HTTPX = "httpx"
+from typing import Callable
 
 
 @dataclass(slots=True, frozen=True)
@@ -25,6 +22,23 @@ class MiddlewareConfig:
     stop_processing: bool = False
 
 
+class BackoffStrategy(StrEnum):
+    """
+    Backoff strategy for retries.
+
+    Attributes:
+        CONSTANT: Constant backoff
+        LINEAR: Linear backoff
+        EXPONENTIAL: Exponential backoff
+        EXPONENTIAL_JITTER: Exponential backoff with jitter
+    """
+
+    CONSTANT = auto()
+    LINEAR = auto()
+    EXPONENTIAL = auto()
+    EXPONENTIAL_JITTER = auto()
+
+
 @dataclass(slots=True, frozen=True)
 class RequestRetryConfig:
     """Retry behaviour applied by the built-in retry middleware.
@@ -32,7 +46,9 @@ class RequestRetryConfig:
     Args:
         enabled (bool): Toggle retries on or off.
         attempts (int): Maximum number of retry attempts per request.
-        delay (float): Delay between retries in seconds.
+        backoff (BackoffStrategy): Backoff strategy for retries.
+        base_delay (float): Base delay between retries in seconds.
+        max_delay (float): Maximum delay between retries in seconds.
         statuses (tuple[int, ...]): HTTP status codes that should trigger a retry.
         exceptions (tuple[type[BaseException], ...]): Exception types that should trigger a retry.
         middleware (MiddlewareConfig): Overrides for how the retry middleware
@@ -41,10 +57,33 @@ class RequestRetryConfig:
 
     enabled: bool = False
     attempts: int = 3
-    delay: float = 0.1
+    backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL_JITTER
+    base_delay: float = 0.5
+    max_delay: float = 30.0
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
     exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,)
     middleware: MiddlewareConfig = MiddlewareConfig(stop_processing=True)
+
+    @property
+    def delay_factory(self) -> Callable[[int], float]:
+        if self.backoff == BackoffStrategy.LINEAR:
+            return lambda attempt: self.base_delay * attempt
+        elif self.backoff == BackoffStrategy.EXPONENTIAL:
+            return lambda attempt: min(self.max_delay, self.base_delay * (2**attempt))
+        elif self.backoff == BackoffStrategy.EXPONENTIAL_JITTER:
+
+            def _factory(attempt: int) -> float:
+                delay = self.base_delay * (2**attempt)
+                return min(self.max_delay, (delay / 2) + random.uniform(0, delay / 2))
+
+            return _factory
+
+        return lambda _: self.base_delay
+
+
+class HttpBackend(StrEnum):
+    AIOHTTP = "aiohttp"
+    HTTPX = "httpx"
 
 
 @dataclass(slots=True, frozen=True)

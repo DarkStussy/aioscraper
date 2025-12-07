@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+
 from ..config import RequestRetryConfig
 from ..exceptions import HTTPException, StopRequestProcessing
 from ..types import Request, SendRequest
@@ -16,16 +17,19 @@ class RetryMiddleware:
     def __init__(self, config: RequestRetryConfig):
         self._enabled = config.enabled
         self._attempts = max(0, config.attempts)
-        self._delay = config.delay
+        self._retry_delay_factory = config.delay_factory
         self._statuses = set(config.statuses)
         self._exception_types = tuple(config.exceptions)
         self._stop_processing = config.middleware.stop_processing
 
         if self._enabled:
             logger.info(
-                "Retry middleware enabled: attempts=%d, delay=%0.10g, stop_processing=%s, statuses=%s, exceptions=%s",
+                "Retry middleware enabled: attempts=%d, backoff=%s, base_delay=%0.10g, max_delay=%0.10g, "
+                "stop_processing=%s, statuses=%s, exceptions=%s",
                 self._attempts,
-                self._delay,
+                config.backoff,
+                config.base_delay,
+                config.max_delay,
                 self._stop_processing,
                 ",".join(map(str, sorted(self._statuses))),
                 ",".join(exc.__module__ + "." + exc.__qualname__ for exc in self._exception_types),
@@ -39,8 +43,8 @@ class RetryMiddleware:
         if attempts_used >= self._attempts:
             return
 
-        request.state[RETRY_STATE_KEY] = attempts_used + 1
-        await asyncio.sleep(self._delay)
+        attempts = request.state[RETRY_STATE_KEY] = attempts_used + 1
+        await asyncio.sleep(round(self._retry_delay_factory(attempts), 6))
         await send_request(request)
         if self._stop_processing:
             raise StopRequestProcessing

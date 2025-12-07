@@ -66,22 +66,24 @@ Retries
 
 Set ``SessionConfig.retry`` or override values via :ref:`environment variables <cli-configuration>` to enable the built-in retry middleware.
 
-You can pick the number of retry attempts, status codes, exception types:
+You can pick the number of retry attempts, backoff strategy, status codes, exception types:
 
 .. code-block:: python
 
-    import asyncio
-    from aioscraper.config import SessionConfig, RequestRetryConfig
+   import asyncio
+   from aioscraper.config import SessionConfig, RequestRetryConfig, BackoffStrategy
 
-    session = SessionConfig(
-        retry=RequestRetryConfig(
-            enabled=True,
-            attempts=2,
-            delay=1,
-            statuses=(500, 502, 503),
-            exceptions=(asyncio.TimeoutError,),
-        )
-    )
+   session = SessionConfig(
+      retry=RequestRetryConfig(
+         enabled=True,
+         attempts=2,
+         backoff=BackoffStrategy.EXPONENTIAL,
+         base_delay=0.1,
+         max_delay=10.0,
+         statuses=(500, 502, 503),
+         exceptions=(asyncio.TimeoutError,),
+      )
+   )
 
 When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as an exception middleware and reschedules the request through the internal queue. 
 You can override its priority/``stop_processing`` behaviour via ``RequestRetryConfig.middleware``.
