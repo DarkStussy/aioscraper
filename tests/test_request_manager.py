@@ -147,7 +147,11 @@ async def test_request_manager_respects_delay_between_requests(base_manager_fact
         if len(seen) == 2:
             finished.set()
 
-    manager = base_manager_factory(session_factory=lambda: FakeSession(), schedule_request=schedule_request, delay=delay)
+    manager = base_manager_factory(
+        session_factory=lambda: FakeSession(),
+        schedule_request=schedule_request,
+        delay=delay,
+    )
 
     manager.listen_queue()
 
