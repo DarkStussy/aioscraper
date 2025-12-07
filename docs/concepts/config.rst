@@ -3,11 +3,11 @@ Configuration
 
 `aioscraper` ships sane defaults but exposes configuration for sessions, scheduling, execution, and pipeline dispatching.
 
-You can build a :class:`Config <aioscraper.config.models.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`. 
+You can build a :class:`Config <aioscraper.config.models.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`.
 The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
-The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed. 
-Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when both are available. 
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed.
+Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when both are available.
 
 
 .. code-block:: python
@@ -146,10 +146,10 @@ The ``backoff`` option accepts the following values:
 
 - ``CONSTANT``: uses a fixed delay for every retry attempt.
 
-- ``LINEAR``: delay increases linearly with each attempt:  
+- ``LINEAR``: delay increases linearly with each attempt:
   ``delay = base_delay * attempt``.
 
-- ``EXPONENTIAL``: delay grows exponentially with each attempt:  
+- ``EXPONENTIAL``: delay grows exponentially with each attempt:
   ``delay = base_delay * (2 ** attempt)``.
 
 - ``EXPONENTIAL_JITTER``: exponential backoff with added randomness (jitter) to prevent thundering herd effects.
@@ -162,6 +162,7 @@ For ``EXPONENTIAL_JITTER``, the delay is calculated as follows:
    delay = (delay / 2) + random.uniform(0, delay / 2)
 
 For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the final delay to avoid excessively long waits.
+
 
 .. code-block:: python
 
@@ -178,12 +179,30 @@ For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the fina
       exceptions=(asyncio.TimeoutError,),
    )
 
-When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as an exception middleware and reschedules the request through the internal queue. 
+When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as an exception middleware and reschedules the request through the internal queue.
 You can override its priority/``stop_processing`` behaviour via ``RequestRetryConfig.middleware``.
 
+Server-side Retry-After
+~~~~~~~~~~~~~~~~~~~~~~~
+
+When the server responds with a ``Retry-After`` header (RFC 9110), the middleware respects it and uses the server-specified delay instead of the configured backoff strategy. This only applies to ``429 Too Many Requests`` and ``503 Service Unavailable`` responses.
+
+The ``Retry-After`` header can be specified as:
+
+- **Seconds**: ``Retry-After: 120`` (wait 120 seconds)
+- **HTTP-date**: ``Retry-After: Wed, 21 Oct 2015 07:28:00 GMT``
+
+The delay from ``Retry-After`` is capped at 600 seconds (10 minutes) to prevent indefinite delays.
+
+
+API
+---
 
 .. autoclass:: aioscraper.config.models.Config
    :members:
+   :no-index:
+
+.. autofunction:: aioscraper.config.loader.load_config
    :no-index:
 
 .. autoclass:: aioscraper.config.models.SessionConfig

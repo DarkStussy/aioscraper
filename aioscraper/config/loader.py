@@ -19,14 +19,14 @@ from .. import env_parser
 def load_config(concurrent_requests: int | None = None, pending_requests: int | None = None) -> Config:
     """Load configuration from environment variables with optional CLI overrides.
 
-    Reads configuration from environment variables prefixed with SESSION_, SCHEDULER_,
-    EXECUTION_, and PIPELINE_. When parameters are None, values are read from
+    Reads configuration from environment variables prefixed with `SESSION`, `SCHEDULER`,
+    `EXECUTION`, and `PIPELINE`. When parameters are None, values are read from
     corresponding environment variables. Defaults are used when env vars are not set.
 
     Args:
-        concurrent_requests (int | None): Override for SCHEDULER_CONCURRENT_REQUESTS.
+        concurrent_requests (int | None): Override for `SCHEDULER_CONCURRENT_REQUESTS`.
             If None, reads from environment or uses default (64).
-        pending_requests (int | None): Override for SCHEDULER_PENDING_REQUESTS.
+        pending_requests (int | None): Override for `SCHEDULER_PENDING_REQUESTS`.
             If None, reads from environment or uses default (1).
 
     Returns:
