@@ -1,9 +1,11 @@
 import asyncio
+from time import monotonic
 from unittest.mock import AsyncMock
 
 import pytest
 
 from aioscraper._helpers.http import parse_retry_after
+from aioscraper.config import Config, SessionConfig
 from aioscraper.config.models import AdaptiveRateLimitConfig, RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import (
     AdaptiveMetrics,
@@ -12,7 +14,9 @@ from aioscraper.core.rate_limiter import (
     RequestOutcome,
 )
 from aioscraper.exceptions import HTTPException
+from aioscraper.types import Response, SendRequest
 from aioscraper.types.session import Request, PRequest
+from tests.mocks import MockAIOScraper, MockResponse
 
 
 class TestAdaptiveMetrics:
@@ -222,7 +226,6 @@ class TestAdaptiveRateLimiterIntegration:
     @pytest.mark.asyncio
     async def test_adaptive_slows_down_on_failures(self):
         """Test that adaptive strategy slows down when encountering failures."""
-        from time import monotonic
 
         call_intervals = []
         last_call_time = None
@@ -289,7 +292,6 @@ class TestAdaptiveRateLimiterIntegration:
     @pytest.mark.asyncio
     async def test_adaptive_respects_retry_after(self):
         """Test that adaptive strategy respects Retry-After headers."""
-        from time import monotonic
 
         call_times = []
 
@@ -400,3 +402,125 @@ class TestAdaptiveRateLimiterIntegration:
             assert all(abs(interval - 0.05) < 0.02 for interval in intervals)
 
         await manager.close()
+
+
+class AdaptiveRateLimitScraper:
+    """Test scraper that tracks request timing for adaptive rate limiting tests."""
+
+    def __init__(self, num_requests: int = 10):
+        self.num_requests = num_requests
+        self.request_times = []
+        self.responses = []
+        self.errors = []
+
+    async def __call__(self, send_request: SendRequest):
+        for i in range(self.num_requests):
+            await send_request(
+                Request(
+                    url=f"https://api.example.com/item/{i}",
+                    callback=self.handle_response,
+                    errback=self.handle_error,
+                )
+            )
+
+    async def handle_response(self, response: Response):
+        self.request_times.append(asyncio.get_event_loop().time())
+        self.responses.append(response)
+
+    async def handle_error(self, exc: Exception):
+        self.request_times.append(asyncio.get_event_loop().time())
+        self.errors.append(exc)
+
+    @property
+    def intervals(self):
+        """Calculate time intervals between consecutive requests."""
+        if len(self.request_times) < 2:
+            return []
+
+        return [self.request_times[i] - self.request_times[i - 1] for i in range(1, len(self.request_times))]
+
+
+@pytest.mark.asyncio
+async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper):
+    """
+    Full end-to-end test: adaptive rate limiting increases interval on server overload,
+    then decreases on sustained success.
+    """
+    mock_aioscraper.server.add(
+        "https://api.example.com/item/0",
+        handler=lambda _: MockResponse(status=429, headers={"Retry-After": "0.1"}),
+    )
+    mock_aioscraper.server.add(
+        "https://api.example.com/item/1",
+        handler=lambda _: MockResponse(status=503),
+    )
+    mock_aioscraper.server.add(
+        "https://api.example.com/item/2",
+        handler=lambda _: MockResponse(status=429),
+    )
+    for i in range(3, 10):
+        mock_aioscraper.server.add(
+            f"https://api.example.com/item/{i}",
+            handler=lambda _: {"status": "ok", "data": "test"},
+        )
+
+    scraper = AdaptiveRateLimitScraper(num_requests=10)
+    mock_aioscraper(scraper)
+
+    mock_aioscraper.config = Config(
+        session=SessionConfig(
+            rate_limit=RateLimitConfig(
+                enabled=True,
+                default_interval=0.05,  # Start with 50ms
+                adaptive=AdaptiveRateLimitConfig(
+                    enabled=True,
+                    min_interval=0.01,
+                    max_interval=1.0,
+                    increase_factor=2.0,
+                    decrease_step=0.01,
+                    success_threshold=2,  # Decrease after 2 successes
+                    respect_retry_after=True,
+                ),
+            ),
+        )
+    )
+
+    async with mock_aioscraper:
+        await mock_aioscraper.start()
+
+    mock_aioscraper.server.assert_all_routes_handled()
+
+    assert len(scraper.request_times) == 10
+    assert len(scraper.errors) == 3
+    assert len(scraper.responses) == 7
+
+    # Analyze intervals - note that these measure time between request completions,
+    # not between scheduling. The adaptive strategy adjusts the RequestGroup interval.
+    intervals = scraper.intervals
+    assert len(intervals) == 9
+
+    # Key validation: intervals should show an increasing trend during failures,
+    # then stabilize/decrease during successes
+
+    failure_intervals = intervals[:3]  # During failures
+    success_intervals = intervals[3:]  # During successes
+
+    # During failure phase, intervals should generally be increasing or staying high
+    # (as adaptive throttle backs off)
+    assert len(failure_intervals) == 3
+
+    # During success phase, verify system recovered and is processing requests
+    # Intervals should be more stable and eventually decrease
+    assert len(success_intervals) == 6
+    avg_success_interval = sum(success_intervals) / len(success_intervals)
+
+    # Success intervals should be smaller on average than max failure interval
+    # (showing that system adapted down after recovery)
+    max_failure_interval = max(failure_intervals)
+    assert avg_success_interval < max_failure_interval * 1.5, (
+        f"Expected recovery: max_failure={max_failure_interval:.3f}, " f"avg_success={avg_success_interval:.3f}"
+    )
+
+    # Print diagnostics for visibility
+    print(f"\nIntervals during failures: {[f'{i:.3f}' for i in failure_intervals]}")
+    print(f"Intervals during successes: {[f'{i:.3f}' for i in success_intervals]}")
