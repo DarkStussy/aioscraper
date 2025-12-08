@@ -52,8 +52,8 @@ class RequestManager:
     Args:
         scheduler_config (SchedulerConfig): Configuration for the request scheduler.
         rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
+        shutdown_check_interval (float): Interval between shutdown checks in seconds
         sessionmaker (SessionMaker): A factory for creating session objects.
-        queue (_RequestQueue): Priority queue for requests.
         dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
         middleware_holder (MiddlewareHolder): A container for middleware collections.
     """
