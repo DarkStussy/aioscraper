@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from aioscraper.config import SchedulerConfig
-from aioscraper.config.models import RateLimitConfig
+from aioscraper.config.models import RateLimitConfig, RequestRetryConfig
 from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.core.request_manager import RequestManager
@@ -98,6 +98,7 @@ def base_manager_factory(middleware_holder: MiddlewareHolder):
         return RequestManager(
             scheduler_config=SchedulerConfig(),
             rate_limit_config=RateLimitConfig(default_interval=default_interval),
+            retry_config=RequestRetryConfig(),
             shutdown_check_interval=0.01,
             sessionmaker=session_factory,
             dependencies={},
@@ -117,6 +118,7 @@ async def test_errback_failure_wrapped_in_exception_group():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},
@@ -284,6 +286,7 @@ async def test_dependencies_injected_into_callback():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={"custom_dep": "injected_value"},
@@ -313,6 +316,7 @@ async def test_dependencies_injected_into_middleware():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={"custom_dep": "middleware_value"},
@@ -339,6 +343,7 @@ async def test_send_request_available_in_dependencies():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},
@@ -359,6 +364,7 @@ async def test_queue_processes_requests():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(enabled=False, default_interval=0.05),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},
@@ -400,6 +406,7 @@ async def test_outer_middleware_execution_in_listen_queue():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},
@@ -436,6 +443,7 @@ async def test_outer_middleware_exception_is_logged():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},
@@ -458,6 +466,7 @@ async def test_exception_logged_when_no_errback(caplog):
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FixedStatusSession(status=500, body="server error"),
         dependencies={},
@@ -485,6 +494,7 @@ async def test_url_with_params_is_parsed():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},
@@ -514,6 +524,7 @@ async def test_close_stops_queue_processing():
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
         dependencies={},

@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from aioscraper.config.models import RateLimitConfig
-from aioscraper.core.rate_limiter import RateLimiterManager, RequestGroup, _default_group_by_factory
+from aioscraper.config.models import RateLimitConfig, RequestRetryConfig
+from aioscraper.core.rate_limiter import RateLimiterManager, RequestGroup, default_group_by_factory
 from aioscraper.types.session import Request, PRequest
 
 
@@ -207,7 +207,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_groups_by_hostname(self, mock_schedule):
         """Test that rate limiter groups requests by hostname when enabled."""
         config = RateLimitConfig(enabled=True, default_interval=0.05)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
         pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
@@ -236,7 +236,7 @@ class TestRateLimiterManager:
             await mock_schedule(pr)
 
         config = RateLimitConfig(enabled=False, default_interval=default_interval)
-        manager = RateLimiterManager(config=config, schedule=schedule_with_timing)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=schedule_with_timing)
 
         pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
         pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
@@ -265,7 +265,7 @@ class TestRateLimiterManager:
                 return ("slow", 0.05)
 
         config = RateLimitConfig(enabled=True, group_by=custom_group_by)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         pr1 = PRequest(priority=1, request=Request(url="https://example.com/fast/page"))
         pr2 = PRequest(priority=2, request=Request(url="https://example.com/slow/page"))
@@ -300,7 +300,7 @@ class TestRateLimiterManager:
                 return ("slow", 0.1)
 
         config = RateLimitConfig(enabled=True, group_by=custom_group_by)
-        manager = RateLimiterManager(config=config, schedule=schedule_with_timing)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=schedule_with_timing)
 
         for i in range(3):
             await manager(PRequest(priority=i, request=Request(url=f"https://example.com/fast/{i}")))
@@ -332,7 +332,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_group_cleanup_after_idle(self, mock_schedule):
         """Test that idle groups are automatically cleaned up."""
         config = RateLimitConfig(enabled=True, default_interval=0.01, cleanup_timeout=0.1)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
         await manager(pr)
@@ -349,7 +349,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_active_property(self, mock_schedule):
         """Test the active property of RateLimiterManager."""
         config = RateLimitConfig(enabled=True, default_interval=0.05)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         assert not manager.active
 
@@ -371,7 +371,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_close_shuts_down_all_groups(self, mock_schedule):
         """Test that closing rate limiter shuts down all groups."""
         config = RateLimitConfig(enabled=True, default_interval=0.01)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         await manager(PRequest(priority=1, request=Request(url="https://example.com/1")))
         await manager(PRequest(priority=2, request=Request(url="https://other.com/1")))
@@ -391,7 +391,7 @@ class TestRateLimiterManager:
             return ("zero", 0.0)
 
         config = RateLimitConfig(enabled=True, group_by=zero_interval_group_by)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
         await manager(pr)
@@ -407,7 +407,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_handles_url_without_host(self, mock_schedule):
         """Test that rate limiter handles URLs without a host."""
         config = RateLimitConfig(enabled=True, default_interval=0.01)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         # Request with relative URL (no host)
         pr = PRequest(priority=1, request=Request(url="/relative/path"))
@@ -423,7 +423,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_reuses_existing_groups(self, mock_schedule):
         """Test that rate limiter reuses existing groups for same host."""
         config = RateLimitConfig(enabled=True, default_interval=0.01)
-        manager = RateLimiterManager(config=config, schedule=mock_schedule)
+        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
         pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
@@ -449,7 +449,7 @@ class TestRateLimiterManager:
 class TestDefaultGroupByFactory:
     def test_default_group_by_extracts_hostname(self):
         """Test that default group_by function extracts hostname."""
-        group_by = _default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.5)
 
         request = Request(url="https://example.com/path?query=1")
         key, interval = group_by(request)
@@ -459,7 +459,7 @@ class TestDefaultGroupByFactory:
 
     def test_default_group_by_handles_port_in_url(self):
         """Test that default group_by handles URLs with ports."""
-        group_by = _default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.5)
 
         request = Request(url="https://example.com:8080/path")
         key, interval = group_by(request)
@@ -469,7 +469,7 @@ class TestDefaultGroupByFactory:
 
     def test_default_group_by_handles_no_host(self):
         """Test that default group_by handles URLs without host."""
-        group_by = _default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.5)
 
         request = Request(url="/relative/path")
         key, interval = group_by(request)
@@ -479,7 +479,7 @@ class TestDefaultGroupByFactory:
 
     def test_default_group_by_groups_subdomains_separately(self):
         """Test that different subdomains create different groups."""
-        group_by = _default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.5)
 
         request1 = Request(url="https://api.example.com/endpoint")
         request2 = Request(url="https://www.example.com/page")

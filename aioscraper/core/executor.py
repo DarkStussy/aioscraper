@@ -38,6 +38,7 @@ class ScraperExecutor:
         self._request_manager = RequestManager(
             scheduler_config=self._config.scheduler,
             rate_limit_config=self._config.session.rate_limit,
+            retry_config=self._config.session.retry,
             shutdown_check_interval=self._config.execution.shutdown_check_interval,
             sessionmaker=sessionmaker,
             dependencies=self._dependencies,

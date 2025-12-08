@@ -1,10 +1,8 @@
 import logging
-from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone
-from http import HTTPStatus
 
 from ..config import RequestRetryConfig
 from ..exceptions import HTTPException, StopRequestProcessing
+from .._helpers.http import parse_retry_after
 from ..types import Request, SendRequest
 
 RETRY_STATE_KEY = "_aioscraper_retry_attempts"
@@ -46,7 +44,7 @@ class RetryMiddleware:
 
         attempts = request.state[RETRY_STATE_KEY] = attempts_used + 1
 
-        if retry_after_delay := self._parse_retry_after(exc):
+        if retry_after_delay := parse_retry_after(exc):
             request.delay = min(600.0, round(retry_after_delay, 6))
         else:
             request.delay = round(self._retry_delay_factory(attempts), 6)
@@ -56,31 +54,6 @@ class RetryMiddleware:
             raise StopRequestProcessing
 
         await send_request(request.clone())
-
-    def _parse_retry_after(self, exc: Exception) -> float | None:
-        "Parse Retry-After header from HTTPException."
-        if not isinstance(exc, HTTPException) or exc.status_code not in (
-            HTTPStatus.TOO_MANY_REQUESTS,
-            HTTPStatus.SERVICE_UNAVAILABLE,
-        ):
-            return None
-
-        retry_after = exc.headers.get("Retry-After") or exc.headers.get("retry-after")
-        if not retry_after:
-            return None
-
-        try:
-            return float(retry_after)
-        except ValueError:
-            pass
-
-        try:
-            retry_date = parsedate_to_datetime(retry_after)
-            now = datetime.now(timezone.utc)
-            delay = (retry_date - now).total_seconds()
-            return max(0.0, delay)
-        except (ValueError, TypeError):
-            return None
 
     def _should_retry(self, exc: Exception) -> bool:
         if self._statuses and isinstance(exc, HTTPException) and exc.status_code in self._statuses:

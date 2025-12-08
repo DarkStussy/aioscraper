@@ -1,8 +1,12 @@
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
+from http import HTTPStatus
 from http.cookies import SimpleCookie, Morsel, BaseCookie
 from typing import Mapping
 
 from yarl import URL
 
+from ..exceptions import HTTPException
 from ..types import QueryParams, RequestCookies
 
 
@@ -37,3 +41,29 @@ def parse_cookies(v: RequestCookies) -> dict[str, str]:
             raise TypeError(f"Unsupported cookie type: {type(value)!r}")
 
     return cookies
+
+
+def parse_retry_after(exc: Exception) -> float | None:
+    "Parse Retry-After header from HTTPException."
+    if not isinstance(exc, HTTPException) or exc.status_code not in (
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+    ):
+        return None
+
+    retry_after = exc.headers.get("Retry-After") or exc.headers.get("retry-after")
+    if not retry_after:
+        return None
+
+    try:
+        return float(retry_after)
+    except ValueError:
+        pass
+
+    try:
+        retry_date = parsedate_to_datetime(retry_after)
+        now = datetime.now(timezone.utc)
+        delay = (retry_date - now).total_seconds()
+        return max(0.0, delay)
+    except (ValueError, TypeError):
+        return None

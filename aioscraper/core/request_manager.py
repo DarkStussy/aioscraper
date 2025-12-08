@@ -6,14 +6,14 @@ from typing import Any
 
 from aiojobs import Scheduler
 
-from aioscraper.config.models import RateLimitConfig, SchedulerConfig
+from aioscraper.config.models import RateLimitConfig, RequestRetryConfig, SchedulerConfig
 
-from .rate_limiter import RateLimiterManager
+from .rate_limiter import RateLimiterManager, RequestOutcome
 from .session import SessionMaker
 from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
 from .._helpers.asyncio import execute_coroutine, execute_coroutines
 from .._helpers.func import get_func_kwargs
-from .._helpers.http import parse_url
+from .._helpers.http import parse_retry_after, parse_url
 from ..types.session import Request, PRequest, SendRequest
 from ..holders import MiddlewareHolder
 
@@ -52,6 +52,7 @@ class RequestManager:
     Args:
         scheduler_config (SchedulerConfig): Configuration for the request scheduler.
         rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
+        retry_config (RequestRetryConfig): Configuration for request retries.
         shutdown_check_interval (float): Interval between shutdown checks in seconds
         sessionmaker (SessionMaker): A factory for creating session objects.
         dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
@@ -62,6 +63,7 @@ class RequestManager:
         self,
         scheduler_config: SchedulerConfig,
         rate_limit_config: RateLimitConfig,
+        retry_config: RequestRetryConfig,
         shutdown_check_interval: float,
         sessionmaker: SessionMaker,
         dependencies: dict[str, Any],
@@ -81,6 +83,7 @@ class RequestManager:
         self._middleware_holder = middleware_holder
         self._rate_limiter_manager = RateLimiterManager(
             rate_limit_config,
+            retry_config=retry_config,
             schedule=lambda pr: self._scheduler.spawn(execute_coroutine(self._send_request(pr.request))),
         )
         self._wait = True
@@ -92,6 +95,9 @@ class RequestManager:
         return self._request_sender
 
     async def _send_request(self, request: Request):
+        start_time = monotonic()
+        latency = status_code = exception_type = retry_after = None
+
         try:
             for inner_middleware in self._middleware_holder.inner:
                 try:
@@ -107,6 +113,8 @@ class RequestManager:
             logger.debug(f"send request: {request.method} {url}")
 
             async with self._session.make_request(request) as response:
+                latency = monotonic() - start_time  # response latency
+
                 for response_middleware in self._middleware_holder.response:
                     try:
                         await response_middleware(
@@ -136,18 +144,38 @@ class RequestManager:
                             ),
                         )
                 else:
-                    await self._handle_exception(
-                        request,
-                        exc=HTTPException(
-                            url=str(url),
-                            method=response.method,
-                            headers=response.headers,
-                            status_code=response.status,
-                            message=await response.text(errors="replace"),
-                        ),
+                    http_exc = HTTPException(
+                        url=str(url),
+                        method=response.method,
+                        headers=response.headers,
+                        status_code=response.status,
+                        message=await response.text(errors="replace"),
                     )
+                    status_code = http_exc.status_code
+                    exception_type = HTTPException
+
+                    if self._rate_limiter_manager.adaptive_strategy:
+                        retry_after = parse_retry_after(http_exc)
+
+                    await self._handle_exception(request, http_exc)
         except Exception as exc:
+            exception_type = type(exc)
             await self._handle_exception(request, exc)
+        finally:
+            # Send feedback to adaptive rate limiter
+            if self._rate_limiter_manager.adaptive_strategy:
+                if latency is None:
+                    latency = monotonic() - start_time
+
+                self._rate_limiter_manager.on_request_outcome(
+                    RequestOutcome(
+                        group_key=self._rate_limiter_manager.get_group_key(request),
+                        latency=latency,
+                        retry_after=retry_after,
+                        status_code=status_code,
+                        exception_type=exception_type,
+                    )
+                )
 
     async def _handle_exception(self, request: Request, exc: Exception):
         for exception_middleware in self._middleware_holder.exception:

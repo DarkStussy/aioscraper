@@ -1,18 +1,219 @@
 import asyncio
 import logging
 from contextlib import suppress
+from dataclasses import dataclass
+from time import monotonic
 from typing import Any, Awaitable, Callable, Hashable
 
 from yarl import URL
 
-from ..config import RateLimitConfig
+from ..config import RateLimitConfig, RequestRetryConfig
 from ..types.session import Request, PRequest
 
 
 logger = logging.getLogger(__name__)
 
 
-def _default_group_by_factory(default_interval: float) -> Callable[[Request], tuple[Hashable, float]]:
+@dataclass(slots=True)
+class AdaptiveMetrics:
+    """Tracks metrics for adaptive rate limiting using EWMA + AIMD.
+
+    Attributes:
+        ewma_latency (float): Exponentially weighted moving average of request latency.
+        ewma_alpha (float): Smoothing factor for EWMA (0 < alpha <= 1).
+        success_count (int): Consecutive successful requests since last failure.
+        failure_count (int): Consecutive failures since last success.
+        last_outcome_time (float | None): Timestamp of last completed request.
+        last_outcome_success (bool | None): Whether last request was successful.
+        total_requests (int): Total number of completed requests in this group.
+    """
+
+    ewma_latency: float = 0.0
+    ewma_alpha: float = 0.3
+    success_count: int = 0
+    failure_count: int = 0
+    last_outcome_time: float | None = None
+    last_outcome_success: bool = True
+    total_requests: int = 0
+
+    def update_latency(self, latency: float) -> None:
+        """Update EWMA latency with new measurement."""
+        if self.total_requests == 0:
+            self.ewma_latency = latency
+        else:
+            self.ewma_latency = (self.ewma_alpha * latency) + ((1 - self.ewma_alpha) * self.ewma_latency)
+
+    def record_success(self, latency: float) -> None:
+        """Record a successful request outcome."""
+        self.update_latency(latency)
+        self.success_count += 1
+        self.failure_count = 0
+        self.last_outcome_success = True
+        self.last_outcome_time = monotonic()
+        self.total_requests += 1
+
+    def record_failure(self, latency: float | None = None) -> None:
+        """Record a failed request outcome (timeout, error status, etc)."""
+        if latency is not None:
+            self.update_latency(latency)
+
+        self.failure_count += 1
+        self.success_count = 0
+        self.last_outcome_success = False
+        self.last_outcome_time = monotonic()
+        self.total_requests += 1
+
+
+@dataclass(slots=True)
+class RequestOutcome:
+    """Captures the result of a request execution.
+
+    Attributes:
+        group_key (Hashable): The RequestGroup key this outcome belongs to.
+        latency (float): Request latency in seconds (start to finish).
+        retry_after (float | None): Value from Retry-After header if present.
+        status_code (int | None): HTTP status code if applicable.
+        exception_type (type[BaseException] | None): Type of exception if one occurred.
+    """
+
+    group_key: Hashable
+    latency: float
+    retry_after: float | None = None
+    status_code: int | None = None
+    exception_type: type[BaseException] | None = None
+
+
+class AdaptiveStrategy:
+    """EWMA + AIMD adaptive rate limiting strategy.
+
+    Fast multiplicative increase on overload (server pushback).
+    Slow additive decrease on sustained success (probing for capacity).
+
+    Args:
+        enabled (bool): Enable adaptive rate limiting.
+        min_interval (float): Minimum allowed interval (seconds).
+        max_interval (float): Maximum allowed interval (seconds).
+        increase_factor (float): Multiplicative factor for interval increase on failure.
+        decrease_step (float): Additive step for interval decrease on success.
+        success_threshold (int): Number of consecutive successes before decreasing interval.
+        ewma_alpha (float): Smoothing factor for latency EWMA (0 < alpha <= 1).
+        trigger_statuses (tuple[int, ...]): HTTP statuses that trigger adaptive slowdown.
+        trigger_exceptions (tuple[type[BaseException], ...]): Exception types that trigger adaptive slowdown.
+        respect_retry_after (bool): Whether to use Retry-After header as override.
+    """
+
+    def __init__(
+        self,
+        min_interval: float = 0.001,
+        max_interval: float = 5.0,
+        increase_factor: float = 2.0,
+        decrease_step: float = 0.01,
+        success_threshold: int = 5,
+        ewma_alpha: float = 0.3,
+        trigger_statuses: tuple[int, ...] = (429, 500, 502, 503, 504, 522, 524, 408),
+        trigger_exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,),
+        respect_retry_after: bool = True,
+    ):
+        self.min_interval = min_interval
+        self.max_interval = max_interval
+        self.increase_factor = increase_factor
+        self.decrease_step = decrease_step
+        self.success_threshold = success_threshold
+        self.ewma_alpha = ewma_alpha
+        self.trigger_statuses = set(trigger_statuses)
+        self.trigger_exceptions = trigger_exceptions
+        self.respect_retry_after = respect_retry_after
+        self._metrics: dict[Hashable, AdaptiveMetrics] = {}
+
+    def get_or_create_metrics(self, group_key: Hashable) -> AdaptiveMetrics:
+        """Get or create metrics for a group."""
+        if group_key not in self._metrics:
+            self._metrics[group_key] = AdaptiveMetrics(ewma_alpha=self.ewma_alpha)
+
+        return self._metrics[group_key]
+
+    def calculate_interval(self, group_key: Hashable, current_interval: float, outcome: RequestOutcome) -> float:
+        """Calculate new interval based on request outcome.
+
+        Algorithm:
+        - On failure: interval = min(max_interval, interval * increase_factor)
+        - On success: if success_count >= threshold:
+                        interval = max(min_interval, interval - decrease_step)
+        - Retry-After override: Use header value if present and enabled
+
+        Returns:
+            New interval in seconds.
+        """
+        metrics = self.get_or_create_metrics(group_key)
+
+        success = not self._is_adaptive_failure(outcome.status_code, outcome.exception_type)
+
+        if success:
+            metrics.record_success(outcome.latency)
+        else:
+            metrics.record_failure(outcome.latency)
+
+        # Priority 1: Retry-After override takes precedence
+        if self.respect_retry_after and outcome.retry_after is not None and not success:
+            new_interval = min(self.max_interval, outcome.retry_after)
+            logger.info(
+                "Adaptive rate limit: Retry-After header for group %r, setting interval to %.4f "
+                "(status=%s, latency=%.4f)",
+                group_key,
+                new_interval,
+                outcome.status_code,
+                outcome.latency,
+            )
+            return new_interval
+
+        # Priority 2: Apply AIMD
+        if not success:
+            # Multiplicative increase on failure
+            new_interval = current_interval * self.increase_factor
+            logger.info(
+                "Adaptive rate limit: failure for group %r, increasing interval %.4f -> %.4f "
+                "(status=%s, latency=%.4f, failure_count=%d)",
+                group_key,
+                current_interval,
+                new_interval,
+                outcome.status_code or "exception",
+                outcome.latency,
+                metrics.failure_count,
+            )
+        elif metrics.success_count >= self.success_threshold:
+            # Additive decrease after sustained success
+            new_interval = current_interval - self.decrease_step
+            logger.debug(
+                "Adaptive rate limit: sustained success for group %r, decreasing interval %.4f -> %.4f "
+                "(latency=%.4f, success_count=%d)",
+                group_key,
+                current_interval,
+                new_interval,
+                outcome.latency,
+                metrics.success_count,
+            )
+        else:
+            # Not enough successes yet, maintain current interval
+            new_interval = current_interval
+
+        return max(self.min_interval, min(self.max_interval, new_interval))
+
+    def reset_metrics(self, group_key: Hashable) -> None:
+        """Reset metrics for a group (e.g., on cleanup)."""
+        self._metrics.pop(group_key, None)
+
+    def _is_adaptive_failure(self, status_code: int | None, exception_type: type[BaseException] | None) -> bool:
+        """Check if status/exception should trigger adaptive slowdown."""
+        if status_code and status_code in self.trigger_statuses:
+            return True
+
+        if exception_type and any(issubclass(exception_type, exc_type) for exc_type in self.trigger_exceptions):
+            return True
+
+        return False
+
+
+def default_group_by_factory(default_interval: float) -> Callable[[Request], tuple[Hashable, float]]:
     "Creates a default grouping function that groups requests by hostname."
 
     def _group_by(request: Request) -> tuple[Hashable, float]:
@@ -57,6 +258,16 @@ class RequestGroup:
     def active(self) -> bool:
         "Check if the group has pending requests in its queue."
         return not self._queue.empty()
+
+    @property
+    def interval(self) -> float:
+        "Get the current interval for this group."
+        return self._interval
+
+    def set_intervals(self, interval: float, cleanup_timeout: float):
+        "Update group interval and cleanup timeout."
+        self._interval = interval
+        self._cleanup_timeout = cleanup_timeout
 
     async def put(self, pr: PRequest):
         "Add a request to this group's processing queue."
@@ -119,16 +330,44 @@ class RateLimiterManager:
 
     Args:
         config (RateLimitConfig): Rate limiting configuration including grouping strategy and intervals.
+        retry_config (RequestRetryConfig): Retry configuration for inheriting trigger conditions.
         schedule (Callable[[PRequest], Awaitable[Any]]): Callback function to schedule request execution.
     """
 
-    def __init__(self, config: RateLimitConfig, schedule: Callable[[PRequest], Awaitable[Any]]):
+    def __init__(
+        self,
+        config: RateLimitConfig,
+        retry_config: RequestRetryConfig,
+        schedule: Callable[[PRequest], Awaitable[Any]],
+    ):
         self._schedule = schedule
-        self._group_by = config.group_by or _default_group_by_factory(config.default_interval)
+        self._group_by = config.group_by or default_group_by_factory(config.default_interval)
         self._default_interval = config.default_interval
         self._cleanup_timeout = config.cleanup_timeout
         self._groups: dict[Hashable, RequestGroup] = {}
         self._enabled = config.enabled
+
+        self._adaptive_strategy: AdaptiveStrategy | None = None
+        if config.enabled and config.adaptive.enabled:
+            trigger_statuses = config.adaptive.custom_trigger_statuses
+            trigger_exceptions = config.adaptive.custom_trigger_exceptions
+
+            # Merge retry triggers if configured
+            if config.adaptive.inherit_retry_triggers:
+                trigger_statuses = tuple(set(trigger_statuses) | set(retry_config.statuses))
+                trigger_exceptions = tuple(set(trigger_exceptions) | set(retry_config.exceptions))
+
+            self._adaptive_strategy = AdaptiveStrategy(
+                min_interval=config.adaptive.min_interval,
+                max_interval=config.adaptive.max_interval,
+                increase_factor=config.adaptive.increase_factor,
+                decrease_step=config.adaptive.decrease_step,
+                success_threshold=config.adaptive.success_threshold,
+                ewma_alpha=config.adaptive.ewma_alpha,
+                trigger_statuses=trigger_statuses,
+                trigger_exceptions=trigger_exceptions,
+                respect_retry_after=config.adaptive.respect_retry_after,
+            )
 
         if config.enabled:
             self._handle = self._handle_with_group
@@ -146,9 +385,63 @@ class RateLimiterManager:
                     self._default_interval,
                 )
 
+        if self._adaptive_strategy:
+            logger.info(
+                "Adaptive rate limiting enabled: min_interval=%.3f, max_interval=%.3f, "
+                "increase_factor=%.2f, decrease_step=%.3f, success_threshold=%d, ewma_alpha=%.2f",
+                config.adaptive.min_interval,
+                config.adaptive.max_interval,
+                config.adaptive.increase_factor,
+                config.adaptive.decrease_step,
+                config.adaptive.success_threshold,
+                config.adaptive.ewma_alpha,
+            )
+
+    @property
+    def adaptive_strategy(self) -> AdaptiveStrategy | None:
+        return self._adaptive_strategy
+
+    @property
+    def active(self) -> bool:
+        "Check if any request groups have pending requests."
+        return any(group.active for group in self._groups.values())
+
     async def __call__(self, pr: PRequest):
         "Process a request through the rate limiter."
         await self._handle(pr)
+
+    async def close(self):
+        "Close all request groups and clean up resources."
+        groups = list(self._groups.values())
+        self._groups.clear()
+
+        if groups:
+            logger.info("Closing rate limiter: shutting down %d active group(s)", len(groups))
+            for group in groups:
+                await group.close()
+        else:
+            logger.debug("Closing rate limiter: no active groups")
+
+    def get_group_key(self, request: Request) -> Hashable:
+        """Get group key for a request."""
+        return self._group_by(request)[0]
+
+    def on_request_outcome(self, outcome: RequestOutcome) -> None:
+        """Handle request outcome and adjust group interval adaptively."""
+        if not self._adaptive_strategy:
+            return
+
+        group = self._groups.get(outcome.group_key)
+        if not group:
+            return
+
+        new_interval = self._adaptive_strategy.calculate_interval(
+            group_key=outcome.group_key,
+            current_interval=group.interval,
+            outcome=outcome,
+        )
+        if new_interval != group.interval:
+            group.set_intervals(interval=new_interval, cleanup_timeout=max(self._cleanup_timeout, new_interval * 2))
 
     async def _handle_with_group(self, pr: PRequest):
         group_key, interval = self._group_by(pr.request)
@@ -186,21 +479,8 @@ class RateLimiterManager:
         current = self._groups.get(key)
         if current is group:
             self._groups.pop(key, None)
+
+            if self._adaptive_strategy:
+                self._adaptive_strategy.reset_metrics(key)
+
             logger.debug("Rate limit group %r finished and removed (idle timeout or shutdown)", key)
-
-    @property
-    def active(self) -> bool:
-        "Check if any request groups have pending requests."
-        return any(group.active for group in self._groups.values())
-
-    async def close(self):
-        "Close all request groups and clean up resources."
-        groups = list(self._groups.values())
-        self._groups.clear()
-
-        if groups:
-            logger.info("Closing rate limiter: shutting down %d active group(s)", len(groups))
-            for group in groups:
-                await group.close()
-        else:
-            logger.debug("Closing rate limiter: no active groups")
