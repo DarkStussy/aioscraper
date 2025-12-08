@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from contextlib import suppress
-from typing import Awaitable, Callable, Hashable
+from typing import Any, Awaitable, Callable, Hashable
 
 from yarl import URL
 
@@ -119,10 +119,10 @@ class RateLimiterManager:
 
     Args:
         config (RateLimitConfig): Rate limiting configuration including grouping strategy and intervals.
-        schedule (Callable[[PRequest], Awaitable[None]]): Callback function to schedule request execution.
+        schedule (Callable[[PRequest], Awaitable[Any]]): Callback function to schedule request execution.
     """
 
-    def __init__(self, config: RateLimitConfig, schedule: Callable[[PRequest], Awaitable[None]]):
+    def __init__(self, config: RateLimitConfig, schedule: Callable[[PRequest], Awaitable[Any]]):
         self._schedule = schedule
         self._group_by = config.group_by or _default_group_by_factory(config.default_interval)
         self._default_interval = config.default_interval

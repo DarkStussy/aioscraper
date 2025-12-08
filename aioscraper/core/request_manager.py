@@ -1,17 +1,17 @@
 import asyncio
 import heapq
-import sys
 from logging import getLogger
 from time import monotonic
-from typing import Callable, Awaitable, Any
-from typing import Coroutine
+from typing import Any
 
-from aioscraper.config.models import RateLimitConfig
+from aiojobs import Scheduler
+
+from aioscraper.config.models import RateLimitConfig, SchedulerConfig
 
 from .rate_limiter import RateLimiterManager
 from .session import SessionMaker
 from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
-from .._helpers.asyncio import execute_coroutine
+from .._helpers.asyncio import execute_coroutine, execute_coroutines
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_url
 from ..types.session import Request, PRequest, SendRequest
@@ -50,9 +50,9 @@ class RequestManager:
     Manages HTTP requests with priority queuing, rate limiting, and middleware support.
 
     Args:
+        scheduler_config (SchedulerConfig): Configuration for the request scheduler.
         rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
         sessionmaker (SessionMaker): A factory for creating session objects.
-        schedule (Callable[[Coroutine[Any, Any, None]], Awaitable[Any]]): Function to schedule request processing.
         queue (_RequestQueue): Priority queue for requests.
         dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
         middleware_holder (MiddlewareHolder): A container for middleware collections.
@@ -60,14 +60,20 @@ class RequestManager:
 
     def __init__(
         self,
+        scheduler_config: SchedulerConfig,
         rate_limit_config: RateLimitConfig,
+        shutdown_check_interval: float,
         sessionmaker: SessionMaker,
-        schedule: Callable[[Coroutine[Any, Any, None]], Awaitable[Any]],
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
     ):
+        self._scheduler = Scheduler(
+            limit=scheduler_config.concurrent_requests,
+            pending_limit=scheduler_config.pending_requests,
+            close_timeout=scheduler_config.close_timeout,
+        )
+        self._shutdown_check_interval = shutdown_check_interval
         self._session = sessionmaker()
-        self._schedule = schedule
         self._ready_queue: _RequestQueue = asyncio.PriorityQueue()
         self._delayed_heap: _RequestHead = []
         self._request_sender = _get_request_sender(self._ready_queue, self._delayed_heap)
@@ -75,18 +81,15 @@ class RequestManager:
         self._middleware_holder = middleware_holder
         self._rate_limiter_manager = RateLimiterManager(
             rate_limit_config,
-            schedule=lambda pr: self._schedule(execute_coroutine(self._send_request(pr.request))),
+            schedule=lambda pr: self._scheduler.spawn(execute_coroutine(self._send_request(pr.request))),
         )
-        self._closed = False
-        self._task: asyncio.Task[None] | None = None
+        self._wait = True
+        self._completed = False
+        self._task = asyncio.create_task(self._listen_queue())
 
     @property
     def sender(self) -> SendRequest:
         return self._request_sender
-
-    @property
-    def active(self) -> bool:
-        return self._rate_limiter_manager.active or not self._ready_queue.empty() or len(self._delayed_heap) > 0
 
     async def _send_request(self, request: Request):
         try:
@@ -175,13 +178,23 @@ class RequestManager:
         else:
             logger.error(f"{request.method}: {request.url}: {exc}", exc_info=exc)
 
-    def start_listening(self):
-        """Start listening to the request queue."""
-        self._task = asyncio.create_task(self._listen_queue())
+    async def wait(self):
+        self._wait = False
+        while not self._completed:
+            await asyncio.sleep(self._shutdown_check_interval)
+
+    async def shutdown(self):
+        await self._task
 
     async def _listen_queue(self):
         """Process requests from the queue using the rate limiter."""
-        while not self._closed:
+        while (
+            len(self._scheduler) > 0
+            or self._rate_limiter_manager.active
+            or not self._ready_queue.empty()
+            or len(self._delayed_heap) > 0
+            or self._wait
+        ):
             await self._pop_due_delayed()
 
             timeout = self._next_timeout()
@@ -190,20 +203,23 @@ class RequestManager:
             except asyncio.TimeoutError:
                 continue
 
-            if self._closed:
+            try:
+                await asyncio.shield(self._process_request(pr))
+            except asyncio.CancelledError:
                 break
 
-            for outer_middleware in self._middleware_holder.outer:
-                try:
-                    await outer_middleware(
-                        **get_func_kwargs(outer_middleware, request=pr.request, **self._dependencies)
-                    )
-                except (StopMiddlewareProcessing, StopRequestProcessing) as e:
-                    logger.debug(f"{type(e).__name__} in outer middleware is ignored")
-                except Exception as e:
-                    logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
+        self._completed = True
 
-            await self._rate_limiter_manager(pr)
+    async def _process_request(self, pr: PRequest):
+        for outer_middleware in self._middleware_holder.outer:
+            try:
+                await outer_middleware(**get_func_kwargs(outer_middleware, request=pr.request, **self._dependencies))
+            except (StopMiddlewareProcessing, StopRequestProcessing) as e:
+                logger.debug(f"{type(e).__name__} in outer middleware is ignored")
+            except Exception as e:
+                logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
+
+        await self._rate_limiter_manager(pr)
 
     async def _pop_due_delayed(self):
         """Pop the next due delayed request from the heap."""
@@ -227,11 +243,4 @@ class RequestManager:
 
     async def close(self):
         """Close the underlying session."""
-        self._closed = True
-        await self._ready_queue.put(PRequest(priority=sys.maxsize, request=Request(url="stub")))
-
-        if self._task is not None:
-            await self._task
-
-        await self._rate_limiter_manager.close()
-        await self._session.close()
+        await execute_coroutines(self._rate_limiter_manager.close(), self._scheduler.close(), self._session.close())

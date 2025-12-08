@@ -15,7 +15,7 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
     def _trigger(sig_name: str):
         if shutdown.is_set():
             if not force_exit.is_set():
-                logger.error("Received second %s, ignore shutdown timeout", sig_name)
+                logger.warning("Received second %s, ignore shutdown timeout", sig_name)
                 force_exit.set()
 
             return

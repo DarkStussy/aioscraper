@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from aioscraper.config import SchedulerConfig
 from aioscraper.config.models import RateLimitConfig
 from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
@@ -93,11 +94,12 @@ def middleware_holder() -> MiddlewareHolder:
 
 @pytest.fixture
 def base_manager_factory(middleware_holder: MiddlewareHolder):
-    def factory(*, session_factory, schedule_request=None, default_interval=0.0):
+    def factory(*, session_factory, default_interval=0.0):
         return RequestManager(
+            scheduler_config=SchedulerConfig(),
             rate_limit_config=RateLimitConfig(default_interval=default_interval),
+            shutdown_check_interval=0.01,
             sessionmaker=session_factory,
-            schedule=schedule_request or (lambda coro: coro),
             dependencies={},
             middleware_holder=middleware_holder,
         )
@@ -113,9 +115,10 @@ async def test_errback_failure_wrapped_in_exception_group():
         raise ValueError("errback failed")
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,  # not used in this test
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -129,6 +132,8 @@ async def test_errback_failure_wrapped_in_exception_group():
     assert isinstance(excinfo.value.exceptions[0], RuntimeError)
     assert isinstance(excinfo.value.exceptions[1], ValueError)
 
+    await manager.close()
+
 
 @pytest.mark.asyncio
 async def test_request_manager_respects_delay_between_requests(base_manager_factory):
@@ -138,9 +143,10 @@ async def test_request_manager_respects_delay_between_requests(base_manager_fact
     default_interval = 0.1
     finished = asyncio.Event()
 
-    async def schedule_request(coro):
-        call_times.append(asyncio.get_event_loop().time())
-        await coro
+    class TrackingSession(FakeSession):
+        def make_request(self, request: Request):
+            call_times.append(asyncio.get_event_loop().time())
+            return super().make_request(request)
 
     async def callback(response: Response, request: Request):
         seen.append(response.url)
@@ -148,17 +154,15 @@ async def test_request_manager_respects_delay_between_requests(base_manager_fact
             finished.set()
 
     manager = base_manager_factory(
-        session_factory=lambda: FakeSession(),
-        schedule_request=schedule_request,
+        session_factory=lambda: TrackingSession(),
         default_interval=default_interval,
     )
-
-    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/first", callback=callback))
     await manager.sender(Request(url="https://api.test.com/second", callback=callback))
 
     await asyncio.wait_for(finished.wait(), timeout=1.0)
+    await manager.wait()
     await manager.close()
 
     assert len(call_times) == 2
@@ -195,7 +199,7 @@ async def test_raise_for_status_false_skips_errback(base_manager_factory):
     async def callback(response: Response):
         called["response"] = response
 
-    async def errback(exc: Exception, request: Request):
+    async def errback():
         called["errback"] = True
 
     manager = base_manager_factory(session_factory=lambda: FixedStatusSession(status=500, body="boom"))
@@ -278,9 +282,10 @@ async def test_dependencies_injected_into_callback():
         captured["custom_dep"] = custom_dep
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={"custom_dep": "injected_value"},
         middleware_holder=MiddlewareHolder(),
     )
@@ -289,6 +294,8 @@ async def test_dependencies_injected_into_callback():
 
     assert "response" in captured
     assert captured["custom_dep"] == "injected_value"
+
+    await manager.close()
 
 
 @pytest.mark.asyncio
@@ -304,9 +311,10 @@ async def test_dependencies_injected_into_middleware():
     middleware_holder.add("inner", inner_middleware)
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={"custom_dep": "middleware_value"},
         middleware_holder=middleware_holder,
     )
@@ -315,6 +323,8 @@ async def test_dependencies_injected_into_middleware():
 
     assert "request" in captured
     assert captured["custom_dep"] == "middleware_value"
+
+    await manager.close()
 
 
 @pytest.mark.asyncio
@@ -327,9 +337,10 @@ async def test_send_request_available_in_dependencies():
         captured["send_request"] = send_request
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -339,32 +350,35 @@ async def test_send_request_available_in_dependencies():
     assert "response" in captured
     assert captured["send_request"] is manager.sender
 
+    await manager.close()
+
 
 @pytest.mark.asyncio
-async def test_active_property_reflects_queue_and_rate_limiter():
-    """Test that active property reflects queue and rate limiter state."""
+async def test_queue_processes_requests():
+    """Test that queue processes requests correctly."""
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(enabled=False, default_interval=0.05),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
 
-    # Initially not active
-    assert not manager.active
+    assert manager._ready_queue.empty()
 
-    # Add request to queue
     await manager.sender(Request(url="https://api.test.com/test"))
 
-    # Should be active with items in queue
-    assert manager.active
+    # Queue should have items
+    assert not manager._ready_queue.empty()
 
     # Get item from queue
     await manager._ready_queue.get()
 
-    # Should be inactive again
-    assert not manager.active
+    # Queue should be empty again
+    assert manager._ready_queue.empty()
+
+    await manager.close()
 
 
 @pytest.mark.asyncio
@@ -384,18 +398,18 @@ async def test_outer_middleware_execution_in_listen_queue():
     middleware_holder.add("outer", outer_middleware)
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=middleware_holder,
     )
 
-    manager.start_listening()
-
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
 
     await asyncio.wait_for(finished.wait(), timeout=1.0)
+    await manager.wait()
     await manager.close()
 
     assert "outer: https://api.test.com/test" in calls
@@ -420,18 +434,18 @@ async def test_outer_middleware_exception_is_logged():
     middleware_holder.add("outer", failing_outer_middleware)
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=middleware_holder,
     )
 
-    manager.start_listening()
-
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
 
     await asyncio.wait_for(finished.wait(), timeout=1.0)
+    await manager.wait()
     await manager.close()
 
     assert "outer_called" in calls
@@ -442,9 +456,10 @@ async def test_outer_middleware_exception_is_logged():
 async def test_exception_logged_when_no_errback(caplog):
     """Test that exception is logged when errback is not provided."""
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FixedStatusSession(status=500, body="server error"),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -456,19 +471,22 @@ async def test_exception_logged_when_no_errback(caplog):
     assert any("https://api.test.com/test" in record.message for record in caplog.records)
     assert any(record.levelname == "ERROR" for record in caplog.records)
 
+    await manager.close()
+
 
 @pytest.mark.asyncio
 async def test_url_with_params_is_parsed():
     """Test that URL with params is correctly parsed."""
     captured = {}
 
-    async def callback(response: Response, request: Request):
+    async def callback(response: Response):
         captured["url"] = response.url
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -480,30 +498,34 @@ async def test_url_with_params_is_parsed():
     # URL should contain query params
     assert "url" in captured
 
+    await manager.close()
+
 
 @pytest.mark.asyncio
 async def test_close_stops_queue_processing():
     """Test that close stops queue processing."""
     calls = []
+    finished = asyncio.Event()
 
     async def callback(response: Response):
         calls.append("callback")
+        finished.set()
 
     manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
+        shutdown_check_interval=0.01,
         sessionmaker=lambda: FakeSession(),
-        schedule=lambda coro: coro,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
 
-    manager.start_listening()
-
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
-    await asyncio.sleep(0.05)  # Let it process
+    await asyncio.wait_for(finished.wait(), timeout=1.0)
 
+    await manager.wait()
     await manager.close()
 
     # Session should be closed
     assert manager._session.closed is True  # type: ignore
-    assert manager._closed is True
+    assert manager._completed is True
