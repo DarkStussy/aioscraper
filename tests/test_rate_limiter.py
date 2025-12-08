@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from aioscraper.config.models import RateLimitConfig, RequestRetryConfig
+from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import RateLimiterManager, RequestGroup, default_group_by_factory
 from aioscraper.types.session import Request, PRequest
 

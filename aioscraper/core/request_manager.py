@@ -6,10 +6,9 @@ from typing import Any
 
 from aiojobs import Scheduler
 
-from aioscraper.config.models import RateLimitConfig, RequestRetryConfig, SchedulerConfig
-
 from .rate_limiter import RateLimiterManager, RequestOutcome
 from .session import SessionMaker
+from ..config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
 from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
 from .._helpers.asyncio import execute_coroutine, execute_coroutines
 from .._helpers.func import get_func_kwargs

@@ -137,8 +137,7 @@ class AdaptiveStrategy:
 
         Algorithm:
         - On failure: interval = min(max_interval, interval * increase_factor)
-        - On success: if success_count >= threshold:
-                        interval = max(min_interval, interval - decrease_step)
+        - On success: if success_count >= threshold: interval = max(min_interval, interval - decrease_step)
         - Retry-After override: Use header value if present and enabled
 
         Returns:
@@ -348,7 +347,7 @@ class RateLimiterManager:
         self._enabled = config.enabled
 
         self._adaptive_strategy: AdaptiveStrategy | None = None
-        if config.enabled and config.adaptive.enabled:
+        if config.enabled and config.adaptive:
             trigger_statuses = config.adaptive.custom_trigger_statuses
             trigger_exceptions = config.adaptive.custom_trigger_exceptions
 
@@ -385,7 +384,7 @@ class RateLimiterManager:
                     self._default_interval,
                 )
 
-        if self._adaptive_strategy:
+        if config.adaptive and self._adaptive_strategy:
             logger.info(
                 "Adaptive rate limiting enabled: min_interval=%.3f, max_interval=%.3f, "
                 "increase_factor=%.2f, decrease_step=%.3f, success_threshold=%d, ewma_alpha=%.2f",

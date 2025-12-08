@@ -5,8 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from aioscraper._helpers.http import parse_retry_after
-from aioscraper.config import Config, SessionConfig
-from aioscraper.config.models import AdaptiveRateLimitConfig, RateLimitConfig, RequestRetryConfig
+from aioscraper.config import Config, SessionConfig, AdaptiveRateLimitConfig, RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import (
     AdaptiveMetrics,
     AdaptiveStrategy,
@@ -264,7 +263,6 @@ class TestAdaptiveRateLimiterIntegration:
             default_interval=0.05,
             cleanup_timeout=2.0,
             adaptive=AdaptiveRateLimitConfig(
-                enabled=True,
                 min_interval=0.01,
                 max_interval=1.0,
                 increase_factor=2.0,
@@ -322,10 +320,7 @@ class TestAdaptiveRateLimiterIntegration:
         config = RateLimitConfig(
             enabled=True,
             default_interval=0.01,
-            adaptive=AdaptiveRateLimitConfig(
-                enabled=True,
-                respect_retry_after=True,
-            ),
+            adaptive=AdaptiveRateLimitConfig(respect_retry_after=True),
         )
 
         manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
@@ -357,10 +352,7 @@ class TestAdaptiveRateLimiterIntegration:
         config = RateLimitConfig(
             enabled=True,
             default_interval=0.01,
-            adaptive=AdaptiveRateLimitConfig(
-                enabled=True,
-                inherit_retry_triggers=True,
-            ),
+            adaptive=AdaptiveRateLimitConfig(inherit_retry_triggers=True),
         )
 
         manager = RateLimiterManager(config, schedule=AsyncMock(), retry_config=retry_config)
@@ -381,11 +373,7 @@ class TestAdaptiveRateLimiterIntegration:
         async def mock_schedule(pr: PRequest):
             call_times.append(asyncio.get_event_loop().time())
 
-        config = RateLimitConfig(
-            enabled=True,
-            default_interval=0.05,
-            adaptive=AdaptiveRateLimitConfig(enabled=False),  # Disabled
-        )
+        config = RateLimitConfig(enabled=True, default_interval=0.05)
 
         manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
@@ -473,7 +461,6 @@ async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper)
                 enabled=True,
                 default_interval=0.05,  # Start with 50ms
                 adaptive=AdaptiveRateLimitConfig(
-                    enabled=True,
                     min_interval=0.01,
                     max_interval=1.0,
                     increase_factor=2.0,

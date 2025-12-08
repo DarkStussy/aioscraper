@@ -33,7 +33,6 @@ class AdaptiveRateLimitConfig:
     and AIMD (Additive Increase Multiplicative Decrease) for interval adjustment.
 
     Args:
-        enabled (bool): Enable adaptive rate limiting.
         min_interval (float): Minimum allowed interval between requests (seconds).
         max_interval (float): Maximum allowed interval between requests (seconds).
         increase_factor (float): Multiplicative factor for interval increase on failure (must be > 1.0).
@@ -47,7 +46,6 @@ class AdaptiveRateLimitConfig:
             Additional exception types to trigger adaptive slowdown.
     """
 
-    enabled: bool = False
     min_interval: float = 0.001
     max_interval: float = 5.0
     increase_factor: float = 2.0
@@ -70,14 +68,14 @@ class RateLimitConfig:
         group_by (Callable[[Request], tuple[Hashable, float]] | None): Function to group requests by.
         default_interval (float): Default interval for group.
         cleanup_timeout (float): Timeout in seconds before cleaning up an idle request group.
-        adaptive (AdaptiveRateLimitConfig): Adaptive rate limiting configuration (EWMA + AIMD).
+        adaptive (AdaptiveRateLimitConfig | None): Adaptive rate limiting configuration (EWMA + AIMD).
     """
 
     enabled: bool = False
     group_by: Callable[[Request], tuple[Hashable, float]] | None = None
     default_interval: float = 0.0
     cleanup_timeout: float = 60.0
-    adaptive: AdaptiveRateLimitConfig = AdaptiveRateLimitConfig()
+    adaptive: AdaptiveRateLimitConfig | None = None
 
 
 class BackoffStrategy(StrEnum):

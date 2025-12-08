@@ -48,9 +48,9 @@ Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>`
 Graceful shutdown
 -----------------
 
-- ``execution.timeout`` — overall budget (``None`` by default, i.e. no total limit); on expiry the runner logs at ``execution.log_level`` and cancels all tasks.
-- ``execution.shutdown_timeout`` — grace period after SIGINT/SIGTERM/timeout before hard cancelling in-flight work.
-- ``execution.shutdown_check_interval`` — pause between drain checks while waiting for the scheduler/queue to empty.
+- ``execution.timeout`` - overall budget (``None`` by default, i.e. no total limit); on expiry the runner logs at ``execution.log_level`` and cancels all tasks.
+- ``execution.shutdown_timeout`` - grace period after SIGINT/SIGTERM/timeout before hard cancelling in-flight work.
+- ``execution.shutdown_check_interval`` - pause between drain checks while waiting for the scheduler/queue to empty.
 - Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
 
 These settings are honored by both the CLI and :func:`run_scraper <aioscraper.core.runner.run_scraper>`, giving consistent stop behavior in code or from the terminal.
@@ -63,9 +63,9 @@ Proxies
 
 :class:`SessionConfig.proxy <aioscraper.config.models.SessionConfig>` accepts two shapes; pick the one your HTTP client supports:
 
-- ``aiohttp`` — ``"http://localhost:8000"`` (single proxy applied to every request).
-- ``httpx`` (single proxy) — ``"http://localhost:8000"`` when one proxy handles all schemes.
-- ``httpx`` (per-scheme) — ``{"http": "http://localhost:8000", "https": "http://localhost:8001"}`` to route ``http``/``https`` separately.
+- ``aiohttp`` - ``"http://localhost:8000"`` (single proxy applied to every request).
+- ``httpx`` (single proxy) - ``"http://localhost:8000"`` when one proxy handles all schemes.
+- ``httpx`` (per-scheme) - ``{"http": "http://localhost:8000", "https": "http://localhost:8001"}`` to route ``http``/``https`` separately.
 
 .. warning::
 
@@ -106,6 +106,8 @@ Rate limiting groups requests by a key (by default, the URL hostname) and enforc
 - ``group_by``: Custom function to group requests and specify per-group intervals. Must return ``tuple[Hashable, float]`` where the first element is the group key and the second is the interval in seconds.
 - ``default_interval``: Default delay in seconds between requests within each group (default: ``0.0``).
 - ``cleanup_timeout``: Timeout in seconds for cleaning up inactive request groups (default: ``60.0``).
+- ``adaptive``: Enable :ref:`adaptive rate limiting <adaptive-rate-limiting>` (default: ``None``).
+
 
 Custom grouping
 ~~~~~~~~~~~~~~~
@@ -132,6 +134,86 @@ You can define custom grouping logic to apply different rate limits per domain o
    rate_limit_config = RateLimitConfig(enabled=True, group_by=custom_group_by)
 
 When ``enabled=False`` (default), group-based rate limiting is bypassed. However, if ``default_interval`` is set, it will still apply a simple delay between all requests without grouping logic.
+
+.. _adaptive-rate-limiting:
+
+Adaptive Rate Limiting
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The adaptive rate limiting feature automatically adjusts request intervals based on server responses, using a hybrid **EWMA (Exponentially Weighted Moving Average) + AIMD (Additive Increase Multiplicative Decrease)** algorithm inspired by TCP congestion control.
+
+How it works:
+
+- Fast multiplicative increase on server overload (429, 503, timeouts) - backs off aggressively to avoid hammering struggling servers
+- Slow additive decrease on sustained success - gradually probes for increased capacity
+- Respects Retry-After headers - server-provided backoff takes priority over heuristics
+- Per-group adaptation - each hostname/group adapts independently
+
+.. code-block:: python
+
+   from aioscraper.config import RateLimitConfig, AdaptiveRateLimitConfig
+
+   rate_limit_config = RateLimitConfig(
+       enabled=True,
+       default_interval=0.1,  # Starting interval: 100ms
+       adaptive=AdaptiveRateLimitConfig(
+           min_interval=0.001,        # Min: 1ms (won't go below)
+           max_interval=5.0,          # Max: 5s (won't exceed)
+           increase_factor=2.0,       # Double interval on failure
+           decrease_step=0.01,        # Subtract 10ms on success
+           success_threshold=5,       # Decrease after 5 consecutive successes
+           ewma_alpha=0.3,            # Latency smoothing factor
+           respect_retry_after=True,  # Honor server Retry-After headers
+       ),
+   )
+
+**Configuration options:**
+
+- ``min_interval``: Minimum allowed interval in seconds (default: ``0.001``)
+- ``max_interval``: Maximum allowed interval in seconds (default: ``5.0``)
+- ``increase_factor``: Multiplicative factor for interval increase on failure (default: ``2.0``)
+- ``decrease_step``: Additive step for interval decrease on success in seconds (default: ``0.01``)
+- ``success_threshold``: Number of consecutive successes before decreasing interval (default: ``5``)
+- ``ewma_alpha``: Smoothing factor for latency EWMA, between 0 and 1 (default: ``0.3``)
+- ``respect_retry_after``: Use ``Retry-After`` header as override (default: ``True``)
+- ``inherit_retry_triggers``: Inherit trigger statuses/exceptions from :ref:`retry config <retry-config>` (default: ``True``)
+
+**Behavior:**
+
+When a request fails with a trigger status (429, 500, 502, 503, 504, etc.) or exception (timeout):
+
+1. If ``Retry-After`` header present and ``respect_retry_after=True`` → use that value
+2. Otherwise, multiply current interval by ``increase_factor`` (e.g., 0.1s → 0.2s → 0.4s)
+
+When requests succeed consistently:
+
+1. After ``success_threshold`` consecutive successes, subtract ``decrease_step`` from interval
+2. This gradually probes for increased capacity (e.g., 0.4s → 0.39s → 0.38s)
+
+**Example scenario:**
+
+.. code-block:: text
+
+   Time    Event                  Interval
+   ----    -----                  --------
+   0.0s    Start                  0.100s (default)
+   0.1s    Request #1 → 429       0.100s → 0.200s (×2)
+   0.3s    Request #2 → 503       0.200s → 0.400s (×2)
+   0.7s    Request #3 → 200 OK    0.400s (no change, count=1)
+   1.1s    Request #4 → 200 OK    0.400s (no change, count=2)
+   ...     (3 more successes)     ...
+   2.7s    Request #8 → 200 OK    0.400s → 0.390s (count≥5, -0.01)
+   3.1s    Request #9 → 200 OK    0.390s (no change, count=1)
+
+**Integration with retry middleware:**
+
+When both adaptive rate limiting and :ref:`retry middleware <retry-config>` are enabled:
+
+- **Retry middleware** handles retry logic (attempts, backoff)
+- **Adaptive rate limiter** adjusts the *sending rate* to prevent future failures
+- Trigger statuses/exceptions are shared when ``inherit_retry_triggers=True``
+
+This prevents the system from repeatedly hammering an overloaded server while retries are ongoing.
 
 .. _retry-config:
 
@@ -209,14 +291,6 @@ API
    :members:
    :no-index:
 
-.. autoclass:: aioscraper.config.models.RequestRetryConfig
-   :members:
-   :no-index:
-
-.. autoclass:: aioscraper.config.models.RateLimitConfig
-   :members:
-   :no-index:
-
 .. autoclass:: aioscraper.config.models.SchedulerConfig
    :members:
    :no-index:
@@ -226,6 +300,18 @@ API
    :no-index:
 
 .. autoclass:: aioscraper.config.models.PipelineConfig
+   :members:
+   :no-index:
+
+.. autoclass:: aioscraper.config.models.RequestRetryConfig
+   :members:
+   :no-index:
+
+.. autoclass:: aioscraper.config.models.RateLimitConfig
+   :members:
+   :no-index:
+
+.. autoclass:: aioscraper.config.models.AdaptiveRateLimitConfig
    :members:
    :no-index:
 

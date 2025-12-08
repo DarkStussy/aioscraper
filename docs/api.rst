@@ -24,6 +24,7 @@ Configuration
 .. autoclass:: aioscraper.config.models.HttpBackend
 .. autoclass:: aioscraper.config.models.BackoffStrategy
 .. autoclass:: aioscraper.config.models.RateLimitConfig
+.. autoclass:: aioscraper.config.models.AdaptiveRateLimitConfig
 .. autofunction:: aioscraper.config.loader.load_config
 
 
@@ -69,6 +70,9 @@ Execution
 .. autoclass:: aioscraper.core.request_manager.RequestManager
 .. autoclass:: aioscraper.core.rate_limiter.RateLimiterManager
 .. autoclass:: aioscraper.core.rate_limiter.RequestGroup
+.. autoclass:: aioscraper.core.rate_limiter.AdaptiveStrategy
+.. autoclass:: aioscraper.core.rate_limiter.RequestOutcome
+.. autoclass:: aioscraper.core.rate_limiter.AdaptiveMetrics
 
 Holders
 -------

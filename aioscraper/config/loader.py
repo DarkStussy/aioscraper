@@ -35,6 +35,7 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
     """
     default_config = Config()
     default_retry = default_config.session.retry
+    default_adaptive_rate_limit = AdaptiveRateLimitConfig()
 
     if concurrent_requests is None:
         concurrent_requests = env_parser.parse_int(
@@ -93,43 +94,43 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
                 cleanup_timeout=env_parser.parse_float(
                     "SESSION_RATE_LIMIT_CLEANUP_TIMEOUT", default_config.session.rate_limit.cleanup_timeout
                 ),
-                adaptive=AdaptiveRateLimitConfig(
-                    enabled=env_parser.parse_bool(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_ENABLED",
-                        default_config.session.rate_limit.adaptive.enabled,
-                    ),
-                    min_interval=env_parser.parse_float(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_MIN_INTERVAL",
-                        default_config.session.rate_limit.adaptive.min_interval,
-                    ),
-                    max_interval=env_parser.parse_float(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_MAX_INTERVAL",
-                        default_config.session.rate_limit.adaptive.max_interval,
-                    ),
-                    increase_factor=env_parser.parse_float(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_INCREASE_FACTOR",
-                        default_config.session.rate_limit.adaptive.increase_factor,
-                    ),
-                    decrease_step=env_parser.parse_float(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_DECREASE_STEP",
-                        default_config.session.rate_limit.adaptive.decrease_step,
-                    ),
-                    success_threshold=env_parser.parse_int(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_SUCCESS_THRESHOLD",
-                        default_config.session.rate_limit.adaptive.success_threshold,
-                    ),
-                    ewma_alpha=env_parser.parse_float(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_EWMA_ALPHA",
-                        default_config.session.rate_limit.adaptive.ewma_alpha,
-                    ),
-                    respect_retry_after=env_parser.parse_bool(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_RESPECT_RETRY_AFTER",
-                        default_config.session.rate_limit.adaptive.respect_retry_after,
-                    ),
-                    inherit_retry_triggers=env_parser.parse_bool(
-                        "SESSION_RATE_LIMIT_ADAPTIVE_INHERIT_RETRY_TRIGGERS",
-                        default_config.session.rate_limit.adaptive.inherit_retry_triggers,
-                    ),
+                adaptive=(
+                    AdaptiveRateLimitConfig(
+                        min_interval=env_parser.parse_float(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_MIN_INTERVAL",
+                            default_adaptive_rate_limit.min_interval,
+                        ),
+                        max_interval=env_parser.parse_float(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_MAX_INTERVAL",
+                            default_adaptive_rate_limit.max_interval,
+                        ),
+                        increase_factor=env_parser.parse_float(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_INCREASE_FACTOR",
+                            default_adaptive_rate_limit.increase_factor,
+                        ),
+                        decrease_step=env_parser.parse_float(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_DECREASE_STEP",
+                            default_adaptive_rate_limit.decrease_step,
+                        ),
+                        success_threshold=env_parser.parse_int(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_SUCCESS_THRESHOLD",
+                            default_adaptive_rate_limit.success_threshold,
+                        ),
+                        ewma_alpha=env_parser.parse_float(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_EWMA_ALPHA",
+                            default_adaptive_rate_limit.ewma_alpha,
+                        ),
+                        respect_retry_after=env_parser.parse_bool(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_RESPECT_RETRY_AFTER",
+                            default_adaptive_rate_limit.respect_retry_after,
+                        ),
+                        inherit_retry_triggers=env_parser.parse_bool(
+                            "SESSION_RATE_LIMIT_ADAPTIVE_INHERIT_RETRY_TRIGGERS",
+                            default_adaptive_rate_limit.inherit_retry_triggers,
+                        ),
+                    )
+                    if env_parser.parse_bool("SESSION_RATE_LIMIT_ADAPTIVE_ENABLED", False)
+                    else None
                 ),
             ),
         ),

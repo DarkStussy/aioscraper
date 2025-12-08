@@ -20,6 +20,7 @@
 - Async-first core with pluggable HTTP backends (`aiohttp`/`httpx`) and `aiojobs` scheduling
 - Declarative flow: requests → callbacks → pipelines, with middleware hooks
 - Priority queueing plus configurable concurrency
+- Adaptive rate limiting with EWMA + AIMD algorithm - automatically backs off on server overload
 - Small, explicit API that is easy to test and compose
 
 ## Getting started

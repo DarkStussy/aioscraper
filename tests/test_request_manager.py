@@ -4,8 +4,7 @@ from typing import Any
 
 import pytest
 
-from aioscraper.config import SchedulerConfig
-from aioscraper.config.models import RateLimitConfig, RequestRetryConfig
+from aioscraper.config import SchedulerConfig, RateLimitConfig, RequestRetryConfig
 from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.core.request_manager import RequestManager

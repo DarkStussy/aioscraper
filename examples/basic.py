@@ -26,7 +26,7 @@ class Page:
 @scraper.pipeline(Page)
 class PrintTitlePipeline:
     async def put_item(self, item: Page) -> Page:
-        print(f"[page] {item.url} — {item.title}")
+        print(f"[page] {item.url} - {item.title}")
         return item
 
     async def close(self): ...

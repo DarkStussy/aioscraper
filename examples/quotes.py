@@ -38,7 +38,7 @@ class CollectQuotes:
     async def put_item(self, item: Quote) -> Quote:
         self.counter += 1
         tag_list = ", ".join(item.tags) if item.tags else "no tags"
-        print(f"“{item.text}” — {item.author} [{tag_list}]")
+        print(f"“{item.text}” - {item.author} [{tag_list}]")
         return item
 
     async def close(self):

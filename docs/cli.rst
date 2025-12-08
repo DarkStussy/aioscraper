@@ -67,35 +67,95 @@ This gives you the same signal handling and graceful shutdown behavior as the CL
 Configuration
 -------------
 
-Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.models.Config>` defaults. 
+Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.models.Config>` defaults.
 If the resolved :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
+
+See :doc:`/concepts/config` for detailed configuration options and examples.
+
+CLI flags
+~~~~~~~~~
 
 - ``--concurrent-requests``: Max concurrent requests (overrides ``SCHEDULER_CONCURRENT_REQUESTS``).
 - ``--pending-requests``: Pending requests to keep queued (overrides ``SCHEDULER_PENDING_REQUESTS``).
 
-Supported environment variables:
+Environment variables
+~~~~~~~~~~~~~~~~~~~~~
 
-- ``SESSION_REQUEST_TIMEOUT``: Request timeout (seconds).
-- ``SESSION_SSL``: ``true``/``false`` to toggle verification, or a path to a CA bundle for custom certificates.
-- ``SESSION_PROXY``: Default proxy for the HTTP client (string ``http://user:pass@host:port`` or JSON ``{"http": "...", "https": "..."}``).
-- ``SESSION_HTTP_BACKEND``: Force ``aiohttp`` or ``httpx`` regardless of what is installed (falls back automatically otherwise).
-- ``SESSION_RETRY_ENABLED``: ``true``/``false`` to toggle the built-in retry middleware.
-- ``SESSION_RETRY_ATTEMPTS``: Maximum number of retry attempts per request.
-- ``SESSION_RETRY_BACKOFF``: Backoff strategy for retries (e.g. constant, linear, exponential, exponential_jitter).
-- ``SESSION_RETRY_BASE_DELAY``: Base delay between retries in seconds.
-- ``SESSION_RETRY_MAX_DELAY``: Maximum delay between retries in seconds.
-- ``SESSION_RETRY_STATUSES``: Comma-separated list of HTTP status codes that trigger retries (e.g., ``500,502``).
-- ``SESSION_RETRY_EXCEPTIONS``: Comma-separated list of fully qualified exception names to retry on (e.g., ``asyncio.TimeoutError``).
-- ``SESSION_RETRY_MIDDLEWARE_PRIORITY``: Override the retry middleware priority (lower runs earlier).
-- ``SESSION_RETRY_MIDDLEWARE_STOP``: ``true``/``false`` to raise ``StopRequestProcessing`` after re-queueing.
-- ``SESSION_RATE_LIMIT_ENABLED``: ``true``/``false`` to enable rate limiting (default: ``false``).
-- ``SESSION_RATE_LIMIT_INTERVAL``: Default interval in seconds between requests per group (default: ``0.0``).
-- ``SESSION_RATE_LIMIT_CLEANUP_TIMEOUT``: Timeout in seconds for cleaning up inactive rate limit groups (default: ``60.0``).
-- ``SCHEDULER_CONCURRENT_REQUESTS``: Max concurrent requests.
-- ``SCHEDULER_PENDING_REQUESTS``: Pending requests to maintain.
-- ``SCHEDULER_CLOSE_TIMEOUT``: Scheduler shutdown timeout (seconds).
-- ``EXECUTION_TIMEOUT``: Global execution timeout (seconds).
-- ``EXECUTION_SHUTDOWN_TIMEOUT``: Graceful shutdown timeout (seconds).
-- ``EXECUTION_SHUTDOWN_CHECK_INTERVAL``: Interval between shutdown checks (seconds).
-- ``EXECUTION_LOG_LEVEL``: Log level name used when timeouts occur (e.g., ``WARNING``, ``ERROR``).
-- ``PIPELINE_STRICT``: Whether to raise when an item references a missing pipeline.
+All environment variables map directly to fields in :class:`Config <aioscraper.config.models.Config>` and its nested configuration classes.
+The CLI reads these variables automatically. For programmatic use, call :func:`load_config <aioscraper.config.loader.load_config>` to read environment variables and construct a ``Config`` instance.
+
+:class:`SessionConfig <aioscraper.config.models.SessionConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+HTTP session and client behavior.
+
+- ``SESSION_REQUEST_TIMEOUT`` → ``timeout``
+- ``SESSION_SSL`` → ``ssl``
+- ``SESSION_PROXY`` → ``proxy`` (:ref:`docs <proxy-config>`)
+- ``SESSION_HTTP_BACKEND`` → ``http_backend``
+
+:class:`RequestRetryConfig <aioscraper.config.models.RequestRetryConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Retry middleware behavior (:ref:`docs <retry-config>`).
+
+- ``SESSION_RETRY_ENABLED`` → ``enabled``
+- ``SESSION_RETRY_ATTEMPTS`` → ``attempts``
+- ``SESSION_RETRY_BACKOFF`` → ``backoff``
+- ``SESSION_RETRY_BASE_DELAY`` → ``base_delay``
+- ``SESSION_RETRY_MAX_DELAY`` → ``max_delay``
+- ``SESSION_RETRY_STATUSES`` → ``statuses``
+- ``SESSION_RETRY_EXCEPTIONS`` → ``exceptions``
+- ``SESSION_RETRY_MIDDLEWARE_PRIORITY`` → ``middleware.priority``
+- ``SESSION_RETRY_MIDDLEWARE_STOP`` → ``middleware.stop_processing``
+
+:class:`RateLimitConfig <aioscraper.config.models.RateLimitConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Rate limiting behavior (:ref:`docs <rate-limit-config>`).
+
+- ``SESSION_RATE_LIMIT_ENABLED`` → ``enabled``
+- ``SESSION_RATE_LIMIT_INTERVAL`` → ``default_interval``
+- ``SESSION_RATE_LIMIT_CLEANUP_TIMEOUT`` → ``cleanup_timeout``
+
+:class:`AdaptiveRateLimitConfig <aioscraper.config.models.AdaptiveRateLimitConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Adaptive rate limiting (EWMA + AIMD) (:ref:`docs <adaptive-rate-limiting>`).
+
+Set ``SESSION_RATE_LIMIT_ADAPTIVE_ENABLED=true`` to enable and configure other parameters.
+
+- ``SESSION_RATE_LIMIT_ADAPTIVE_MIN_INTERVAL`` → ``min_interval``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_MAX_INTERVAL`` → ``max_interval``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_INCREASE_FACTOR`` → ``increase_factor``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_DECREASE_STEP`` → ``decrease_step``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_SUCCESS_THRESHOLD`` → ``success_threshold``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_EWMA_ALPHA`` → ``ewma_alpha``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_RESPECT_RETRY_AFTER`` → ``respect_retry_after``
+- ``SESSION_RATE_LIMIT_ADAPTIVE_INHERIT_RETRY_TRIGGERS`` → ``inherit_retry_triggers``
+
+:class:`SchedulerConfig <aioscraper.config.models.SchedulerConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Request scheduler behavior.
+
+- ``SCHEDULER_CONCURRENT_REQUESTS`` → ``concurrent_requests``
+- ``SCHEDULER_PENDING_REQUESTS`` → ``pending_requests``
+- ``SCHEDULER_CLOSE_TIMEOUT`` → ``close_timeout``
+
+:class:`ExecutionConfig <aioscraper.config.models.ExecutionConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Execution and shutdown behavior.
+
+- ``EXECUTION_TIMEOUT`` → ``timeout``
+- ``EXECUTION_SHUTDOWN_TIMEOUT`` → ``shutdown_timeout``
+- ``EXECUTION_SHUTDOWN_CHECK_INTERVAL`` → ``shutdown_check_interval``
+- ``EXECUTION_LOG_LEVEL`` → ``log_level``
+
+:class:`PipelineConfig <aioscraper.config.models.PipelineConfig>`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pipeline dispatching behavior.
+
+- ``PIPELINE_STRICT`` → ``strict``

@@ -3,7 +3,7 @@ Quickstart
 
 Get running in minutes. You'll build a tiny scraper, see the full request/response flow, and run it from the CLI.
 
-Before you start, install ``aioscraper`` — see :doc:`installation` for requirements and options.
+Before you start, install ``aioscraper`` - see :doc:`installation` for requirements and options.
 
 Create your first scraper
 -------------------------
