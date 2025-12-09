@@ -9,7 +9,6 @@ Run with the CLI:
 """
 
 from dataclasses import dataclass
-from enum import StrEnum, auto
 from typing import Any
 
 from aioscraper import AIOScraper
@@ -17,10 +16,6 @@ from aioscraper.types import Pipeline, Request, Response, SendRequest
 
 
 scraper = AIOScraper()
-
-
-class PipelineType(StrEnum):
-    REPOS = auto()
 
 
 @dataclass(slots=True)
