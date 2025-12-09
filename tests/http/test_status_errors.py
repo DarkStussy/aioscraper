@@ -38,7 +38,7 @@ async def test_status_errors_raise_http_exception(mock_aioscraper: MockAIOScrape
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.seen_response is None
     assert isinstance(scraper.seen_error, HTTPException)
@@ -54,7 +54,7 @@ async def test_status_ok_calls_callback(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.seen_error is None
     assert scraper.seen_response is not None

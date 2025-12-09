@@ -44,7 +44,7 @@ async def test_request_timeout_triggers_errback(mock_aioscraper: MockAIOScraper)
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert isinstance(scraper.error, (ReadTimeout, asyncio.TimeoutError))
     assert scraper.result is None
@@ -58,7 +58,7 @@ async def test_no_timeout_succeeds(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.result == "ok"
     assert scraper.error is None
@@ -78,7 +78,7 @@ async def test_global_timeout_from_config(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.config = Config(session=SessionConfig(timeout=0.01))
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.result is None
     assert isinstance(scraper.error, (TimeoutException, asyncio.TimeoutError))

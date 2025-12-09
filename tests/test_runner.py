@@ -14,6 +14,7 @@ def make_scraper_mock() -> AsyncMock:
     scraper.exited = False
     scraper.started = False
     scraper.cancelled = False
+    scraper.cancelled_by_timeout = False
     scraper._stop = asyncio.Event()
 
     async def aenter():
@@ -23,17 +24,20 @@ def make_scraper_mock() -> AsyncMock:
     async def aexit(exc_type, exc_val, exc_tb):
         scraper.exited = True
 
-    async def start():
+    async def wait():
         scraper.started = True
         try:
-            await scraper._stop.wait()
+            await asyncio.wait_for(scraper._stop.wait(), scraper.config.execution.timeout)
+        except asyncio.TimeoutError:
+            scraper.cancelled = True
+            scraper.cancelled_by_timeout = True
         except asyncio.CancelledError:
             scraper.cancelled = True
             raise
 
     scraper.__aenter__.side_effect = aenter
     scraper.__aexit__.side_effect = aexit
-    scraper.start.side_effect = start
+    scraper.wait.side_effect = wait
     scraper.stop = lambda: scraper._stop.set()
     return scraper
 
@@ -61,7 +65,7 @@ async def test_shutdown_event_cancels_scraper():
 
 
 @pytest.mark.asyncio
-async def test_execution_timeout_cancels_scraper(caplog):
+async def test_execution_timeout_cancels_scraper():
     scraper = make_scraper_mock()
     scraper.config = Config(execution=ExecutionConfig(timeout=0.02, shutdown_timeout=0.01))
     shutdown = asyncio.Event()
@@ -69,7 +73,7 @@ async def test_execution_timeout_cancels_scraper(caplog):
     await _run_scraper_without_force_exit(scraper, shutdown)
 
     assert scraper.cancelled is True
-    assert any("execution timeout" in rec.getMessage().lower() for rec in caplog.records)
+    assert scraper.cancelled_by_timeout is True
 
 
 @pytest.mark.asyncio

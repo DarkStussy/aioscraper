@@ -80,7 +80,7 @@ async def test_middleware(
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.response == {"status": "OK"}
     assert scraper.outer is True
@@ -115,7 +115,7 @@ async def test_middleware_priority_controls_execution_order(mock_aioscraper: Moc
     mock_aioscraper(scrape)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert order == ["high", "low"]
 
@@ -148,7 +148,7 @@ async def test_stop_middleware_processing_short_circuits_chain(
     mock_aioscraper(scrape)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
@@ -186,7 +186,7 @@ async def test_stop_request_processing_short_circuits_everything(
     mock_aioscraper(scrape)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert calls == ["first"]
 
@@ -215,7 +215,7 @@ async def test_exception_middleware_stop_processing_skips_rest_and_errback(mock_
     mock_aioscraper(scrape)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
@@ -246,7 +246,7 @@ async def test_exception_middleware_stop_request_processing_skips_errback(mock_a
     mock_aioscraper(scrape)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 

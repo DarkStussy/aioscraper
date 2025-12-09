@@ -57,7 +57,7 @@ async def test_streamed_and_chunked_bodies_are_fully_read(mock_aioscraper: MockA
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 

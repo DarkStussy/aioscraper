@@ -47,10 +47,17 @@ class ScraperExecutor:
 
     async def run(self):
         "Start the scraping process."
+        self._request_manager.start_listening()
         try:
             await asyncio.gather(
                 *[
-                    scraper(**get_func_kwargs(scraper, send_request=self._request_manager.sender, **self._dependencies))
+                    scraper(
+                        **get_func_kwargs(
+                            scraper,
+                            send_request=self._request_manager.sender,
+                            **self._dependencies,
+                        )
+                    )
                     for scraper in self._scrapers
                 ]
             )

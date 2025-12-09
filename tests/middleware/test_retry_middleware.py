@@ -336,7 +336,7 @@ async def test_retry_middleware_integration(mock_aioscraper: MockAIOScraper):
     )
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.callbacks == 1
     assert scraper.errbacks == 0
@@ -366,7 +366,7 @@ async def test_retry_middleware_exhausts_attempts(mock_aioscraper: MockAIOScrape
     )
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.callbacks == 0
     assert scraper.errbacks == 1

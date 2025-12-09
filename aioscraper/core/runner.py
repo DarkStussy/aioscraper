@@ -36,49 +36,28 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
 
 
 async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: asyncio.Event):
-    "Run scraper with shutdown/timeout handling, ignoring force-exit logic."
-    config = scraper.config
-    assert config is not None
-
-    execution_timeout = config.execution.timeout
-
+    "Run scraper with shutdown handling, ignoring force-exit logic."
     shutdown_task = asyncio.create_task(shutdown_event.wait())
-    timeout_task = asyncio.create_task(asyncio.sleep(execution_timeout)) if execution_timeout is not None else None
 
     async with scraper:
-        scraper_task = asyncio.create_task(scraper.start())
+        scraper_task = asyncio.create_task(scraper.wait())
         wait_set = {scraper_task, shutdown_task}
-        if timeout_task is not None:
-            wait_set.add(timeout_task)
 
         done, _ = await asyncio.wait(wait_set, return_when=asyncio.FIRST_COMPLETED)
 
         if scraper_task in done:
             shutdown_task.cancel()
-            if timeout_task is not None:
-                timeout_task.cancel()
 
             with suppress(asyncio.CancelledError):
                 await shutdown_task
-                if timeout_task is not None:
-                    await timeout_task
 
             return await scraper_task
 
-        if timeout_task is not None and timeout_task in done:
-            logger.log(
-                level=config.execution.log_level,
-                msg=f"Execution timeout reached ({execution_timeout}s), cancelling tasks",
-            )
-            shutdown_task.cancel()
-        else:
-            logger.warning("Shutdown requested, cancelling tasks")
-            if timeout_task is not None:
-                timeout_task.cancel()
+        logger.warning("Shutdown requested, cancelling tasks")
 
         scraper_task.cancel()
         try:
-            await asyncio.wait_for(scraper_task, timeout=config.execution.shutdown_timeout)
+            await asyncio.wait_for(scraper_task, timeout=scraper.config.execution.shutdown_timeout)
         except asyncio.TimeoutError:
             logger.error("Shutdown timeout expired")
         except asyncio.CancelledError:
@@ -86,8 +65,6 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: a
         finally:
             with suppress(asyncio.CancelledError):
                 await shutdown_task
-                if timeout_task is not None:
-                    await timeout_task
 
 
 async def _run_scraper(

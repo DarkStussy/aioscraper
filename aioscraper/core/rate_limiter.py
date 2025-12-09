@@ -250,8 +250,7 @@ class RequestGroup:
         self._schedule = schedule
         self._on_finished = on_finished
         self._queue: asyncio.PriorityQueue[PRequest] = asyncio.PriorityQueue()
-        self._task: asyncio.Task[None] = asyncio.create_task(self._worker())
-        self._task.add_done_callback(self._on_task_done_factory())
+        self._task: asyncio.Task[None] | None = None
 
     @property
     def active(self) -> bool:
@@ -263,6 +262,13 @@ class RequestGroup:
         "Get the current interval for this group."
         return self._interval
 
+    @property
+    def worker_alive(self) -> bool:
+        if self._task is None:
+            return False
+
+        return not self._task.done() and not self._task.cancelled()
+
     def set_intervals(self, interval: float, cleanup_timeout: float):
         "Update group interval and cleanup timeout."
         self._interval = interval
@@ -272,13 +278,23 @@ class RequestGroup:
         "Add a request to this group's processing queue."
         await self._queue.put(pr)
 
+    def start_listening(self):
+        if self._task is not None:
+            return
+
+        self._task = asyncio.create_task(self._listen_queue())
+        self._task.add_done_callback(self._on_task_done_factory())
+
     async def close(self):
         "Cancel the worker task and wait for graceful shutdown."
+        if self._task is None:
+            return
+
         self._task.cancel()
         with suppress(asyncio.CancelledError):
             await self._task
 
-    async def _worker(self):
+    async def _listen_queue(self):
         try:
             while True:
                 try:
@@ -466,13 +482,15 @@ class RateLimiterManager:
         await asyncio.sleep(self._default_interval)
 
     def _create_group(self, key: Hashable, interval: float) -> RequestGroup:
-        return RequestGroup(
+        group = RequestGroup(
             key=key,
             interval=interval,
             cleanup_timeout=self._cleanup_timeout,
             schedule=self._schedule,
             on_finished=self._on_group_finished,
         )
+        group.start_listening()
+        return group
 
     def _on_group_finished(self, key: Hashable, group: RequestGroup):
         current = self._groups.get(key)

@@ -17,18 +17,12 @@ from .._helpers.module import import_exception
 from .. import env_parser
 
 
-def load_config(concurrent_requests: int | None = None, pending_requests: int | None = None) -> Config:
-    """Load configuration from environment variables with optional CLI overrides.
+def load_config() -> Config:
+    """Load configuration from environment variables.
 
     Reads configuration from environment variables prefixed with `SESSION`, `SCHEDULER`,
     `EXECUTION`, and `PIPELINE`. When parameters are None, values are read from
     corresponding environment variables. Defaults are used when env vars are not set.
-
-    Args:
-        concurrent_requests (int | None): Override for `SCHEDULER_CONCURRENT_REQUESTS`.
-            If None, reads from environment or uses default (64).
-        pending_requests (int | None): Override for `SCHEDULER_PENDING_REQUESTS`.
-            If None, reads from environment or uses default (1).
 
     Returns:
         Config: Complete configuration object with all settings resolved.
@@ -36,18 +30,6 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
     default_config = Config()
     default_retry = default_config.session.retry
     default_adaptive_rate_limit = AdaptiveRateLimitConfig()
-
-    if concurrent_requests is None:
-        concurrent_requests = env_parser.parse_int(
-            "SCHEDULER_CONCURRENT_REQUESTS",
-            default_config.scheduler.concurrent_requests,
-        )
-
-    if pending_requests is None:
-        pending_requests = env_parser.parse_int(
-            "SCHEDULER_PENDING_REQUESTS",
-            default_config.scheduler.pending_requests,
-        )
 
     if (raw_ssl_value := env_parser.parse_str("SESSION_SSL", default=None)) is not None:
         if raw_ssl_value.lower() not in {"true", "false"}:
@@ -135,8 +117,14 @@ def load_config(concurrent_requests: int | None = None, pending_requests: int | 
             ),
         ),
         scheduler=SchedulerConfig(
-            concurrent_requests=concurrent_requests,
-            pending_requests=pending_requests,
+            concurrent_requests=env_parser.parse_int(
+                "SCHEDULER_CONCURRENT_REQUESTS",
+                default_config.scheduler.concurrent_requests,
+            ),
+            pending_requests=env_parser.parse_int(
+                "SCHEDULER_PENDING_REQUESTS",
+                default_config.scheduler.pending_requests,
+            ),
             close_timeout=env_parser.parse_float("SCHEDULER_CLOSE_TIMEOUT", default_config.scheduler.close_timeout),
         ),
         execution=ExecutionConfig(

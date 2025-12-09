@@ -36,7 +36,7 @@ async def test_cookies_passed_to_server(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
@@ -54,7 +54,7 @@ async def test_cookies_received_from_server(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 

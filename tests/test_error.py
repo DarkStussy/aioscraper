@@ -30,7 +30,7 @@ async def test_error(mock_aioscraper: MockAIOScraper):
     scraper = Scraper()
     mock_aioscraper(scraper)
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.status == 500
     assert scraper.response_data == response_data
@@ -60,7 +60,7 @@ async def test_callback_error_triggers_errback(mock_aioscraper: MockAIOScraper):
     scraper = CallbackErrorScraper()
     mock_aioscraper(scraper)
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.exc_message == "parse failed"
     assert scraper.request_url == "https://api.test.com/v2"
@@ -91,7 +91,7 @@ async def test_errback_receives_cb_kwargs(mock_aioscraper: MockAIOScraper):
     scraper = ErrbackKwargsScraper()
     mock_aioscraper(scraper)
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.status == 503
     assert scraper.meta == "value"

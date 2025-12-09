@@ -31,7 +31,7 @@ async def test_request_priority_order(mock_aioscraper: MockAIOScraper):
     scraper = PriorityScraper()
     mock_aioscraper(scraper)
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     assert scraper.order == [1, 2, 3]
     mock_aioscraper.server.assert_all_routes_handled()

@@ -149,7 +149,7 @@ async def test_pipeline(
         add_middleware(mock_aioscraper, "pre", pre_processing_middleware)
         add_middleware(mock_aioscraper, "post", post_processing_middleware)
         add_global_middleware(mock_aioscraper, global_middleware_factory)
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 

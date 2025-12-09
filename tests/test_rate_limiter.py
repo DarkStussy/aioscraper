@@ -50,6 +50,7 @@ class TestRequestGroup:
             schedule=schedule_with_timing,
             on_finished=on_finished,
         )
+        group.start_listening()
 
         pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
         pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
@@ -88,6 +89,7 @@ class TestRequestGroup:
             schedule=mock_schedule,
             on_finished=on_finished,
         )
+        group.start_listening()
 
         pr = PRequest(priority=1, request=Request(url="https://example.com/idle"))
         await group.put(pr)
@@ -115,14 +117,13 @@ class TestRequestGroup:
             schedule=mock_schedule,
             on_finished=on_finished,
         )
+        group.start_listening()
 
-        assert not group._task.done()
+        assert group.worker_alive
 
         await group.close()
 
-        # Verify task is cancelled
-        assert group._task.done()
-        assert group._task.cancelled()
+        assert not group.worker_alive
 
     @pytest.mark.asyncio
     async def test_request_group_handles_schedule_error(self, captured_groups):
@@ -144,6 +145,7 @@ class TestRequestGroup:
             schedule=failing_schedule,
             on_finished=on_finished,
         )
+        group.start_listening()
 
         pr = PRequest(priority=1, request=Request(url="https://example.com/fail"))
         await group.put(pr)
@@ -152,7 +154,7 @@ class TestRequestGroup:
 
         # Error should be logged but group should continue
         assert len(errors_logged) == 1
-        assert not group._task.done()
+        assert group.worker_alive
 
         await group.close()
 
@@ -168,6 +170,7 @@ class TestRequestGroup:
             schedule=mock_schedule,
             on_finished=on_finished,
         )
+        group.start_listening()
 
         assert not group.active
 
@@ -195,6 +198,7 @@ class TestRequestGroup:
             schedule=mock_schedule,
             on_finished=on_group_finished_factory(),
         )
+        group.start_listening()
 
         # cleanup_timeout should be adjusted to at least 2x interval
         assert group._cleanup_timeout >= interval * 2

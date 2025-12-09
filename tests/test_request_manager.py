@@ -74,16 +74,14 @@ class FixedStatusSession(BaseSession):
     def make_request(self, request: Request) -> BaseRequestContextManager:
         return FixedStatusRequestContextManager(request, status=self._status, body=self._body)
 
-    async def close(self):  # pragma: no cover - nothing to clean up
-        pass
+    async def close(self): ...
 
 
 class NoopSession(BaseSession):
     def make_request(self, request: Request) -> BaseRequestContextManager:
         raise AssertionError("should not be called when validation fails")
 
-    async def close(self):  # pragma: no cover - nothing to clean up
-        pass
+    async def close(self): ...
 
 
 @pytest.fixture
@@ -94,7 +92,7 @@ def middleware_holder() -> MiddlewareHolder:
 @pytest.fixture
 def base_manager_factory(middleware_holder: MiddlewareHolder):
     def factory(*, session_factory, default_interval=0.0):
-        return RequestManager(
+        manager = RequestManager(
             scheduler_config=SchedulerConfig(),
             rate_limit_config=RateLimitConfig(default_interval=default_interval),
             retry_config=RequestRetryConfig(),
@@ -103,6 +101,8 @@ def base_manager_factory(middleware_holder: MiddlewareHolder):
             dependencies={},
             middleware_holder=middleware_holder,
         )
+        manager.start_listening()
+        return manager
 
     return factory
 
@@ -123,6 +123,7 @@ async def test_errback_failure_wrapped_in_exception_group():
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     with pytest.raises(ExceptionGroup) as excinfo:
         await manager._handle_exception(
@@ -291,6 +292,7 @@ async def test_dependencies_injected_into_callback():
         dependencies={"custom_dep": "injected_value"},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     await manager._send_request(Request(url="https://api.test.com/test", callback=callback))
 
@@ -321,6 +323,7 @@ async def test_dependencies_injected_into_middleware():
         dependencies={"custom_dep": "middleware_value"},
         middleware_holder=middleware_holder,
     )
+    manager.start_listening()
 
     await manager._send_request(Request(url="https://api.test.com/test"))
 
@@ -348,6 +351,7 @@ async def test_send_request_available_in_dependencies():
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     await manager._send_request(Request(url="https://api.test.com/test", callback=callback))
 
@@ -369,6 +373,7 @@ async def test_queue_processes_requests():
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     assert manager._ready_queue.empty()
 
@@ -411,6 +416,7 @@ async def test_outer_middleware_execution_in_listen_queue():
         dependencies={},
         middleware_holder=middleware_holder,
     )
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
 
@@ -448,6 +454,7 @@ async def test_outer_middleware_exception_is_logged():
         dependencies={},
         middleware_holder=middleware_holder,
     )
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
 
@@ -471,6 +478,7 @@ async def test_exception_logged_when_no_errback(caplog):
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     # Should not raise, just log
     await manager._send_request(Request(url="https://api.test.com/test"))
@@ -499,6 +507,7 @@ async def test_url_with_params_is_parsed():
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     await manager._send_request(
         Request(url="https://api.test.com/test", params={"key": "value", "foo": "bar"}, callback=callback)
@@ -529,6 +538,7 @@ async def test_close_stops_queue_processing():
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
+    manager.start_listening()
 
     await manager.sender(Request(url="https://api.test.com/test", callback=callback))
     await asyncio.wait_for(finished.wait(), timeout=1.0)

@@ -33,7 +33,7 @@ async def test_headers_passed_to_server(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
@@ -52,7 +52,7 @@ async def test_response_headers_received(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 

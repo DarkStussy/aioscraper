@@ -473,7 +473,7 @@ async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper)
     )
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
@@ -508,6 +508,5 @@ async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper)
         f"Expected recovery: max_failure={max_failure_interval:.3f}, " f"avg_success={avg_success_interval:.3f}"
     )
 
-    # Print diagnostics for visibility
     print(f"\nIntervals during failures: {[f'{i:.3f}' for i in failure_intervals]}")
     print(f"Intervals during successes: {[f'{i:.3f}' for i in success_intervals]}")

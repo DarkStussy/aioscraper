@@ -87,7 +87,7 @@ class RequestManager:
         )
         self._wait = True
         self._completed = False
-        self._task = asyncio.create_task(self._listen_queue())
+        self._task: asyncio.Task[None] | None = None
 
     @property
     def sender(self) -> SendRequest:
@@ -211,7 +211,12 @@ class RequestManager:
             await asyncio.sleep(self._shutdown_check_interval)
 
     async def shutdown(self):
-        await self._task
+        self._wait = False
+        if self._task is not None:
+            await self._task
+
+    def start_listening(self):
+        self._task = asyncio.create_task(self._listen_queue())
 
     async def _listen_queue(self):
         """Process requests from the queue using the rate limiter."""

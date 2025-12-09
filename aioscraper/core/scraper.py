@@ -1,4 +1,5 @@
-from contextlib import AsyncExitStack, asynccontextmanager
+import asyncio
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from logging import getLogger
 from types import TracebackType
 from typing import AsyncIterator, Callable, Self, Type, Any
@@ -38,7 +39,7 @@ class AIOScraper:
         sessionmaker_factory: SessionMakerFactory | None = None,
     ):
         self.scrapers = [*scrapers]
-        self.config = config
+        self.config = config or load_config()
         self.dependencies: dict[str, Any] = {}
 
         self._sessionmaker_factory = sessionmaker_factory or get_sessionmaker
@@ -53,7 +54,7 @@ class AIOScraper:
         self._middleware_holder = MiddlewareHolder()
         self._pipeline_holder = PipelineHolder()
 
-        self._executor: ScraperExecutor | None = None
+        self._task: asyncio.Task[None] | None = None
 
     def __call__(self, scraper: Scraper) -> Scraper:
         "Add a scraper callable and return it for decorator use."
@@ -80,6 +81,7 @@ class AIOScraper:
         return self._pipeline_holder
 
     async def __aenter__(self) -> Self:
+        self.start()
         await self._lifespan_exit_stack.enter_async_context(self._lifespan(self))
         return self
 
@@ -94,29 +96,63 @@ class AIOScraper:
         finally:
             await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
-    async def start(self):
+    def start(self):
+        "Start the scraper and run it in the background."
+        if self._task is None:
+            self._task = asyncio.create_task(self._run())
+
+    async def _run(self):
         """Initialize and run the scraper with the configured settings."""
-        config = self.config or load_config()
-        self._install_builtin_middlewares(config)
-        self._executor = ScraperExecutor(
-            config=config,
+        self._install_builtin_middlewares(self.config)
+        executor = ScraperExecutor(
+            config=self.config,
             scrapers=self.scrapers,
             dependencies=self.dependencies,
             middleware_holder=self._middleware_holder,
             pipeline_dispatcher=PipelineDispatcher(
-                config.pipeline,
+                self.config.pipeline,
                 pipelines=self._pipeline_holder.pipelines,
                 global_middlewares=self._pipeline_holder.global_middlewares,
                 dependencies=self.dependencies,
             ),
-            sessionmaker=self._sessionmaker_factory(config),
+            sessionmaker=self._sessionmaker_factory(self.config),
         )
-        await self._executor.run()
+        try:
+            await executor.run()
+        finally:
+            await executor.close()
+
+    async def shutdown(self):
+        "Trigger a graceful shutdown of the scraper."
+        if self._task is None:
+            return
+
+        try:
+            await self.wait(timeout=self.config.execution.shutdown_timeout)
+        finally:
+            await self.close()
+
+    async def wait(self, timeout: float | None = None):
+        "Wait for the scraper to finish."
+        if self._task is None:
+            return
+
+        log_level = self.config.execution.log_level
+        timeout = timeout or self.config.execution.timeout
+
+        try:
+            await asyncio.wait_for(self._task, timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.log(level=log_level, msg=f"wait timeout exceeded ({timeout}s) - forcing shutdown")
 
     async def close(self):
         "Close the scraper and its associated resources."
-        if self._executor is not None:
-            await self._executor.close()
+        if self._task is None:
+            return
+
+        self._task.cancel()
+        with suppress(asyncio.CancelledError):
+            await self._task
 
     def _install_builtin_middlewares(self, config: Config):
         retry_config = config.session.retry

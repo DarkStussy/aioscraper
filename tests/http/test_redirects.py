@@ -37,7 +37,7 @@ async def test_redirect_followed(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_all_routes_handled()
 
@@ -56,7 +56,7 @@ async def test_redirect_not_followed(mock_aioscraper: MockAIOScraper):
     mock_aioscraper(scraper)
 
     async with mock_aioscraper:
-        await mock_aioscraper.start()
+        await mock_aioscraper.wait()
 
     mock_aioscraper.server.assert_no_unused_routes(ignore_infinite_repeats=True)
 
