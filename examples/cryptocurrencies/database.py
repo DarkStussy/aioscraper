@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DatabaseError(Exception):
     """Exception raised for database-related errors."""
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str):
         super().__init__(message)
         self.message = message
 

@@ -30,7 +30,7 @@ class CryptocurrencyPriceScraper:
         cmc_api_key (str): API key for accessing CoinMarketCap Pro API
     """
 
-    def __init__(self, cmc_api_key: str) -> None:
+    def __init__(self, cmc_api_key: str):
         self._cmc_api_key = cmc_api_key
 
     async def __call__(self, send_request: SendRequest, queue: asyncio.Queue[Task]):

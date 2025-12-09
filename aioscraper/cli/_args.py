@@ -1,21 +1,40 @@
 import argparse
-from typing import Sequence
+from typing import Callable, Sequence
+
+from ..config.field_validators import RangeValidator
+
+
+def _parse_int_factory(arg_name: str, validator: RangeValidator[int]) -> Callable[[str], int | None]:
+    def _parse_int(value: str) -> int | None:
+        try:
+            int_value = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError("Value must be an integer")
+
+        try:
+            return validator(arg_name, int_value) or None
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+
+    return _parse_int
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    range_validator = RangeValidator(min=1)
+
     parser = argparse.ArgumentParser(description="Run aioscraper scrapers from the command line.")
     parser.add_argument("entrypoint", help="Path to the entrypoint module")
     parser.add_argument(
         "--concurrent-requests",
-        type=int,
+        type=_parse_int_factory("concurrent_requests", range_validator),
         default=None,
-        help="Maximum number of concurrent requests",
+        help="Maximum number of concurrent requests (must be > 0)",
     )
     parser.add_argument(
         "--pending-requests",
-        type=int,
+        type=_parse_int_factory("pending_requests", range_validator),
         default=None,
-        help="Number of pending requests to maintain",
+        help="Number of pending requests to maintain (must be > 0)",
     )
     parser.add_argument(
         "--uvloop",

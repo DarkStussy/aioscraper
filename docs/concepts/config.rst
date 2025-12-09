@@ -30,7 +30,12 @@ Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>`
             ssl=True,
             proxy="http://localhost:8080",
         ),
-        scheduler=SchedulerConfig(concurrent_requests=32, pending_requests=4, close_timeout=0.5),
+        scheduler=SchedulerConfig(
+            concurrent_requests=32,
+            pending_requests=4,
+            close_timeout=0.5,
+            ready_queue_max_size=1000,
+        ),
         execution=ExecutionConfig(
             timeout=60,
             shutdown_timeout=0.5,

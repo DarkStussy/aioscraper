@@ -13,7 +13,6 @@ from .models import (
 )
 from .loader import load_config
 
-
 __all__ = (
     "Config",
     "MiddlewareConfig",

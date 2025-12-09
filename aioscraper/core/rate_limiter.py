@@ -36,14 +36,14 @@ class AdaptiveMetrics:
     last_outcome_success: bool = True
     total_requests: int = 0
 
-    def update_latency(self, latency: float) -> None:
+    def update_latency(self, latency: float):
         """Update EWMA latency with new measurement."""
         if self.total_requests == 0:
             self.ewma_latency = latency
         else:
             self.ewma_latency = (self.ewma_alpha * latency) + ((1 - self.ewma_alpha) * self.ewma_latency)
 
-    def record_success(self, latency: float) -> None:
+    def record_success(self, latency: float):
         """Record a successful request outcome."""
         self.update_latency(latency)
         self.success_count += 1
@@ -52,7 +52,7 @@ class AdaptiveMetrics:
         self.last_outcome_time = monotonic()
         self.total_requests += 1
 
-    def record_failure(self, latency: float | None = None) -> None:
+    def record_failure(self, latency: float | None = None):
         """Record a failed request outcome (timeout, error status, etc)."""
         if latency is not None:
             self.update_latency(latency)
@@ -197,7 +197,7 @@ class AdaptiveStrategy:
 
         return max(self.min_interval, min(self.max_interval, new_interval))
 
-    def reset_metrics(self, group_key: Hashable) -> None:
+    def reset_metrics(self, group_key: Hashable):
         """Reset metrics for a group (e.g., on cleanup)."""
         self._metrics.pop(group_key, None)
 
@@ -251,6 +251,10 @@ class RequestGroup:
         self._on_finished = on_finished
         self._queue: asyncio.PriorityQueue[PRequest] = asyncio.PriorityQueue()
         self._task: asyncio.Task[None] | None = None
+
+    @property
+    def key(self) -> Hashable:
+        return self._key
 
     @property
     def active(self) -> bool:
@@ -311,7 +315,7 @@ class RequestGroup:
                     break
 
                 try:
-                    await self._schedule(pr)
+                    await asyncio.shield(self._schedule(pr))
                 except Exception as e:
                     logger.error("Rate limiter scheduler failed for %r: %s", self._key, e, exc_info=e)
 
@@ -411,6 +415,12 @@ class RateLimiterManager:
                 config.adaptive.success_threshold,
                 config.adaptive.ewma_alpha,
             )
+            logger.info(
+                "Adaptive rate limiting triggers (inherit_retry_triggers=%s): statuses=%s; exceptions=%s",
+                config.adaptive.inherit_retry_triggers,
+                ",".join(map(str, sorted(self._adaptive_strategy.trigger_statuses))),
+                ",".join(exc.__module__ + "." + exc.__qualname__ for exc in self._adaptive_strategy.trigger_exceptions),
+            )
 
     @property
     def adaptive_strategy(self) -> AdaptiveStrategy | None:
@@ -428,11 +438,18 @@ class RateLimiterManager:
     async def close(self):
         "Close all request groups and clean up resources."
         groups = list(self._groups.values())
-        group_keys = list(self._groups.keys())
         self._groups.clear()
 
         if groups:
-            logger.info("Closing rate limiter: shutting down %d active group(s): %s", len(groups), group_keys)
+            if active_groups := [group.key for group in self._groups.values() if group.active]:
+                logger.info(
+                    "Closing rate limiter: shutting down %d active group(s): %s",
+                    len(active_groups),
+                    active_groups,
+                )
+            else:
+                logger.debug("Closing rate limiter: no active groups")
+
             for group in groups:
                 await group.close()
         else:
@@ -442,7 +459,7 @@ class RateLimiterManager:
         """Get group key for a request."""
         return self._group_by(request)[0]
 
-    def on_request_outcome(self, outcome: RequestOutcome) -> None:
+    def on_request_outcome(self, outcome: RequestOutcome):
         """Handle request outcome and adjust group interval adaptively."""
         if not self._adaptive_strategy:
             return

@@ -142,6 +142,7 @@ Request scheduler behavior.
 - ``SCHEDULER_CONCURRENT_REQUESTS`` → ``concurrent_requests``
 - ``SCHEDULER_PENDING_REQUESTS`` → ``pending_requests``
 - ``SCHEDULER_CLOSE_TIMEOUT`` → ``close_timeout``
+- ``SCHEDULER_READY_QUEUE_MAX_SIZE`` → ``ready_queue_max_size``
 
 :class:`ExecutionConfig <aioscraper.config.models.ExecutionConfig>`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

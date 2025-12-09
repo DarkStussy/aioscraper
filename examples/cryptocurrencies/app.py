@@ -17,8 +17,8 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from aioscraper import AIOScraper, env_parser
-from aioscraper.config import load_config
+from aioscraper import AIOScraper
+from aioscraper.config import env, load_config
 
 from deps import get_queue, get_cryptocurrency_database
 from routes import get_api_router
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     app.dependency_overrides[get_cryptocurrency_database] = lambda: database
 
     # Initialize the cryptocurrency price scraper
-    cryptocurrency_price_scraper = CryptocurrencyPriceScraper(env_parser.parse_str("CMC_API_KEY"))
+    cryptocurrency_price_scraper = CryptocurrencyPriceScraper(env.parse("CMC_API_KEY"))
     scraper_runner = AIOScraper(cryptocurrency_price_scraper, config=load_config())
 
     # Inject dependencies into scraper callbacks

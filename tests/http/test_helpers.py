@@ -37,4 +37,4 @@ def test_parse_cookies_supports_str_morsel_and_basecookie():
 
 def test_parse_cookies_rejects_unknown_type():
     with pytest.raises(TypeError):
-        parse_cookies({"a": object()})  # type: ignore[arg-type]
+        parse_cookies({"a": object()})  # type: ignore

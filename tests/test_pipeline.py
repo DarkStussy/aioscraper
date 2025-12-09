@@ -190,7 +190,7 @@ async def test_pipeline_dispatcher_not_strict(caplog):
     result = await dispatcher.put_item(mock_item)
 
     assert result is mock_item
-    assert "pipelines for item" in caplog.text
+    assert "Pipeline not found for item type" in caplog.text
 
 
 @dataclass

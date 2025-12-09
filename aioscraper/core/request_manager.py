@@ -69,6 +69,12 @@ class RequestManager:
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
     ):
+        logger.info(
+            "Creating scheduler: concurrent_requests=%s, pending_requests=%s, close_timeout=%s",
+            scheduler_config.concurrent_requests,
+            scheduler_config.pending_requests,
+            scheduler_config.close_timeout,
+        )
         self._scheduler = Scheduler(
             limit=scheduler_config.concurrent_requests,
             pending_limit=scheduler_config.pending_requests,
@@ -76,7 +82,7 @@ class RequestManager:
         )
         self._shutdown_check_interval = shutdown_check_interval
         self._session = sessionmaker()
-        self._ready_queue: _RequestQueue = asyncio.PriorityQueue()
+        self._ready_queue: _RequestQueue = asyncio.PriorityQueue(maxsize=scheduler_config.ready_queue_max_size)
         self._delayed_heap: _RequestHead = []
         self._request_sender = _get_request_sender(self._ready_queue, self._delayed_heap)
         self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}

@@ -3,6 +3,7 @@ import logging
 import pytest
 
 from aioscraper.config import load_config
+from aioscraper.exceptions import ConfigValidationError
 
 
 def test_load_config_reads_env_overrides(monkeypatch):
@@ -50,7 +51,7 @@ def test_load_config_parses_proxy_json(monkeypatch):
 def test_load_config_raises_on_missing_scheduler_int(monkeypatch):
     monkeypatch.setenv("SCHEDULER_CONCURRENT_REQUESTS", "not-an-int")
 
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, ConfigValidationError)):
         load_config()
 
 

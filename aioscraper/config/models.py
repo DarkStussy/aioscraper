@@ -6,10 +6,13 @@ from enum import StrEnum, auto
 from dataclasses import dataclass
 from typing import Callable, Hashable
 
+from .model_validator import validate, field
+from .field_validators import RangeValidator, ProxyValidator
 from ..types import Request
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class MiddlewareConfig:
     """Common options shared by built-in middlewares.
 
@@ -25,6 +28,7 @@ class MiddlewareConfig:
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class AdaptiveRateLimitConfig:
     """Configuration for adaptive rate limiting using EWMA + AIMD.
 
@@ -46,12 +50,12 @@ class AdaptiveRateLimitConfig:
             Additional exception types to trigger adaptive slowdown.
     """
 
-    min_interval: float = 0.001
-    max_interval: float = 5.0
-    increase_factor: float = 2.0
-    decrease_step: float = 0.01
-    success_threshold: int = 5
-    ewma_alpha: float = 0.3
+    min_interval: float = field(default=0.001, validator=RangeValidator(min=0.001))
+    max_interval: float = field(default=5.0, validator=RangeValidator(min=0.001))
+    increase_factor: float = field(default=2.0, validator=RangeValidator(min=1.0))
+    decrease_step: float = field(default=0.01, validator=RangeValidator(min=0.001))
+    success_threshold: int = field(default=5, validator=RangeValidator(min=1))
+    ewma_alpha: float = field(default=0.3, validator=RangeValidator(min=0.0, max=1.0))
     respect_retry_after: bool = True
     inherit_retry_triggers: bool = True
     custom_trigger_statuses: tuple[int, ...] = ()
@@ -59,6 +63,7 @@ class AdaptiveRateLimitConfig:
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class RateLimitConfig:
     """
     Configuration for rate limiting.
@@ -72,9 +77,9 @@ class RateLimitConfig:
     """
 
     enabled: bool = False
-    group_by: Callable[[Request], tuple[Hashable, float]] | None = None
-    default_interval: float = 0.0
-    cleanup_timeout: float = 60.0
+    group_by: Callable[[Request], tuple[Hashable, float]] | None = field(default=None, skip_validation=True)
+    default_interval: float = field(default=0.0, validator=RangeValidator(min=0.0))
+    cleanup_timeout: float = field(default=60.0, validator=RangeValidator(min=0.1))
     adaptive: AdaptiveRateLimitConfig | None = None
 
 
@@ -96,6 +101,7 @@ class BackoffStrategy(StrEnum):
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class RequestRetryConfig:
     """Retry behaviour applied by the built-in retry middleware.
 
@@ -112,10 +118,10 @@ class RequestRetryConfig:
     """
 
     enabled: bool = False
-    attempts: int = 3
+    attempts: int = field(default=3, validator=RangeValidator(min=1))
     backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL_JITTER
-    base_delay: float = 0.5
-    max_delay: float = 30.0
+    base_delay: float = field(default=0.5, validator=RangeValidator(min=0.001))
+    max_delay: float = field(default=30.0, validator=RangeValidator(min=0.001))
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
     exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,)
     middleware: MiddlewareConfig = MiddlewareConfig(stop_processing=True)
@@ -143,6 +149,7 @@ class HttpBackend(StrEnum):
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class SessionConfig:
     """HTTP session settings shared by every request.
 
@@ -155,15 +162,16 @@ class SessionConfig:
         rate_limit (RateLimitConfig): Controls built-in rate limiting behaviour
     """
 
-    timeout: float = 60.0
+    timeout: float = field(default=60.0, validator=RangeValidator(min=0.001))
     ssl: ssl_module.SSLContext | bool = True
-    proxy: str | dict[str, str | None] | None = None
+    proxy: str | dict[str, str | None] | None = field(default=None, validator=ProxyValidator({"http", "https"}))
     http_backend: HttpBackend | None = None
     retry: RequestRetryConfig = RequestRetryConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class SchedulerConfig:
     """
     Configuration for request scheduler.
@@ -172,14 +180,17 @@ class SchedulerConfig:
         concurrent_requests (int): Maximum number of concurrent requests
         pending_requests (int): Number of pending requests to maintain
         close_timeout (float | None): Timeout for closing scheduler in seconds
+        ready_queue_max_size (int): Maximum size of the ready queue (0 for unlimited)
     """
 
-    concurrent_requests: int = 64
-    pending_requests: int = 1
-    close_timeout: float | None = 0.1
+    concurrent_requests: int = field(default=64, validator=RangeValidator(min=1))
+    pending_requests: int = field(default=1, validator=RangeValidator(min=1))
+    close_timeout: float | None = field(default=0.1, validator=RangeValidator(min=0.01))
+    ready_queue_max_size: int = field(default=0, validator=RangeValidator(min=0))
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class ExecutionConfig:
     """
     Configuration for execution.
@@ -187,18 +198,18 @@ class ExecutionConfig:
     Args:
         timeout (float | None): Overall execution timeout in seconds
         shutdown_timeout (float): Timeout for graceful shutdown in seconds
-        shutdown_check_interval (float): Interval between shutdown checks in seconds
         log_level (int): Log level for timeout events (e.g., logging.ERROR, logging.WARNING).
             Defaults to logging.ERROR.
     """
 
-    timeout: float | None = None
-    shutdown_timeout: float = 0.1
-    shutdown_check_interval: float = 0.1
+    timeout: float | None = field(default=None, validator=RangeValidator(min=0.01))
+    shutdown_timeout: float = field(default=0.1, validator=RangeValidator(min=0.001))
+    shutdown_check_interval: float = field(default=0.1, validator=RangeValidator(min=0.01))
     log_level: int = logging.ERROR
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class PipelineConfig:
     """
     Configuration for pipelines.
@@ -211,6 +222,7 @@ class PipelineConfig:
 
 
 @dataclass(slots=True, frozen=True)
+@validate
 class Config:
     "Main configuration class that combines all configuration components."
 

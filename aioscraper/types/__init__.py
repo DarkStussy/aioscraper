@@ -12,7 +12,6 @@ from .session import (
     SendRequest,
     Response,
 )
-from .stub import NotSetType
 
 __all__ = (
     "Scraper",
@@ -32,5 +31,4 @@ __all__ = (
     "PipelineMiddlewareStage",
     "Middleware",
     "MiddlewareStage",
-    "NotSetType",
 )

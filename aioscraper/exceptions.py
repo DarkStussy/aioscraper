@@ -66,3 +66,7 @@ class InvalidRequestData(AIOScraperException):
 
 class CLIError(AIOScraperException):
     "Raised when CLI arguments are invalid or cannot be resolved."
+
+
+class ConfigValidationError(AIOScraperException):
+    "Raised when configuration validation fails."
