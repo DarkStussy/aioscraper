@@ -15,6 +15,7 @@ Prerequisites:
     $ docker run -d -p 6379:6379 --name redis redis:latest
 
 Run the example:
+    $ export SCHEDULER_READY_QUEUE_MAX_SIZE=100
     $ aioscraper queue_consumer
 
 Send tasks from another service (example using redis-cli):
