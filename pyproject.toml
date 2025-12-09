@@ -1,6 +1,6 @@
 [project]
 name = "aioscraper"
-version = "0.9.0"
+version = "0.10.0"
 authors = [{ name = "darkstussy" }, ]
 description = "Async framework for building modular and scalable web scrapers."
 readme = "README.md"
