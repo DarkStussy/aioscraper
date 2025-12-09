@@ -1,6 +1,25 @@
 Changelog
 =========
 
+.. _changelog-0-10-1:
+
+0.10.1 (2025-12-09)
+-------------------
+
+Added
+~~~~~
+- Queue consumer example
+- Lifespan tests
+
+Changed
+~~~~~~~
+- Improved configuration validation
+- Improved logging
+
+Fixed
+~~~~~
+- Lifespan startup order (ensure lifespan starts before main start)
+
 .. _changelog-0-10-0:
 
 0.10.0 (2025-12-09)

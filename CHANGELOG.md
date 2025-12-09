@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.1 (2025-12-09)
+
+### Added
+- Queue consumer example
+- Lifespan tests
+
+### Changed
+- Improved configuration validation
+- Improved logging
+
+### Fixed
+- Lifespan startup order (ensure lifespan starts before main start)
+
 ## 0.10.0 (2025-12-09)
 
 ### Added
