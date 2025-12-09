@@ -5,11 +5,12 @@
 </p>
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![PyPI](https://img.shields.io/pypi/v/aioscraper)
-![Tests](https://github.com/darkstussy/aioscraper/actions/workflows/tests.yml/badge.svg)
-[![Documentation Status](https://readthedocs.org/projects/aioscraper/badge/?version=latest)](https://aioscraper.readthedocs.io/en/latest/)
-![GitHub last commit](https://img.shields.io/github/last-commit/darkstussy/aioscraper)
+![GitHub License](https://img.shields.io/github/license/darkstussy/aioscraper?color=brightgreen)
+[![PyPI - Version](https://img.shields.io/pypi/v/aioscraper?color=brightgreen)](https://pypi.org/project/aioscraper/)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/aioscraper?style=flat&color=brightgreen)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/darkstussy/aioscraper/tests.yml?style=flat&label=Tests)
+[![Read the Docs](https://img.shields.io/readthedocs/aioscraper?color=brightgreen)](https://aioscraper.readthedocs.io/)
+![GitHub last commit](https://img.shields.io/github/last-commit/darkstussy/aioscraper?color=brightgreen)
 
 ### Asynchronous framework for building modular and scalable web scrapers.
 
