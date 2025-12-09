@@ -34,6 +34,7 @@ HTTP clients perform the calls and return responses. Callbacks handle those resp
    :caption: Reference:
 
    api
+   changelog
    Contributing <contributing>
 
 .. toctree::

@@ -24,6 +24,7 @@
 - [Why aioscraper?](#why-aioscraper)
 - [Use Cases](#use-cases)
 - [Documentation](#documentation)
+- [Changelog](#changelog)
 - [Contributing](#contributing)
 
 ## Key Features
@@ -102,6 +103,10 @@ Performance: Benchmarks show stable throughput across CPython 3.11–3.14 (see [
 ## Documentation
 
 Full documentation at [aioscraper.readthedocs.io](https://aioscraper.readthedocs.io)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## Contributing
 
