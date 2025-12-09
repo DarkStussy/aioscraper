@@ -83,8 +83,8 @@ class AIOScraper:
         return self._pipeline_holder
 
     async def __aenter__(self) -> Self:
-        self.start()
         await self._lifespan_exit_stack.enter_async_context(self._lifespan(self))
+        self.start()
         return self
 
     async def __aexit__(
