@@ -1,7 +1,11 @@
+import logging
 from collections.abc import Iterable
 from typing import Callable
 
+from .._helpers.log import get_log_name
 from ..types import Middleware, MiddlewareStage
+
+logger = logging.getLogger(__name__)
 
 
 class MiddlewareHolder:
@@ -27,6 +31,12 @@ class MiddlewareHolder:
         bucket = self._get_bucket(middleware_type)
 
         for middleware in middlewares:
+            logger.debug(
+                "Installing middleware %s: type=%s, priority=%d",
+                get_log_name(middleware),
+                middleware_type,
+                priority,
+            )
             bucket.append((priority, middleware))
 
         bucket.sort(key=lambda item: item[0])
@@ -50,6 +60,14 @@ class MiddlewareHolder:
     def response(self) -> Iterable[Middleware]:
         for _, middleware in self._response:
             yield middleware
+
+    @property
+    def all(self) -> list[tuple[int, Middleware]]:
+        return [
+            middleware
+            for bucket in (self._outer, self._inner, self._exception, self._response)
+            for middleware in bucket
+        ]
 
     def _get_bucket(self, middleware_type: MiddlewareStage) -> list[tuple[int, Middleware]]:
         match middleware_type:

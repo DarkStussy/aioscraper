@@ -4,6 +4,7 @@ from typing import Any, Callable, Mapping
 from ..config import PipelineConfig
 from ..exceptions import PipelineException, StopMiddlewareProcessing, StopItemProcessing
 from .._helpers.func import get_func_kwargs
+from .._helpers.log import get_log_name
 from ..types.pipeline import GlobalPipelineMiddleware, Pipeline, PipelineContainer, PipelineItemType
 
 logger = getLogger(__name__)
@@ -23,29 +24,37 @@ class PipelineDispatcher:
         self._pipelines = pipelines
         self._global_middlewares = global_middlewares or []
         self._dependencies: Mapping[str, Any] = dependencies or {}
+        logger.info(
+            "Pipeline dispatcher created: pipelines=%d, global_middlewares=%d, strict=%s",
+            len(pipelines),
+            len(self._global_middlewares),
+            config.strict,
+        )
         self._handler = self._build_handler()
 
     async def _put_item(self, item: PipelineItemType) -> PipelineItemType:
         "Processes an item through pre-middleware, pipelines, and post-middleware for its type."
-        logger.debug(f"pipeline item received: {item}")
+        item_type = type(item).__name__
+        logger.debug("Pipeline item received: %s", item)
 
         try:
             pipe_container = self._pipelines[type(item)]
         except KeyError:
             if self._config.strict:
-                raise PipelineException(f"Pipelines for item {type(item)} not found")
+                logger.error("Pipeline not found for item type %s (strict mode)", item_type)
+                raise PipelineException(f"Pipelines for item {item_type} not found")
 
-            logger.warning(f"pipelines for item {type(item)} not found")
+            logger.warning("Pipeline not found for item type %s, skipping", item_type)
             return item
 
         for middleware in pipe_container.pre_middlewares:
             try:
                 item = await middleware(item)
             except StopMiddlewareProcessing:
-                logger.debug("StopMiddlewareProcessing in pipeline pre middleware: stopping pre chain")
+                logger.debug("StopMiddlewareProcessing in pre middleware for %s: stopping pre chain", item_type)
                 break
             except StopItemProcessing:
-                logger.debug("StopItemProcessing in pipeline pre middleware: aborting item processing")
+                logger.debug("StopItemProcessing in pre middleware for %s: aborting", item_type)
                 return item
 
         for pipeline in pipe_container.pipelines:
@@ -55,10 +64,10 @@ class PipelineDispatcher:
             try:
                 item = await middleware(item)
             except StopMiddlewareProcessing:
-                logger.debug("StopMiddlewareProcessing in pipeline post middleware: stopping post chain")
+                logger.debug("StopMiddlewareProcessing in post middleware for %s: stopping post chain", item_type)
                 break
             except StopItemProcessing:
-                logger.debug("StopItemProcessing in pipeline post middleware: aborting item processing")
+                logger.debug("StopItemProcessing in post middleware for %s: aborting", item_type)
                 return item
 
         return item
@@ -67,11 +76,12 @@ class PipelineDispatcher:
         async def handler(item: PipelineItemType) -> PipelineItemType:
             return await self._put_item(item)
 
-        for mv_func in self._global_middlewares:
+        for mv_factory in self._global_middlewares:
             try:
-                mw = mv_func(**get_func_kwargs(mv_func, **self._dependencies))
+                logger.debug("Instantiating global middleware: %s", get_log_name(mv_factory))
+                mw = mv_factory(**get_func_kwargs(mv_factory, **self._dependencies))
             except Exception as e:
-                raise PipelineException(f"Failed to instantiate global middleware {mv_func.__name__}") from e
+                raise PipelineException(f"Failed to instantiate global middleware {get_log_name(mv_factory)}") from e
 
             next_handler = handler
 
@@ -100,6 +110,12 @@ class PipelineDispatcher:
 
         Calls the close() method for each pipeline in the system.
         """
-        for pipe_container in self._pipelines.values():
+        total_pipelines = sum(len(pc.pipelines) for pc in self._pipelines.values())
+        logger.debug("Closing pipeline dispatcher: %d pipeline(s) to close", total_pipelines)
+
+        for item_type, pipe_container in self._pipelines.items():
             for pipeline in pipe_container.pipelines:
-                await pipeline.close()
+                try:
+                    await pipeline.close()
+                except Exception as e:
+                    logger.error("Error closing pipeline for type %s: %s", get_log_name(item_type), e, exc_info=e)

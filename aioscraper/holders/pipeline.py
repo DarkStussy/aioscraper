@@ -1,6 +1,8 @@
+import logging
 from typing import Any, Callable, Type
 
 from ..exceptions import AIOScraperException
+from .._helpers.log import get_log_name
 from ..types.pipeline import (
     PipelineItemType,
     BasePipeline,
@@ -9,6 +11,8 @@ from ..types.pipeline import (
     PipelineMiddlewareStage,
     PipelineContainer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineHolder:
@@ -51,10 +55,11 @@ class PipelineHolder:
                     "expected an instance implementing BasePipeline protocol"
                 ) from exc
 
+            pipeline_type = type(pipeline).__name__
             if not ok:
-                raise AIOScraperException(
-                    f"Pipeline {type(pipeline).__name__} does not implement required BasePipeline methods"
-                )
+                raise AIOScraperException(f"Pipeline {pipeline_type} does not implement required BasePipeline methods")
+
+            logger.debug("Installing pipeline %s: type=%s", pipeline_type, item_type.__name__)
 
         if item_type not in self.pipelines:
             self.pipelines[item_type] = PipelineContainer(pipelines=[*pipelines])
@@ -86,6 +91,9 @@ class PipelineHolder:
         else:
             container = self.pipelines[item_type]
 
+        for middleware in middlewares:
+            logger.debug("Installing pipeline middleware %s: type=%s", get_log_name(middleware), middleware_type)
+
         match middleware_type:
             case "pre":
                 container.pre_middlewares.extend(middlewares)
@@ -109,4 +117,6 @@ class PipelineHolder:
 
     def add_global_middlewares(self, *middlewares: Callable[..., GlobalPipelineMiddleware[PipelineItemType]]):
         "Add global pipeline middlewares as factory."
-        self.global_middlewares.extend(middlewares)
+        for middleware in middlewares:
+            logger.debug("Installing global middleware %s", get_log_name(middleware))
+            self.global_middlewares.append(middleware)

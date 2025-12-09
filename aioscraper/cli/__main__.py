@@ -25,15 +25,22 @@ def _apply_uvloop_policy():
 
 
 async def _run(entrypoint: str, concurrent_requests: int | None = None, pending_requests: int | None = None):
+    logger.debug("Resolving entrypoint: %s", entrypoint)
     init = resolve_entrypoint_factory(entrypoint)
     scraper: AIOScraper = await init() if inspect.iscoroutinefunction(init) else init()
 
     if concurrent_requests is not None or pending_requests is not None:
+        logger.info(
+            "Overriding scheduler config: concurrent_requests=%s, pending_requests=%s",
+            concurrent_requests or "default",
+            pending_requests or "default",
+        )
         if concurrent_requests:
             object.__setattr__(scraper.config.scheduler, "concurrent_requests", concurrent_requests)
         if pending_requests:
             object.__setattr__(scraper.config.scheduler, "pending_requests", pending_requests)
 
+    logger.info("Starting scraper from entrypoint: %s", entrypoint)
     await run_scraper(scraper)
 
 
@@ -43,6 +50,7 @@ def main(argv: Sequence[str] | None = None):
     try:
         if args.logging:
             logging.basicConfig(level=args.log_level)
+            logger.info("Logging enabled at level: %s", args.log_level)
 
         if args.uvloop:
             _apply_uvloop_policy()

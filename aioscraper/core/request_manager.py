@@ -13,6 +13,7 @@ from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProces
 from .._helpers.asyncio import execute_coroutine, execute_coroutines
 from .._helpers.func import get_func_kwargs
 from .._helpers.http import parse_retry_after, parse_url
+from .._helpers.log import get_log_name
 from ..types.session import Request, PRequest, SendRequest
 from ..holders import MiddlewareHolder
 
@@ -96,23 +97,34 @@ class RequestManager:
     async def _send_request(self, request: Request):
         start_time = monotonic()
         latency = status_code = exception_type = retry_after = None
+        url = parse_url(request.url, request.params)
 
         try:
             for inner_middleware in self._middleware_holder.inner:
                 try:
                     await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
                 except StopRequestProcessing:
-                    logger.debug("StopRequestProcessing in inner middleware: aborting request processing")
+                    logger.debug("StopRequestProcessing in inner middleware for %s %s: aborting", request.method, url)
                     return
                 except StopMiddlewareProcessing:
-                    logger.debug("StopMiddlewareProcessing in inner middleware: stopping inner chain")
+                    logger.debug(
+                        "StopMiddlewareProcessing in inner middleware for %s %s: stopping inner chain",
+                        request.method,
+                        url,
+                    )
                     break
 
-            url = parse_url(request.url, request.params)
-            logger.debug(f"send request: {request.method} {url}")
+            logger.debug("Sending request: %s %s", request.method, url)
 
             async with self._session.make_request(request) as response:
                 latency = monotonic() - start_time  # response latency
+                logger.debug(
+                    "Response received: %s %s - status=%d, latency=%.3fs",
+                    request.method,
+                    url,
+                    response.status,
+                    latency,
+                )
 
                 for response_middleware in self._middleware_holder.response:
                     try:
@@ -125,10 +137,18 @@ class RequestManager:
                             )
                         )
                     except StopRequestProcessing:
-                        logger.debug("StopRequestProcessing in response middleware: aborting request processing")
+                        logger.debug(
+                            "StopRequestProcessing in response middleware for %s %s: aborting",
+                            request.method,
+                            url,
+                        )
                         return
                     except StopMiddlewareProcessing:
-                        logger.debug("StopMiddlewareProcessing in response middleware: stopping response chain")
+                        logger.debug(
+                            "StopMiddlewareProcessing in response middleware for %s %s: stopping response chain",
+                            request.method,
+                            url,
+                        )
                         break
 
                 if response.ok or not request.raise_for_status:
@@ -153,12 +173,21 @@ class RequestManager:
                     status_code = http_exc.status_code
                     exception_type = HTTPException
 
+                    logger.debug(
+                        "HTTP error: %s %s - status=%d, latency=%.3fs",
+                        request.method,
+                        url,
+                        status_code,
+                        latency,
+                    )
+
                     if self._rate_limiter_manager.adaptive_strategy:
                         retry_after = parse_retry_after(http_exc)
 
                     await self._handle_exception(request, http_exc)
         except Exception as exc:
             exception_type = type(exc)
+            logger.debug("Request exception: %s %s - %s: %s", request.method, url, type(exc).__name__, exc)
             await self._handle_exception(request, exc)
         finally:
             # Send feedback to adaptive rate limiter
@@ -183,10 +212,18 @@ class RequestManager:
                     **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies)
                 )
             except StopRequestProcessing:
-                logger.debug("StopRequestProcessing in exception middleware: aborting request processing")
+                logger.debug(
+                    "StopRequestProcessing in exception middleware for %s %s: aborting",
+                    request.method,
+                    request.url,
+                )
                 return
             except StopMiddlewareProcessing:
-                logger.debug("StopMiddlewareProcessing in exception middleware: stopping exception chain")
+                logger.debug(
+                    "StopMiddlewareProcessing in exception middleware for %s %s: stopping exception chain",
+                    request.method,
+                    request.url,
+                )
                 break
 
         if request.errback is not None:
@@ -201,25 +238,43 @@ class RequestManager:
                     )
                 )
             except Exception as errback_exc:
+                logger.error(
+                    "Errback failed for %s %s: original=%s, errback=%s",
+                    request.method,
+                    request.url,
+                    type(exc).__name__,
+                    type(errback_exc).__name__,
+                    exc_info=errback_exc,
+                )
                 raise ExceptionGroup("Errback failed", [exc, errback_exc])
         else:
             logger.error(f"{request.method}: {request.url}: {exc}", exc_info=exc)
 
     async def wait(self):
+        logger.debug("Request manager waiting for completion")
+
         self._wait = False
         while not self._completed:
             await asyncio.sleep(self._shutdown_check_interval)
 
+        logger.debug("Request manager wait completed")
+
     async def shutdown(self):
+        logger.debug("Request manager shutting down")
+
         self._wait = False
         if self._task is not None:
             await self._task
 
+        logger.debug("Request manager shutdown completed")
+
     def start_listening(self):
+        logger.debug("Request manager starting queue listener")
         self._task = asyncio.create_task(self._listen_queue())
 
     async def _listen_queue(self):
         """Process requests from the queue using the rate limiter."""
+        logger.debug("Queue listener started")
         while (
             len(self._scheduler) > 0
             or self._rate_limiter_manager.active
@@ -238,9 +293,11 @@ class RequestManager:
             try:
                 await asyncio.shield(self._process_request(pr))
             except asyncio.CancelledError:
+                logger.debug("Queue listener cancelled")
                 break
 
         self._completed = True
+        logger.info("Queue listener completed: all requests processed")
 
     async def _process_request(self, pr: PRequest):
         for outer_middleware in self._middleware_holder.outer:
@@ -249,7 +306,7 @@ class RequestManager:
             except (StopMiddlewareProcessing, StopRequestProcessing) as e:
                 logger.debug(f"{type(e).__name__} in outer middleware is ignored")
             except Exception as e:
-                logger.error(f"Error when executed outer middleware {outer_middleware.__name__}: {e}", exc_info=e)
+                logger.error(f"Error when executed outer middleware {get_log_name(outer_middleware)}: {e}", exc_info=e)
 
         await self._rate_limiter_manager(pr)
 
@@ -276,3 +333,4 @@ class RequestManager:
     async def close(self):
         """Close the underlying session."""
         await execute_coroutines(self._rate_limiter_manager.close(), self._scheduler.close(), self._session.close())
+        logger.debug("Request manager closed successfully")

@@ -9,6 +9,7 @@ from .pipeline import PipelineDispatcher
 from .session import SessionMakerFactory, get_sessionmaker
 from ..config import Config, load_config
 from ..holders import MiddlewareHolder, PipelineHolder
+from .._helpers.log import get_log_name
 from ..middlewares import RetryMiddleware
 from ..types import Scraper
 
@@ -58,6 +59,7 @@ class AIOScraper:
 
     def __call__(self, scraper: Scraper) -> Scraper:
         "Add a scraper callable and return it for decorator use."
+        logger.debug("Adding scraper %s", get_log_name(scraper))
         self.scrapers.append(scraper)
         return scraper
 
@@ -118,15 +120,20 @@ class AIOScraper:
             sessionmaker=self._sessionmaker_factory(self.config),
         )
         try:
+            logger.debug("Starting executor")
             await executor.run()
+            logger.debug("Scraper execution completed successfully")
         finally:
+            logger.debug("Closing executor resources")
             await executor.close()
 
     async def shutdown(self):
         "Trigger a graceful shutdown of the scraper."
         if self._task is None:
+            logger.debug("Shutdown called but scraper is not running")
             return
 
+        logger.debug("Initiating graceful shutdown (timeout=%0.10gs)", self.config.execution.shutdown_timeout)
         try:
             await self.wait(timeout=self.config.execution.shutdown_timeout)
         finally:
@@ -135,11 +142,13 @@ class AIOScraper:
     async def wait(self, timeout: float | None = None):
         "Wait for the scraper to finish."
         if self._task is None:
+            logger.debug("Wait called but scraper is not running")
             return
 
         log_level = self.config.execution.log_level
         timeout = timeout or self.config.execution.timeout
 
+        logger.debug("Waiting for scraper to finish (timeout=%0.10gs)", timeout)
         try:
             await asyncio.wait_for(self._task, timeout=timeout)
         except asyncio.TimeoutError:
@@ -148,6 +157,7 @@ class AIOScraper:
     async def close(self):
         "Close the scraper and its associated resources."
         if self._task is None:
+            logger.debug("Close called but scraper is not running")
             return
 
         self._task.cancel()

@@ -428,10 +428,11 @@ class RateLimiterManager:
     async def close(self):
         "Close all request groups and clean up resources."
         groups = list(self._groups.values())
+        group_keys = list(self._groups.keys())
         self._groups.clear()
 
         if groups:
-            logger.info("Closing rate limiter: shutting down %d active group(s)", len(groups))
+            logger.info("Closing rate limiter: shutting down %d active group(s): %s", len(groups), group_keys)
             for group in groups:
                 await group.close()
         else:
@@ -464,6 +465,7 @@ class RateLimiterManager:
         # Ensure minimum interval to prevent busy-waiting. Custom group_by functions
         # may return zero or negative intervals, which we adjust to a safe minimum.
         if interval <= 0:
+            logger.debug("Adjusting invalid interval %.3f to 0.01s for group %r", interval, group_key)
             interval = 0.01
 
         if (group := self._groups.get(group_key)) is None:
@@ -474,6 +476,8 @@ class RateLimiterManager:
                 interval,
                 self._cleanup_timeout,
             )
+        else:
+            logger.debug("Queueing request to existing group %r (interval=%0.3fs)", group_key, group.interval)
 
         await group.put(pr)
 

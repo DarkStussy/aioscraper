@@ -49,6 +49,7 @@ class ScraperExecutor:
         "Start the scraping process."
         self._request_manager.start_listening()
         try:
+            logger.debug("Running %d scraper(s) concurrently", len(self._scrapers))
             await asyncio.gather(
                 *[
                     scraper(
@@ -61,10 +62,17 @@ class ScraperExecutor:
                     for scraper in self._scrapers
                 ]
             )
+            logger.debug("All scrapers completed, waiting for pending requests")
             await self._request_manager.wait()
+            logger.info("Executor finished: all scrapers and requests completed")
+        except Exception as e:
+            logger.error("Executor failed during scraping: %s", e, exc_info=e)
+            raise
         finally:
+            logger.debug("Shutting down request manager")
             await self._request_manager.shutdown()
 
     async def close(self):
         "Close all resources and cleanup."
         await execute_coroutines(self._request_manager.close(), self._pipeline_dispatcher.close())
+        logger.debug("Executor closed successfully")
