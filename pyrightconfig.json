@@ -1,7 +1,5 @@
 {
   "typeCheckingMode": "basic",
-  "venvPath": ".",
-  "venv": ".venv",
   "exclude": [
     ".venv",
     "**/__pycache__/**",
