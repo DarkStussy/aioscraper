@@ -1,8 +1,9 @@
-from aiohttp import ClientSession, ClientTimeout, TCPConnector, FormData
+from aiohttp import ClientSession, ClientTimeout, FormData, TCPConnector
 from aiohttp.helpers import BasicAuth
 
+from aioscraper.types import Request, Response
+
 from .base import BaseRequestContextManager, BaseSession
-from ...types import Response, Request
 
 
 class AiohttpRequestContextManager(BaseRequestContextManager):
@@ -64,7 +65,7 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
                 ),
                 allow_redirects=self._request.allow_redirects,
                 max_redirects=self._request.max_redirects,
-            )
+            ),
         )
         return Response(
             url=str(response.url),

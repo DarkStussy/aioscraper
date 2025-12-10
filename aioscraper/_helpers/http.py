@@ -1,13 +1,13 @@
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone
 from http import HTTPStatus
-from http.cookies import SimpleCookie, Morsel, BaseCookie
+from http.cookies import BaseCookie, Morsel, SimpleCookie
 from typing import Mapping
 
 from yarl import URL
 
-from ..exceptions import HTTPException
-from ..types import QueryParams, RequestCookies
+from aioscraper.exceptions import HTTPException
+from aioscraper.types import QueryParams, RequestCookies
 
 
 def parse_url(url: str, params: QueryParams | None) -> URL:
@@ -62,7 +62,7 @@ def parse_retry_after(exc: Exception) -> float | None:
 
     try:
         retry_date = parsedate_to_datetime(retry_after)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         delay = (retry_date - now).total_seconds()
         return max(0.0, delay)
     except (ValueError, TypeError):

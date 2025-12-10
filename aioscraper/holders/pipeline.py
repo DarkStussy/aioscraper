@@ -1,15 +1,15 @@
 import logging
-from typing import Any, Callable, Type
+from typing import Any, Callable
 
-from ..exceptions import AIOScraperException
-from .._helpers.log import get_log_name
-from ..types.pipeline import (
-    PipelineItemType,
+from aioscraper._helpers.log import get_log_name
+from aioscraper.exceptions import AIOScraperException
+from aioscraper.types.pipeline import (
     BasePipeline,
-    PipelineMiddleware,
     GlobalPipelineMiddleware,
-    PipelineMiddlewareStage,
     PipelineContainer,
+    PipelineItemType,
+    PipelineMiddleware,
+    PipelineMiddlewareStage,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,18 +24,18 @@ class PipelineHolder:
 
     def __call__(
         self,
-        item_type: Type[PipelineItemType],
+        item_type: type[PipelineItemType],
         *args,
         **kwargs,
-    ) -> Callable[[Type[BasePipeline[PipelineItemType]]], Type[BasePipeline[PipelineItemType]]]:
+    ) -> Callable[[type[BasePipeline[PipelineItemType]]], type[BasePipeline[PipelineItemType]]]:
         "Return a decorator that instantiates and registers a pipeline class for the given item type."
 
-        def decorator(pipeline_class: Type[BasePipeline[PipelineItemType]]) -> Type[BasePipeline[PipelineItemType]]:
+        def decorator(pipeline_class: type[BasePipeline[PipelineItemType]]) -> type[BasePipeline[PipelineItemType]]:
             try:
                 pipeline = pipeline_class(*args, **kwargs)
             except Exception as e:
                 raise AIOScraperException(
-                    f"Failed to instantiate pipeline {pipeline_class.__name__} with provided arguments"
+                    f"Failed to instantiate pipeline {pipeline_class.__name__} with provided arguments",
                 ) from e
 
             self.add(item_type, pipeline)
@@ -43,7 +43,7 @@ class PipelineHolder:
 
         return decorator
 
-    def add(self, item_type: Type[PipelineItemType], *pipelines: BasePipeline[PipelineItemType]):
+    def add(self, item_type: type[PipelineItemType], *pipelines: BasePipeline[PipelineItemType]):
         "Add pipelines to process scraped data."
         for pipeline in pipelines:
             # runtime protocol check to ensure BasePipeline interface compliance
@@ -52,7 +52,7 @@ class PipelineHolder:
             except TypeError as exc:
                 raise AIOScraperException(
                     f"Invalid pipeline type {type(pipeline)!r}; "
-                    "expected an instance implementing BasePipeline protocol"
+                    "expected an instance implementing BasePipeline protocol",
                 ) from exc
 
             pipeline_type = type(pipeline).__name__
@@ -69,7 +69,7 @@ class PipelineHolder:
     def middleware(
         self,
         middleware_type: PipelineMiddlewareStage,
-        item_type: Type[PipelineItemType],
+        item_type: type[PipelineItemType],
     ) -> Callable[[PipelineMiddleware[PipelineItemType]], PipelineMiddleware[PipelineItemType]]:
         "Return a decorator that registers a pipeline middleware for the given stage."
 
@@ -82,7 +82,7 @@ class PipelineHolder:
     def add_middlewares(
         self,
         middleware_type: PipelineMiddlewareStage,
-        item_type: Type[PipelineItemType],
+        item_type: type[PipelineItemType],
         *middlewares: PipelineMiddleware[PipelineItemType],
     ):
         "Add pipeline processing middlewares."

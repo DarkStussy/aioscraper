@@ -39,28 +39,3 @@ httpx = [
 
 [project.scripts]
 aioscraper = "aioscraper.cli:main"
-
-[tool.black]
-line-length = 120
-include = '\.pyi?$'
-exclude = '''
-    /(
-        \.eggs/|
-        \.git/|
-        \.hg/|
-        \.mypy_cache/|
-        \.tox/|
-        \.venv/|
-        \venv/|
-        _build/|
-        buck-out/|
-        build/|
-        dist/
-    )'''
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = [
-    "tests",
-]
-asyncio_default_fixture_loop_scope = "function"

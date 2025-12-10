@@ -3,7 +3,7 @@ from typing import Callable, Literal
 import pytest
 
 from aioscraper.exceptions import HTTPException, StopMiddlewareProcessing, StopRequestProcessing
-from aioscraper.types import Request, Response, SendRequest, Middleware, MiddlewareStage
+from aioscraper.types import Middleware, MiddlewareStage, Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 

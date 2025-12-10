@@ -29,9 +29,10 @@ Send tasks from another service (example using redis-cli):
 from dataclasses import dataclass
 from typing import Self
 
-from aioscraper import AIOScraper, Request, Response, SendRequest
 from faststream.redis import RedisBroker, RedisChannelMessage
 from faststream.redis.subscriber.usecases import ChannelSubscriber
+
+from aioscraper import AIOScraper, Request, Response, SendRequest
 
 scraper = AIOScraper()
 
@@ -73,7 +74,7 @@ async def scrape(send_request: SendRequest, subscriber: ChannelSubscriber):
                 callback=callback,
                 errback=errback,
                 cb_kwargs={"task": task},
-            )
+            ),
         )
 
 

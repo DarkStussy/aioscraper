@@ -8,10 +8,11 @@ fetching current cryptocurrency prices and updating them in the database.
 import asyncio
 import logging
 from json import JSONDecodeError
-from aioscraper import Request, SendRequest, Response
 
 from database import CryptoCurrencyDatabase
 from models import Task, TaskStatus
+
+from aioscraper import Request, Response, SendRequest
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class CryptocurrencyPriceScraper:
                     callback=self._callback,
                     errback=self._errback,
                     cb_kwargs={"task": task},
-                )
+                ),
             )
 
     async def _callback(self, response: Response, task: Task, database: CryptoCurrencyDatabase):
@@ -78,10 +79,10 @@ class CryptocurrencyPriceScraper:
             data = await response.json()
             price = data["data"][task.cryptocurrency.name]["quote"][CONVERT_CURRENCY]["price"]
         except (JSONDecodeError, KeyError, ValueError):
-            logger.error(f"{task.cryptocurrency.name}: invalid response: {await response.text()}")
+            logger.exception("%s: invalid response: %s", task.cryptocurrency.name, await response.text())
             return
 
-        logger.info(f"{task.cryptocurrency.name}: updated price: {price}")
+        logger.info("%s: updated price: %s", task.cryptocurrency.name, price)
 
         # Update price and task status in database
         await database.update_price(task.cryptocurrency.id, price)
@@ -98,4 +99,4 @@ class CryptocurrencyPriceScraper:
             exc: Exception that occurred
             task: Task being processed when error occurred
         """
-        logger.error(f"{task}: {exc}", exc_info=exc)
+        logger.error("%s: %s", task, exc, exc_info=exc)

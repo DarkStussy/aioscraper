@@ -6,16 +6,17 @@ from typing import Any
 
 from aiojobs import Scheduler
 
+from aioscraper._helpers.asyncio import execute_coroutine, execute_coroutines
+from aioscraper._helpers.func import get_func_kwargs
+from aioscraper._helpers.http import parse_retry_after, parse_url
+from aioscraper._helpers.log import get_log_name
+from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
+from aioscraper.exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
+from aioscraper.holders import MiddlewareHolder
+from aioscraper.types.session import PRequest, Request, SendRequest
+
 from .rate_limiter import RateLimiterManager, RequestOutcome
 from .session import SessionMaker
-from ..config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
-from ..exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
-from .._helpers.asyncio import execute_coroutine, execute_coroutines
-from .._helpers.func import get_func_kwargs
-from .._helpers.http import parse_retry_after, parse_url
-from .._helpers.log import get_log_name
-from ..types.session import Request, PRequest, SendRequest
-from ..holders import MiddlewareHolder
 
 logger = getLogger(__name__)
 
@@ -92,8 +93,8 @@ class RequestManager:
             retry_config=retry_config,
             schedule=lambda pr: self._scheduler.spawn(execute_coroutine(self._send_request(pr.request))),
         )
-        self._wait = True
-        self._completed = False
+        self._initialized = False
+        self._completed = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
 
     @property
@@ -140,7 +141,7 @@ class RequestManager:
                                 request=request,
                                 response=response,
                                 **self._dependencies,
-                            )
+                            ),
                         )
                     except StopRequestProcessing:
                         logger.debug(
@@ -208,14 +209,14 @@ class RequestManager:
                         retry_after=retry_after,
                         status_code=status_code,
                         exception_type=exception_type,
-                    )
+                    ),
                 )
 
     async def _handle_exception(self, request: Request, exc: Exception):
         for exception_middleware in self._middleware_holder.exception:
             try:
                 await exception_middleware(
-                    **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies)
+                    **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies),
                 )
             except StopRequestProcessing:
                 logger.debug(
@@ -241,34 +242,30 @@ class RequestManager:
                         exc=exc,
                         **request.cb_kwargs,
                         **self._dependencies,
-                    )
+                    ),
                 )
             except Exception as errback_exc:
-                logger.error(
+                logger.exception(
                     "Errback failed for %s %s: original=%s, errback=%s",
                     request.method,
                     request.url,
                     type(exc).__name__,
                     type(errback_exc).__name__,
-                    exc_info=errback_exc,
                 )
-                raise ExceptionGroup("Errback failed", [exc, errback_exc])
+                raise ExceptionGroup("Errback failed", [exc, errback_exc]) from None
         else:
-            logger.error(f"{request.method}: {request.url}: {exc}", exc_info=exc)
+            logger.error("%s: %s: %s", request.method, request.url, exc, exc_info=exc)
 
     async def wait(self):
         logger.debug("Request manager waiting for completion")
-
-        self._wait = False
-        while not self._completed:
-            await asyncio.sleep(self._shutdown_check_interval)
-
+        self._initialized = True
+        await self._completed.wait()
         logger.debug("Request manager wait completed")
 
     async def shutdown(self):
         logger.debug("Request manager shutting down")
 
-        self._wait = False
+        self._initialized = True
         if self._task is not None:
             await self._task
 
@@ -286,7 +283,7 @@ class RequestManager:
             or self._rate_limiter_manager.active
             or not self._ready_queue.empty()
             or len(self._delayed_heap) > 0
-            or self._wait
+            or not self._initialized
         ):
             await self._pop_due_delayed()
 
@@ -302,7 +299,7 @@ class RequestManager:
                 logger.debug("Queue listener cancelled")
                 break
 
-        self._completed = True
+        self._completed.set()
         logger.info("Queue listener completed: all requests processed")
 
     async def _process_request(self, pr: PRequest):
@@ -310,9 +307,9 @@ class RequestManager:
             try:
                 await outer_middleware(**get_func_kwargs(outer_middleware, request=pr.request, **self._dependencies))
             except (StopMiddlewareProcessing, StopRequestProcessing) as e:
-                logger.debug(f"{type(e).__name__} in outer middleware is ignored")
-            except Exception as e:
-                logger.error(f"Error when executed outer middleware {get_log_name(outer_middleware)}: {e}", exc_info=e)
+                logger.debug("%s in outer middleware is ignored", type(e).__name__)
+            except Exception:
+                logger.exception("Error when executed outer middleware %s", get_log_name(outer_middleware))
 
         await self._rate_limiter_manager(pr)
 

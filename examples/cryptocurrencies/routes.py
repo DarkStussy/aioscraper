@@ -9,11 +9,10 @@ import asyncio
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, APIRouter
-
-from deps import get_cryptocurrency_database, get_queue
-from models import Cryptocurrency, Task
 from database import CryptoCurrencyDatabase
+from deps import get_cryptocurrency_database, get_queue
+from fastapi import APIRouter, Depends
+from models import Cryptocurrency, Task
 
 
 async def get_cryptocurrency(

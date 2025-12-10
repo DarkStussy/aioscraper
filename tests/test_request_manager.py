@@ -4,12 +4,12 @@ from typing import Any
 
 import pytest
 
-from aioscraper.config import SchedulerConfig, RateLimitConfig, RequestRetryConfig
+from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
+from aioscraper.core.request_manager import RequestManager
+from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.core.request_manager import RequestManager
-from aioscraper.core.session import BaseSession, BaseRequestContextManager
-from aioscraper.types import Request, Response, File
+from aioscraper.types import File, Request, Response
 
 
 async def _read() -> bytes:
@@ -127,7 +127,8 @@ async def test_errback_failure_wrapped_in_exception_group():
 
     with pytest.raises(ExceptionGroup) as excinfo:
         await manager._handle_exception(
-            Request(url="https://api.test.com/errback", errback=errback), RuntimeError("boom")
+            Request(url="https://api.test.com/errback", errback=errback),
+            RuntimeError("boom"),
         )
 
     assert len(excinfo.value.exceptions) == 2
@@ -212,7 +213,7 @@ async def test_raise_for_status_false_skips_errback(base_manager_factory):
             callback=callback,
             errback=errback,
             raise_for_status=False,
-        )
+        ),
     )
 
     assert called["response"].status == 500
@@ -231,7 +232,7 @@ async def test_sender_raises_on_data_and_json(base_manager_factory):
                 method="POST",
                 data={"x": 1},
                 json_data={"y": 2},
-            )
+            ),
         )
 
     await manager.close()
@@ -249,7 +250,7 @@ async def test_sender_raises_on_files_and_json(base_manager_factory):
                 method="POST",
                 files={"file": File("name", b"content")},
                 json_data={"y": 2},
-            )
+            ),
         )
 
     await manager.close()
@@ -267,7 +268,7 @@ async def test_callback_receives_cb_kwargs(base_manager_factory):
     manager = base_manager_factory(session_factory=lambda: FakeSession())
 
     await manager._send_request(
-        Request(url="https://api.test.com/test", callback=callback, cb_kwargs={"custom_arg": "test_value"})
+        Request(url="https://api.test.com/test", callback=callback, cb_kwargs={"custom_arg": "test_value"}),
     )
 
     assert "response" in captured
@@ -510,7 +511,7 @@ async def test_url_with_params_is_parsed():
     manager.start_listening()
 
     await manager._send_request(
-        Request(url="https://api.test.com/test", params={"key": "value", "foo": "bar"}, callback=callback)
+        Request(url="https://api.test.com/test", params={"key": "value", "foo": "bar"}, callback=callback),
     )
 
     # URL should contain query params
@@ -547,5 +548,5 @@ async def test_close_stops_queue_processing():
     await manager.close()
 
     # Session should be closed
-    assert manager._session.closed is True  # type: ignore
-    assert manager._completed is True
+    assert manager._session.closed is True  # type: ignore[reportAttributeAccessIssue]
+    assert manager._completed.is_set()

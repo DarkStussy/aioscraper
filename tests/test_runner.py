@@ -28,7 +28,7 @@ def make_scraper_mock() -> AsyncMock:
         scraper.started = True
         try:
             await asyncio.wait_for(scraper._stop.wait(), scraper.config.execution.timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             scraper.cancelled = True
             scraper.cancelled_by_timeout = True
         except asyncio.CancelledError:

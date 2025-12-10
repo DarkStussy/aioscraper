@@ -7,9 +7,8 @@ from typing import Any, Awaitable, Callable, Hashable
 
 from yarl import URL
 
-from ..config import RateLimitConfig, RequestRetryConfig
-from ..types.session import Request, PRequest
-
+from aioscraper.config import RateLimitConfig, RequestRetryConfig
+from aioscraper.types.session import PRequest, Request
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +103,7 @@ class AdaptiveStrategy:
 
     def __init__(
         self,
+        *,
         min_interval: float = 0.001,
         max_interval: float = 5.0,
         increase_factor: float = 2.0,
@@ -299,29 +299,26 @@ class RequestGroup:
             await self._task
 
     async def _listen_queue(self):
-        try:
-            while True:
-                try:
-                    # Wait for next request with timeout. If no requests arrive within
-                    # cleanup_timeout, the group is considered idle and will be cleaned up.
-                    pr = await asyncio.wait_for(self._queue.get(), timeout=self._cleanup_timeout)
-                except asyncio.TimeoutError:
-                    # Race condition: item may have been added while timeout was firing
-                    if not self._queue.empty():
-                        continue
+        while True:
+            try:
+                # Wait for next request with timeout. If no requests arrive within
+                # cleanup_timeout, the group is considered idle and will be cleaned up.
+                pr = await asyncio.wait_for(self._queue.get(), timeout=self._cleanup_timeout)
+            except asyncio.TimeoutError:
+                # Race condition: item may have been added while timeout was firing
+                if not self._queue.empty():
+                    continue
 
-                    # Group is idle - trigger cleanup callback and exit worker loop
-                    self._on_finished(self._key, self)
-                    break
+                # Group is idle - trigger cleanup callback and exit worker loop
+                self._on_finished(self._key, self)
+                break
 
-                try:
-                    await asyncio.shield(self._schedule(pr))
-                except Exception as e:
-                    logger.error("Rate limiter scheduler failed for %r: %s", self._key, e, exc_info=e)
+            try:
+                await asyncio.shield(self._schedule(pr))
+            except Exception:
+                logger.exception("Rate limiter scheduler failed for %r", self._key)
 
-                await asyncio.sleep(self._interval)
-        except asyncio.CancelledError:
-            raise
+            await asyncio.sleep(self._interval)
 
     def _on_task_done_factory(self) -> Callable[[asyncio.Task[None]], None]:
         def _on_task_done(task: asyncio.Task[None]):

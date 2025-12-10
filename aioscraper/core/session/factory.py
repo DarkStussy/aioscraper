@@ -1,9 +1,10 @@
 import logging
 from typing import Callable
 
+from aioscraper.config import Config, HttpBackend
+from aioscraper.exceptions import AIOScraperException
+
 from .base import BaseSession
-from ...config import Config, HttpBackend
-from ...exceptions import AIOScraperException
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ def get_sessionmaker(config: Config) -> SessionMaker:
             )
         except ModuleNotFoundError:  # pragma: no cover
             logger.debug("aiohttp not available, trying httpx")
-            pass
 
     if config.session.http_backend != HttpBackend.AIOHTTP:
         try:
@@ -42,11 +42,12 @@ def get_sessionmaker(config: Config) -> SessionMaker:
                 "configured" if config.session.ssl is not None else "default",
             )
             return lambda: HttpxSession(
-                timeout=config.session.timeout, verify=config.session.ssl, proxy=config.session.proxy
+                timeout=config.session.timeout,
+                verify=config.session.ssl,
+                proxy=config.session.proxy,
             )
         except ModuleNotFoundError:  # pragma: no cover
             logger.debug("httpx not available")
-            pass
 
     logger.error("No HTTP backend available: aiohttp and httpx are not installed")
     raise AIOScraperException("aiohttp or httpx is not installed")

@@ -6,13 +6,12 @@ import pytest
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import RateLimiterManager, RequestGroup, default_group_by_factory
-from aioscraper.types.session import Request, PRequest
+from aioscraper.types.session import PRequest, Request
 
 
 @pytest.fixture
 def mock_schedule():
-    mock = AsyncMock()
-    return mock
+    return AsyncMock()
 
 
 @pytest.fixture

@@ -1,18 +1,17 @@
 import json
+from dataclasses import dataclass, field
 from http import HTTPMethod
 from http.cookies import BaseCookie, Morsel, SimpleCookie
-from dataclasses import dataclass, field
 from typing import (
+    Any,
+    Awaitable,
+    Callable,
     Mapping,
     MutableMapping,
-    Any,
-    Callable,
-    Awaitable,
     NamedTuple,
     NotRequired,
     TypedDict,
 )
-
 
 QueryParams = MutableMapping[str, str | int | float]
 RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
@@ -131,7 +130,7 @@ class PRequest:
 class Response:
     "Represents an HTTP response with all its components."
 
-    __slots__ = ("_url", "_method", "_status", "_headers", "_cookies", "_read", "_content")
+    __slots__ = ("_content", "_cookies", "_headers", "_method", "_read", "_status", "_url")
 
     def __init__(
         self,
@@ -178,7 +177,7 @@ class Response:
     @property
     def ok(self) -> bool:
         "Returns ``True`` if ``status`` is less than ``400``, ``False`` if not"
-        return 400 > self._status
+        return self._status < 400  # noqa: PLR2004
 
     def __repr__(self) -> str:
         return f"Response[{self._method} {self._url}]"
@@ -223,11 +222,10 @@ class Response:
         """
         content_type = self.headers.get("Content-Type", "")
         parts = content_type.split(";")
-        params = parts[1:]
+        params = [param.strip() for param in parts[1:]]
         items_to_strip = "\"' "
 
         for param in params:
-            param = param.strip()
             if not param:
                 continue
 
@@ -241,8 +239,9 @@ class Response:
             if key == "charset":
                 try:
                     "".encode(value)
-                    return value
                 except LookupError:
                     return "utf-8"
+                else:
+                    return value
 
         return "utf-8"

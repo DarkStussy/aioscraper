@@ -2,9 +2,9 @@ import asyncio
 import inspect
 import math
 import re
-from http import HTTPStatus
 from contextlib import AbstractContextManager, ExitStack
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Any, Callable, Self
 
 from aiohttp import web
@@ -72,7 +72,7 @@ class MockServer(BaseTestServer):
         self._patch_client = patch_client
         self._patch_exit_stack = ExitStack()
 
-    async def _make_runner(self, debug: bool = True, **kwargs):
+    async def _make_runner(self, *, debug: bool = True, **kwargs):
         srv = Server(self._dispatch, loop=self._loop, debug=True, **kwargs)
         return ServerRunner(srv, debug=debug, **kwargs)
 
@@ -104,7 +104,7 @@ class MockServer(BaseTestServer):
             return web.Response(text=response.text, status=response.status, headers=response.headers)
 
         self._unmatched.append(request)
-        raise web.HTTPNotFound()
+        raise web.HTTPNotFound
 
     async def __aenter__(self) -> Self:
         await self.start_server(loop=self._loop)
@@ -129,10 +129,10 @@ class MockServer(BaseTestServer):
                 method=method.upper(),
                 handler=handler or (lambda _: MockResponse()),
                 repeat=repeat,
-            )
+            ),
         )
 
-    def assert_no_unused_routes(self, ignore_infinite_repeats: bool = False):
+    def assert_no_unused_routes(self, *, ignore_infinite_repeats: bool = False):
         unused = [
             route
             for route in self._routes

@@ -2,8 +2,8 @@ import logging
 from collections.abc import Iterable
 from typing import Callable
 
-from .._helpers.log import get_log_name
-from ..types import Middleware, MiddlewareStage
+from aioscraper._helpers.log import get_log_name
+from aioscraper.types import Middleware, MiddlewareStage
 
 logger = logging.getLogger(__name__)
 

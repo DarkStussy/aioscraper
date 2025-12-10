@@ -4,16 +4,16 @@ import logging
 import pytest
 
 from aioscraper.config.models import (
-    SessionConfig,
-    SchedulerConfig,
-    ExecutionConfig,
-    PipelineConfig,
-    Config,
-    RequestRetryConfig,
-    RateLimitConfig,
     AdaptiveRateLimitConfig,
     BackoffStrategy,
+    Config,
+    ExecutionConfig,
     HttpBackend,
+    PipelineConfig,
+    RateLimitConfig,
+    RequestRetryConfig,
+    SchedulerConfig,
+    SessionConfig,
 )
 from aioscraper.exceptions import ConfigValidationError
 
@@ -28,7 +28,7 @@ class TestSessionConfig:
         assert config.http_backend is None
 
     def test_validates_timeout_min(self):
-        with pytest.raises(ConfigValidationError, match="timeout.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"timeout.*minimum is 0.001"):
             SessionConfig(timeout=0.0)
 
     def test_validates_timeout_max_boundary(self):
@@ -40,7 +40,7 @@ class TestSessionConfig:
         assert config.timeout == 30.0
 
     def test_accepts_string_timeout(self):
-        config = SessionConfig(timeout="45.5")  # type: ignore
+        config = SessionConfig(timeout="45.5")  # type: ignore[reportArgumentType]
         assert config.timeout == 45.5
         assert isinstance(config.timeout, float)
 
@@ -49,7 +49,7 @@ class TestSessionConfig:
         assert config.ssl is False
 
     def test_accepts_string_ssl(self):
-        config = SessionConfig(ssl="false")  # type: ignore
+        config = SessionConfig(ssl="false")  # type: ignore[reportArgumentType]
         assert config.ssl is False
 
     def test_accepts_proxy_string(self):
@@ -66,7 +66,7 @@ class TestSessionConfig:
         assert config.http_backend == HttpBackend.AIOHTTP
 
     def test_accepts_http_backend_string(self):
-        config = SessionConfig(http_backend="httpx")  # type: ignore
+        config = SessionConfig(http_backend="httpx")  # type: ignore[reportArgumentType]
         assert config.http_backend == HttpBackend.HTTPX
 
 
@@ -83,15 +83,15 @@ class TestRequestRetryConfig:
         assert config.exceptions == (asyncio.TimeoutError,)
 
     def test_validates_attempts_min(self):
-        with pytest.raises(ConfigValidationError, match="attempts.*minimum is 1"):
+        with pytest.raises(ConfigValidationError, match=r"attempts.*minimum is 1"):
             RequestRetryConfig(attempts=0)
 
     def test_validates_base_delay_min(self):
-        with pytest.raises(ConfigValidationError, match="base_delay.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"base_delay.*minimum is 0.001"):
             RequestRetryConfig(base_delay=0.0)
 
     def test_validates_max_delay_min(self):
-        with pytest.raises(ConfigValidationError, match="max_delay.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"max_delay.*minimum is 0.001"):
             RequestRetryConfig(max_delay=0.0)
 
     def test_accepts_valid_attempts(self):
@@ -99,7 +99,7 @@ class TestRequestRetryConfig:
         assert config.attempts == 5
 
     def test_accepts_string_attempts(self):
-        config = RequestRetryConfig(attempts="10")  # type: ignore
+        config = RequestRetryConfig(attempts="10")  # type: ignore[reportArgumentType]
         assert config.attempts == 10
 
     def test_delay_factory_constant(self):
@@ -154,30 +154,30 @@ class TestAdaptiveRateLimitConfig:
         assert config.inherit_retry_triggers is True
 
     def test_validates_min_interval(self):
-        with pytest.raises(ConfigValidationError, match="min_interval.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"min_interval.*minimum is 0.001"):
             AdaptiveRateLimitConfig(min_interval=0.0)
 
     def test_validates_max_interval(self):
-        with pytest.raises(ConfigValidationError, match="max_interval.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"max_interval.*minimum is 0.001"):
             AdaptiveRateLimitConfig(max_interval=0.0)
 
     def test_validates_increase_factor(self):
-        with pytest.raises(ConfigValidationError, match="increase_factor.*minimum is 1.0"):
+        with pytest.raises(ConfigValidationError, match=r"increase_factor.*minimum is 1.0"):
             AdaptiveRateLimitConfig(increase_factor=0.5)
 
     def test_validates_decrease_step(self):
-        with pytest.raises(ConfigValidationError, match="decrease_step.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"decrease_step.*minimum is 0.001"):
             AdaptiveRateLimitConfig(decrease_step=0.0)
 
     def test_validates_success_threshold(self):
-        with pytest.raises(ConfigValidationError, match="success_threshold.*minimum is 1"):
+        with pytest.raises(ConfigValidationError, match=r"success_threshold.*minimum is 1"):
             AdaptiveRateLimitConfig(success_threshold=0)
 
     def test_validates_ewma_alpha_range(self):
-        with pytest.raises(ConfigValidationError, match="ewma_alpha.*minimum is 0.0"):
+        with pytest.raises(ConfigValidationError, match=r"ewma_alpha.*minimum is 0.0"):
             AdaptiveRateLimitConfig(ewma_alpha=-0.1)
 
-        with pytest.raises(ConfigValidationError, match="ewma_alpha.*maximum is 1.0"):
+        with pytest.raises(ConfigValidationError, match=r"ewma_alpha.*maximum is 1.0"):
             AdaptiveRateLimitConfig(ewma_alpha=1.5)
 
     def test_accepts_valid_values(self):
@@ -209,11 +209,11 @@ class TestRateLimitConfig:
         assert config.adaptive is None
 
     def test_validates_default_interval(self):
-        with pytest.raises(ConfigValidationError, match="default_interval.*minimum is 0.0"):
+        with pytest.raises(ConfigValidationError, match=r"default_interval.*minimum is 0.0"):
             RateLimitConfig(default_interval=-1.0)
 
     def test_validates_cleanup_timeout(self):
-        with pytest.raises(ConfigValidationError, match="cleanup_timeout.*minimum is 0.1"):
+        with pytest.raises(ConfigValidationError, match=r"cleanup_timeout.*minimum is 0.1"):
             RateLimitConfig(cleanup_timeout=0.01)
 
     def test_accepts_adaptive_config(self):
@@ -233,24 +233,27 @@ class TestSchedulerConfig:
         assert config.ready_queue_max_size == 0
 
     def test_validates_concurrent_requests_min(self):
-        with pytest.raises(ConfigValidationError, match="concurrent_requests.*minimum is 1"):
+        with pytest.raises(ConfigValidationError, match=r"concurrent_requests.*minimum is 1"):
             SchedulerConfig(concurrent_requests=0)
 
     def test_validates_pending_requests_min(self):
-        with pytest.raises(ConfigValidationError, match="pending_requests.*minimum is 1"):
+        with pytest.raises(ConfigValidationError, match=r"pending_requests.*minimum is 1"):
             SchedulerConfig(pending_requests=0)
 
     def test_validates_close_timeout_min(self):
-        with pytest.raises(ConfigValidationError, match="close_timeout.*minimum is 0.01"):
+        with pytest.raises(ConfigValidationError, match=r"close_timeout.*minimum is 0.01"):
             SchedulerConfig(close_timeout=0.001)
 
     def test_validates_ready_queue_max_size_min(self):
-        with pytest.raises(ConfigValidationError, match="ready_queue_max_size.*minimum is 0"):
+        with pytest.raises(ConfigValidationError, match=r"ready_queue_max_size.*minimum is 0"):
             SchedulerConfig(ready_queue_max_size=-1)
 
     def test_accepts_valid_values(self):
         config = SchedulerConfig(
-            concurrent_requests=10, pending_requests=5, close_timeout=1.0, ready_queue_max_size=100
+            concurrent_requests=10,
+            pending_requests=5,
+            close_timeout=1.0,
+            ready_queue_max_size=100,
         )
 
         assert config.concurrent_requests == 10
@@ -259,11 +262,7 @@ class TestSchedulerConfig:
         assert config.ready_queue_max_size == 100
 
     def test_accepts_string_values(self):
-        config = SchedulerConfig(
-            concurrent_requests="20",  # type: ignore
-            pending_requests="10",  # type: ignore
-            close_timeout="2.5",  # type: ignore
-        )
+        config = SchedulerConfig(concurrent_requests="20", pending_requests="10", close_timeout="2.5")  # type: ignore[reportArgumentType]
 
         assert config.concurrent_requests == 20
         assert config.pending_requests == 10
@@ -280,15 +279,15 @@ class TestExecutionConfig:
         assert config.log_level == logging.ERROR
 
     def test_validates_timeout_min(self):
-        with pytest.raises(ConfigValidationError, match="timeout.*minimum is 0.01"):
+        with pytest.raises(ConfigValidationError, match=r"timeout.*minimum is 0.01"):
             ExecutionConfig(timeout=0.001)
 
     def test_validates_shutdown_timeout_min(self):
-        with pytest.raises(ConfigValidationError, match="shutdown_timeout.*minimum is 0.001"):
+        with pytest.raises(ConfigValidationError, match=r"shutdown_timeout.*minimum is 0.001"):
             ExecutionConfig(shutdown_timeout=0.0)
 
     def test_validates_shutdown_check_interval_min(self):
-        with pytest.raises(ConfigValidationError, match="shutdown_check_interval.*minimum is 0.01"):
+        with pytest.raises(ConfigValidationError, match=r"shutdown_check_interval.*minimum is 0.01"):
             ExecutionConfig(shutdown_check_interval=0.001)
 
     def test_accepts_none_timeout(self):
@@ -300,7 +299,7 @@ class TestExecutionConfig:
         assert config.timeout == 30.0
 
     def test_accepts_string_timeout(self):
-        config = ExecutionConfig(timeout="45.5")  # type: ignore
+        config = ExecutionConfig(timeout="45.5")  # type: ignore[reportArgumentType]
         assert config.timeout == 45.5
 
 
@@ -310,7 +309,7 @@ class TestPipelineConfig:
         assert config.strict is True
 
     def test_accepts_string_bool(self):
-        config = PipelineConfig(strict="false")  # type: ignore
+        config = PipelineConfig(strict="false")  # type: ignore[reportArgumentType]
         assert config.strict is False
 
 

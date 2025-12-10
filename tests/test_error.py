@@ -1,7 +1,7 @@
 import pytest
 
 from aioscraper.exceptions import ClientException, HTTPException
-from aioscraper.types import Request, SendRequest, Response
+from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 

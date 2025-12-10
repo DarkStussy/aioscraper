@@ -3,17 +3,18 @@ import inspect
 import logging
 from typing import Sequence
 
+from aioscraper.core import AIOScraper, run_scraper
+from aioscraper.exceptions import CLIError
+
 from ._args import parse_args
 from ._entrypoint import resolve_entrypoint_factory
-from ..exceptions import CLIError
-from ..core import AIOScraper, run_scraper
 
 logger = logging.getLogger("aioscraper.cli")
 
 
 def _apply_uvloop_policy():
     try:
-        import uvloop  # type: ignore
+        import uvloop  # type: ignore[reportMissingImports]
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on optional dependency
         raise CLIError("uvloop is not installed. Install it to use the --uvloop flag.") from exc
 
@@ -60,7 +61,7 @@ def main(argv: Sequence[str] | None = None):
                 args.entrypoint,
                 concurrent_requests=args.concurrent_requests,
                 pending_requests=args.pending_requests,
-            )
+            ),
         )
     except KeyboardInterrupt:
         logger.info("Interrupted, shutting down...")

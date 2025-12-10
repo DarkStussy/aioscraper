@@ -1,15 +1,15 @@
 import argparse
 from typing import Callable, Sequence
 
-from ..config.field_validators import RangeValidator
+from aioscraper.config.field_validators import RangeValidator
 
 
 def _parse_int_factory(arg_name: str, validator: RangeValidator[int]) -> Callable[[str], int | None]:
     def _parse_int(value: str) -> int | None:
         try:
             int_value = int(value)
-        except ValueError:
-            raise argparse.ArgumentTypeError("Value must be an integer")
+        except (TypeError, ValueError):
+            raise argparse.ArgumentTypeError("Value must be an integer") from None
 
         try:
             return validator(arg_name, int_value) or None
@@ -20,7 +20,7 @@ def _parse_int_factory(arg_name: str, validator: RangeValidator[int]) -> Callabl
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    range_validator = RangeValidator(min=1)
+    range_validator = RangeValidator(min_value=1)
 
     parser = argparse.ArgumentParser(description="Run aioscraper scrapers from the command line.")
     parser.add_argument("entrypoint", help="Path to the entrypoint module")

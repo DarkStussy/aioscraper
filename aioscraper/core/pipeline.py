@@ -1,11 +1,11 @@
 from logging import getLogger
 from typing import Any, Callable, Mapping
 
-from ..config import PipelineConfig
-from ..exceptions import PipelineException, StopMiddlewareProcessing, StopItemProcessing
-from .._helpers.func import get_func_kwargs
-from .._helpers.log import get_log_name
-from ..types.pipeline import GlobalPipelineMiddleware, Pipeline, PipelineContainer, PipelineItemType
+from aioscraper._helpers.func import get_func_kwargs
+from aioscraper._helpers.log import get_log_name
+from aioscraper.config import PipelineConfig
+from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
+from aioscraper.types.pipeline import GlobalPipelineMiddleware, Pipeline, PipelineContainer, PipelineItemType
 
 logger = getLogger(__name__)
 
@@ -41,8 +41,8 @@ class PipelineDispatcher:
             pipe_container = self._pipelines[type(item)]
         except KeyError:
             if self._config.strict:
-                logger.error("Pipeline not found for item type %s (strict mode)", item_type)
-                raise PipelineException(f"Pipelines for item {item_type} not found")
+                logger.exception("Pipeline not found for item type %s (strict mode)", item_type)
+                raise PipelineException(f"Pipelines for item {item_type} not found") from None
 
             logger.warning("Pipeline not found for item type %s, skipping", item_type)
             return item
@@ -117,5 +117,5 @@ class PipelineDispatcher:
             for pipeline in pipe_container.pipelines:
                 try:
                     await pipeline.close()
-                except Exception as e:
-                    logger.error("Error closing pipeline for type %s: %s", get_log_name(item_type), e, exc_info=e)
+                except Exception:
+                    logger.exception("Error closing pipeline for type %s", get_log_name(item_type))

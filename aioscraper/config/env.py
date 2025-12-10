@@ -1,11 +1,11 @@
-import os
 import json
+import os
 from logging import getLevelNamesMapping
 from typing import Any, Callable
 
 from yarl import URL
 
-from ..types.stub import NotSetType, NOTSET
+from aioscraper.types.stub import NOTSET, NotSetType
 
 
 def to_bool(v: str) -> bool:
@@ -30,7 +30,7 @@ def parse(key: str, default: Any = NOTSET, *, cast: Callable[[str], Any] = str) 
         if default is NOTSET:
             raise ValueError(f"Missing required environment variable: {key}")
 
-        return default  # type: ignore
+        return default
 
     try:
         return cast(raw)
@@ -69,13 +69,15 @@ def parse_proxy(key: str, default: str | None = None) -> dict[str, str | None] |
         url_exc = None
         try:
             return json.loads(value)
-        except Exception as e:
+        except (json.JSONDecodeError, TypeError) as e:
             url_exc = e
 
         json_exc = None
         try:
             return str(URL(value))
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             json_exc = e
 
         raise ExceptionGroup("Cannot parse proxy", [url_exc, json_exc])
+
+    return None

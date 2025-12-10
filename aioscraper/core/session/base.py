@@ -1,9 +1,8 @@
 import abc
 from contextlib import AsyncExitStack
 from types import TracebackType
-from typing import Type
 
-from ...types import Request, Response
+from aioscraper.types import Request, Response
 
 
 class BaseRequestContextManager(abc.ABC):
@@ -19,7 +18,7 @@ class BaseRequestContextManager(abc.ABC):
 
     async def __aexit__(
         self,
-        exc_type: Type[BaseException] | None,
+        exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
@@ -35,6 +34,7 @@ class BaseSession(abc.ABC):
         """Build a context manager responsible for executing ``request``."""
         ...
 
+    @abc.abstractmethod
     async def close(self):
         """
         Close the session and release all resources.

@@ -17,7 +17,7 @@ class Scraper:
                 method="GET",
                 allow_redirects=self.allow_redirects,
                 callback=self.parse,
-            )
+            ),
         )
 
     async def parse(self, response: Response):

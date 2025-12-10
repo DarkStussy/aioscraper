@@ -28,21 +28,21 @@ class RangeValidator(Generic[NumericT]):
         max: Maximum allowed value (inclusive)
     """
 
-    def __init__(self, min: NumericT | None = None, max: NumericT | None = None):
-        if min is None and max is None:
+    def __init__(self, min_value: NumericT | None = None, max_value: NumericT | None = None):
+        if min_value is None and max_value is None:
             raise ValueError("At least one of min or max must be specified")
 
-        self.min = min
-        self.max = max
+        self.min_value = min_value
+        self.max_value = max_value
 
     def __call__(self, key: str, value: NumericT | None) -> NumericT | None:
         if value is None:
             return value
 
-        if self.min is not None and value < self.min:
-            raise ValueError(f"Value for {key} is {value}, but minimum is {self.min}")
-        if self.max is not None and value > self.max:
-            raise ValueError(f"Value for {key} is {value}, but maximum is {self.max}")
+        if self.min_value is not None and value < self.min_value:
+            raise ValueError(f"Value for {key} is {value}, but minimum is {self.min_value}")
+        if self.max_value is not None and value > self.max_value:
+            raise ValueError(f"Value for {key} is {value}, but maximum is {self.max_value}")
 
         return value
 
@@ -50,25 +50,25 @@ class RangeValidator(Generic[NumericT]):
 class LengthValidator:
     """Validates the length of strings, lists, or tuples."""
 
-    def __init__(self, min: int | None = None, max: int | None = None):
-        if min is None and max is None:
+    def __init__(self, *, min_length: int | None = None, max_length: int | None = None):
+        if min_length is None and max_length is None:
             raise ValueError("At least one of min or max must be specified")
-        if min is not None and min < 0:
+        if min_length is not None and min_length < 0:
             raise ValueError("min must be non-negative")
-        if max is not None and max < 0:
+        if max_length is not None and max_length < 0:
             raise ValueError("max must be non-negative")
-        if min is not None and max is not None and min > max:
+        if min_length is not None and max_length is not None and min_length > max_length:
             raise ValueError("min cannot be greater than max")
 
-        self.min = min
-        self.max = max
+        self.min_length = min_length
+        self.max_length = max_length
 
     def __call__(self, key: str, value: str | list[Any] | tuple[Any, ...]) -> str | list[Any] | tuple[Any, ...]:
         length = len(value)
-        if self.min is not None and length < self.min:
-            raise ValueError(f"Length of {key} is {length}, but minimum is {self.min}")
-        if self.max is not None and length > self.max:
-            raise ValueError(f"Length of {key} is {length}, but maximum is {self.max}")
+        if self.min_length is not None and length < self.min_length:
+            raise ValueError(f"Length of {key} is {length}, but minimum is {self.min_length}")
+        if self.max_length is not None and length > self.max_length:
+            raise ValueError(f"Length of {key} is {length}, but maximum is {self.max_length}")
 
         return value
 
@@ -115,16 +115,15 @@ class CustomValidator(Generic[T]):
     def __call__(self, key: str, value: T) -> T:
         try:
             result = self._func(value)
+        except Exception as e:
+            raise ValueError(f"Custom validation failed for {key}: {e}") from e
+        else:
             if result is False:
                 raise ValueError(f"Custom validation failed for {key}")
             if result is True:
                 return value
 
             return result
-        except ValueError:
-            raise
-        except Exception as e:
-            raise ValueError(f"Custom validation failed for {key}: {e}") from e
 
 
 class ChainValidator(Generic[T]):
@@ -163,12 +162,13 @@ class ProxyValidator:
         if isinstance(value, str):
             try:
                 parsed = URL(value)
+            except Exception as e:
+                raise ValueError(f"Invalid proxy URL for {key}: {value!r}") from e
+            else:
                 if not parsed.scheme or parsed.scheme not in self._valid_schemes:
                     raise ValueError("Proxy URL must include a scheme (e.g., http, https)")
 
                 return value
-            except Exception as e:
-                raise ValueError(f"Invalid proxy URL for {key}: {value!r}") from e
 
         if isinstance(value, dict):
             for scheme, proxy_url in value.items():
@@ -178,10 +178,11 @@ class ProxyValidator:
                 if proxy_url is not None:
                     try:
                         parsed = URL(proxy_url)
-                        if not parsed.scheme or parsed.scheme not in self._valid_schemes:
-                            raise ValueError("Proxy URL must include a scheme (e.g., http, https)")
                     except Exception as e:
                         raise ValueError(f"Invalid proxy URL for scheme {scheme} in {key}: {proxy_url!r}") from e
+                    else:
+                        if not parsed.scheme or parsed.scheme not in self._valid_schemes:
+                            raise ValueError("Proxy URL must include a scheme (e.g., http, https)")
 
             return {f"{k}://": v for k, v in value.items()}
 

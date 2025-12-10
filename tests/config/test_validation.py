@@ -1,12 +1,12 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from decimal import Decimal
 from enum import Enum
 
 import pytest
 
-from aioscraper.config.model_validator import validate, field
-from aioscraper.config.field_validators import RangeValidator, LengthValidator, ChainValidator, CustomValidator
+from aioscraper.config.field_validators import ChainValidator, CustomValidator, LengthValidator, RangeValidator
+from aioscraper.config.model_validator import field, validate
 from aioscraper.exceptions import ConfigValidationError
 
 
@@ -21,7 +21,7 @@ class TestValidateDecorator:
         @dataclass
         @validate
         class Config:
-            port: int = field(default=8080, validator=RangeValidator(min=1, max=65535))
+            port: int = field(default=8080, validator=RangeValidator(min_value=1, max_value=65535))
 
         config = Config(port=8080)
         assert config.port == 8080
@@ -32,30 +32,30 @@ class TestValidateDecorator:
         config = Config(port=65535)
         assert config.port == 65535
 
-        with pytest.raises(ConfigValidationError, match="port.*minimum is 1"):
+        with pytest.raises(ConfigValidationError, match=r"port.*minimum is 1"):
             Config(port=0)
 
-        with pytest.raises(ConfigValidationError, match="port.*maximum is 65535"):
+        with pytest.raises(ConfigValidationError, match=r"port.*maximum is 65535"):
             Config(port=65536)
 
     def test_validates_field_with_length_validator(self):
         @dataclass
         @validate
         class Config:
-            api_key: str = field(default="", validator=LengthValidator(min=32))
+            api_key: str = field(default="", validator=LengthValidator(min_length=32))
 
         config = Config(api_key="a" * 32)
         assert len(config.api_key) == 32
 
-        with pytest.raises(ConfigValidationError, match="api_key.*minimum is 32"):
+        with pytest.raises(ConfigValidationError, match=r"api_key.*minimum is 32"):
             Config(api_key="short")
 
     def test_validates_multiple_fields(self):
         @dataclass
         @validate
         class Config:
-            port: int = field(default=8080, validator=RangeValidator(min=1, max=65535))
-            timeout: float = field(default=30.0, validator=RangeValidator(min=0.1, max=300.0))
+            port: int = field(default=8080, validator=RangeValidator(min_value=1, max_value=65535))
+            timeout: float = field(default=30.0, validator=RangeValidator(min_value=0.1, max_value=300.0))
 
         config = Config(port=3000, timeout=10.0)
         assert config.port == 3000
@@ -73,16 +73,18 @@ class TestValidateDecorator:
         class Config:
             workers: int = field(
                 default=4,
-                validator=ChainValidator([RangeValidator(min=1, max=100), CustomValidator(lambda x: x % 2 == 0)]),
+                validator=ChainValidator(
+                    [RangeValidator(min_value=1, max_value=100), CustomValidator(lambda x: x % 2 == 0)],
+                ),
             )
 
         config = Config(workers=4)
         assert config.workers == 4
 
-        with pytest.raises(ConfigValidationError, match="workers.*minimum is 1"):
+        with pytest.raises(ConfigValidationError, match=r"workers.*minimum is 1"):
             Config(workers=0)
 
-        with pytest.raises(ConfigValidationError, match="workers.*Custom validation failed"):
+        with pytest.raises(ConfigValidationError, match=r"workers.*Custom validation failed"):
             Config(workers=3)
 
     def test_skips_validation_when_skip_validation_is_true(self):
@@ -100,7 +102,7 @@ class TestValidateDecorator:
         class Config:
             port: int = 8080
 
-        config = Config(port="3000")  # type: ignore
+        config = Config(port="3000")  # type: ignore[reportArgumentType]
         assert config.port == 3000
         assert isinstance(config.port, int)
 
@@ -110,7 +112,7 @@ class TestValidateDecorator:
         class Config:
             timeout: float = 30.0
 
-        config = Config(timeout="15.5")  # type: ignore
+        config = Config(timeout="15.5")  # type: ignore[reportArgumentType]
         assert config.timeout == 15.5
         assert isinstance(config.timeout, float)
 
@@ -121,15 +123,15 @@ class TestValidateDecorator:
             enabled: bool = False
 
         for true_val in ["true", "True", "TRUE", "on", "yes", "1", "ok"]:
-            config = Config(enabled=true_val)  # type: ignore
+            config = Config(enabled=true_val)  # type: ignore[reportArgumentType]
             assert config.enabled is True
 
         for false_val in ["false", "False", "FALSE", "0", "no"]:
-            config = Config(enabled=false_val)  # type: ignore
+            config = Config(enabled=false_val)  # type: ignore[reportArgumentType]
             assert config.enabled is False
 
-        with pytest.raises(ConfigValidationError, match="Cannot cast.*to bool"):
-            Config(enabled="maybe")  # type: ignore
+        with pytest.raises(ConfigValidationError, match=r"Cannot cast.*to bool"):
+            Config(enabled="maybe")  # type: ignore[reportArgumentType]
 
     def test_casts_string_to_decimal(self):
         @dataclass
@@ -137,7 +139,7 @@ class TestValidateDecorator:
         class Config:
             price: Decimal = Decimal("0.00")
 
-        config = Config(price="19.99")  # type: ignore
+        config = Config(price="19.99")  # type: ignore[reportArgumentType]
         assert config.price == Decimal("19.99")
         assert isinstance(config.price, Decimal)
 
@@ -147,12 +149,12 @@ class TestValidateDecorator:
         class Config:
             color: Color = Color.RED
 
-        config = Config(color="green")  # type: ignore
+        config = Config(color="green")  # type: ignore[reportArgumentType]
         assert config.color == Color.GREEN
         assert isinstance(config.color, Color)
 
-        with pytest.raises(ConfigValidationError, match="Cannot cast.*to.*Color"):
-            Config(color="yellow")  # type: ignore
+        with pytest.raises(ConfigValidationError, match=r"Cannot cast.*to.*Color"):
+            Config(color="yellow")  # type: ignore[reportArgumentType]
 
     def test_handles_optional_types(self):
         @dataclass
@@ -163,7 +165,7 @@ class TestValidateDecorator:
         config = Config(timeout=None)
         assert config.timeout is None
 
-        config = Config(timeout="10.5")  # type: ignore
+        config = Config(timeout="10.5")  # type: ignore[reportArgumentType]
         assert config.timeout == 10.5
 
     def test_handles_int_to_float_conversion(self):
@@ -181,7 +183,7 @@ class TestValidateDecorator:
         @validate
         class ServerConfig:
             host: str = "localhost"
-            port: int = field(default=8080, validator=RangeValidator(min=1, max=65535))
+            port: int = field(default=8080, validator=RangeValidator(min_value=1, max_value=65535))
 
         @dataclass
         @validate
@@ -204,7 +206,7 @@ class TestValidateDecorator:
             def __post_init__(self):
                 self.computed = self.value * 2
 
-        config = Config(value="5")  # type: ignore
+        config = Config(value="5")  # type: ignore[reportArgumentType]
         assert config.value == 5
         assert config.computed == 10
 
@@ -212,7 +214,7 @@ class TestValidateDecorator:
         @dataclass
         @validate
         class Config:
-            port: int = field(default=8080, validator=RangeValidator(min=1, max=65535))
+            port: int = field(default=8080, validator=RangeValidator(min_value=1, max_value=65535))
 
         with pytest.raises(ConfigValidationError) as exc_info:
             Config(port=100000)
@@ -252,7 +254,7 @@ class TestFieldFunction:
         @dataclass
         @validate
         class Config:
-            port: int = field(default=8080, validator=RangeValidator(min=1, max=65535))
+            port: int = field(default=8080, validator=RangeValidator(min_value=1, max_value=65535))
 
         config = Config()
         assert config.port == 8080
@@ -276,10 +278,7 @@ class TestFieldFunction:
         class Config:
             value: int = field(default=0, metadata={"description": "Some value"})
 
-        import dataclasses
-
-        fields = dataclasses.fields(Config)
-        value_field = next(f for f in fields if f.name == "value")
+        value_field = next(f for f in fields(Config) if f.name == "value")
         assert value_field.metadata["description"] == "Some value"
 
     def test_creates_field_with_skip_validation(self):

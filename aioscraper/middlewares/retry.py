@@ -1,9 +1,9 @@
 import logging
 
-from ..config import RequestRetryConfig
-from ..exceptions import HTTPException, StopRequestProcessing
-from .._helpers.http import parse_retry_after
-from ..types import Request, SendRequest
+from aioscraper._helpers.http import parse_retry_after
+from aioscraper.config import RequestRetryConfig
+from aioscraper.exceptions import HTTPException, StopRequestProcessing
+from aioscraper.types import Request, SendRequest
 
 RETRY_STATE_KEY = "_aioscraper_retry_attempts"
 

@@ -1,10 +1,10 @@
 import asyncio
 
-from httpx import ReadTimeout, TimeoutException
 import pytest
+from httpx import ReadTimeout, TimeoutException
 
-from aioscraper.types import Request, Response, SendRequest
 from aioscraper.config import Config, SessionConfig
+from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -22,7 +22,7 @@ class Scraper:
                 timeout=self.timeout,
                 callback=self.parse,
                 errback=self.on_error,
-            )
+            ),
         )
 
     async def parse(self, response: Response):

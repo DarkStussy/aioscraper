@@ -8,6 +8,7 @@ In production, this would be replaced with a real database (PostgreSQL, MongoDB,
 import asyncio
 import logging
 from uuid import UUID, uuid4
+
 from models import Cryptocurrency, Task, TaskStatus, TaskType
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,6 @@ class CryptoCurrencyDatabase:
 
         In a real database implementation, this would commit the transaction.
         """
-        ...
 
     async def close(self):
         """

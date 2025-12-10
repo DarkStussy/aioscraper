@@ -30,7 +30,7 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
         except NotImplementedError:
             # Windows / limited envs: fallback to signal.signal
             try:
-                signal.signal(sig, lambda *_: loop.call_soon_threadsafe(_trigger, sig_name))
+                signal.signal(sig, lambda *_, s=sig_name: loop.call_soon_threadsafe(_trigger, s))
             except (ValueError, RuntimeError):
                 logger.debug("Signal handler for %s was not installed", sig_name)
 
@@ -59,7 +59,7 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: a
         try:
             await asyncio.wait_for(scraper_task, timeout=scraper.config.execution.shutdown_timeout)
         except asyncio.TimeoutError:
-            logger.error("Shutdown timeout expired")
+            logger.exception("Shutdown timeout expired")
         except asyncio.CancelledError:
             pass
         finally:
@@ -69,6 +69,7 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: a
 
 async def _run_scraper(
     scraper: AIOScraper,
+    *,
     shutdown_event: asyncio.Event | None = None,
     force_exit_event: asyncio.Event | None = None,
     install_signal_handlers: bool = True,

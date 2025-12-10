@@ -4,13 +4,9 @@ from typing import Mapping
 class AIOScraperException(Exception):
     "Base scraper exception."
 
-    ...
-
 
 class ClientException(AIOScraperException):
     "Base exception class for all client-related errors."
-
-    ...
 
 
 class HTTPException(ClientException):
@@ -39,25 +35,17 @@ class HTTPException(ClientException):
 class PipelineException(AIOScraperException):
     "Base exception class for all pipeline-related errors."
 
-    ...
-
 
 class StopMiddlewareProcessing(AIOScraperException):
     "Stop further middlewares in the current phase (inner/response/exception)."
-
-    ...
 
 
 class StopRequestProcessing(AIOScraperException):
     "Raised by middlewares to stop processing the current request entirely."
 
-    ...
-
 
 class StopItemProcessing(AIOScraperException):
     "Raised by pipeline middlewares to stop processing the current item."
-
-    ...
 
 
 class InvalidRequestData(AIOScraperException):

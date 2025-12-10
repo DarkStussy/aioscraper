@@ -1,6 +1,6 @@
 import pytest
 
-from aioscraper.types import Request, Response, SendRequest, File
+from aioscraper.types import File, Request, Response, SendRequest
 from tests.mocks import MockAIOScraper
 
 
@@ -16,7 +16,7 @@ class Scraper:
                 data={"field": "value", "number": "123"},
                 files={"file": File("hello.txt", b"hello", "text/plain")},
                 callback=self.parse,
-            )
+            ),
         )
 
     async def parse(self, response: Response, request: Request):
@@ -35,7 +35,7 @@ async def test_form_and_file_upload(mock_aioscraper: MockAIOScraper):
                 else:
                     data[part.name] = await part.text()
         else:
-            data = {k: v for k, v in (await req.post()).items()}
+            data = await req.post()
 
         return {"content_type": req.content_type, "data": data}
 

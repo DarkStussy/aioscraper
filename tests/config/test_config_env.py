@@ -58,7 +58,7 @@ def test_load_config_raises_on_missing_scheduler_int(monkeypatch):
 def test_load_config_raises_on_invalid_log_level(monkeypatch):
     monkeypatch.setenv("EXECUTION_LOG_LEVEL", "NOPE")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Failed to cast environment variable"):
         load_config()
 
 

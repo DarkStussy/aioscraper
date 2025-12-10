@@ -15,10 +15,12 @@ from dataclasses import dataclass, field
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
+
 from aioscraper import AIOScraper
 from aioscraper.types import Pipeline, Request, Response, SendRequest
 
 START_URL = "https://quotes.toscrape.com/"
+MAX_PAGE = 3
 
 scraper = AIOScraper()
 
@@ -64,6 +66,6 @@ async def parse(response: Response, send_request: SendRequest, pipeline: Pipelin
         await pipeline(Quote(text=text_el.get_text(strip=True), author=author_el.get_text(strip=True), tags=tags))
 
     next_link = soup.select_one("li.next a")
-    if next_link and page < 3:  # follow a couple of pages as an example
+    if next_link and page < MAX_PAGE:  # follow a couple of pages as an example
         next_url = urljoin(response.url, str(next_link.get("href") or ""))
         await send_request(Request(url=next_url, callback=parse, cb_kwargs={"page": page + 1}))

@@ -1,8 +1,9 @@
 import asyncio
-import pytest
-from unittest.mock import patch
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
+from unittest.mock import patch
+
+import pytest
 
 from aioscraper.config import BackoffStrategy, Config, RequestRetryConfig, SessionConfig
 from aioscraper.exceptions import HTTPException, StopRequestProcessing
@@ -25,7 +26,7 @@ async def test_retry_middleware_retries_on_status():
             max_delay=0.1,
             statuses=(502,),
             exceptions=(),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     send_calls = 0
@@ -60,7 +61,7 @@ async def test_retry_middleware_respects_exception_types():
             max_delay=0.1,
             exceptions=(asyncio.TimeoutError,),
             backoff=BackoffStrategy.CONSTANT,
-        )
+        ),
     )
     request = Request(url="https://example.com")
 
@@ -78,7 +79,7 @@ async def test_retry_middleware_stops_after_max_attempts():
             max_delay=0.1,
             statuses=(500,),
             backoff=BackoffStrategy.CONSTANT,
-        )
+        ),
     )
     request = Request(url="https://example.com")
     request.state[RETRY_STATE_KEY] = 1
@@ -105,7 +106,7 @@ async def test_retry_middleware_disabled():
             max_delay=0.1,
             exceptions=(RuntimeError,),
             backoff=BackoffStrategy.CONSTANT,
-        )
+        ),
     )
     request = Request(url="https://example.com")
 
@@ -131,7 +132,7 @@ async def test_retry_middleware_constant_backoff():
             base_delay=0.1,
             backoff=BackoffStrategy.CONSTANT,
             statuses=(500,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
@@ -159,7 +160,7 @@ async def test_retry_middleware_linear_backoff():
             base_delay=0.1,
             backoff=BackoffStrategy.LINEAR,
             statuses=(500,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
@@ -195,7 +196,7 @@ async def test_retry_middleware_exponential_backoff():
             max_delay=1.0,
             backoff=BackoffStrategy.EXPONENTIAL,
             statuses=(500,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
@@ -239,7 +240,7 @@ async def test_retry_middleware_exponential_backoff_with_max_delay():
             max_delay=0.8,
             backoff=BackoffStrategy.EXPONENTIAL,
             statuses=(500,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
@@ -269,7 +270,7 @@ async def test_retry_middleware_exponential_jitter_backoff():
                 max_delay=1.0,
                 backoff=BackoffStrategy.EXPONENTIAL_JITTER,
                 statuses=(500,),
-            )
+            ),
         )
         request = Request(url="https://example.com")
         exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
@@ -302,7 +303,7 @@ class RetryScraper:
                 url=self.url,
                 callback=self.handle_response,
                 errback=self.handle_error,
-            )
+            ),
         )
 
     async def handle_response(self, response: Response):
@@ -331,8 +332,8 @@ async def test_retry_middleware_integration(mock_aioscraper: MockAIOScraper):
                 base_delay=0.05,
                 statuses=(502,),
                 backoff=BackoffStrategy.CONSTANT,
-            )
-        )
+            ),
+        ),
     )
 
     async with mock_aioscraper:
@@ -361,8 +362,8 @@ async def test_retry_middleware_exhausts_attempts(mock_aioscraper: MockAIOScrape
                 base_delay=0.05,
                 statuses=(502,),
                 backoff=BackoffStrategy.CONSTANT,
-            )
-        )
+            ),
+        ),
     )
 
     async with mock_aioscraper:
@@ -383,7 +384,7 @@ async def test_retry_middleware_respects_retry_after_seconds():
             base_delay=1.0,
             backoff=BackoffStrategy.CONSTANT,
             statuses=(429,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(
@@ -419,11 +420,11 @@ async def test_retry_middleware_respects_retry_after_http_date():
             base_delay=1.0,
             backoff=BackoffStrategy.CONSTANT,
             statuses=(503,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
 
-    retry_time = datetime.now(timezone.utc) + timedelta(seconds=10)
+    retry_time = datetime.now(UTC) + timedelta(seconds=10)
     exc = HTTPException(
         url="https://example.com",
         method="GET",
@@ -457,7 +458,7 @@ async def test_retry_middleware_retry_after_case_insensitive():
             base_delay=1.0,
             backoff=BackoffStrategy.CONSTANT,
             statuses=(429,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(
@@ -492,7 +493,7 @@ async def test_retry_middleware_fallback_to_backoff_without_retry_after():
             base_delay=2.0,
             backoff=BackoffStrategy.CONSTANT,
             statuses=(500,),
-        )
+        ),
     )
     request = Request(url="https://example.com")
     exc = HTTPException(

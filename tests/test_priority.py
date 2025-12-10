@@ -1,8 +1,9 @@
 import asyncio
+
 import pytest
 
 from aioscraper.config import Config, SchedulerConfig
-from aioscraper.types import Request, SendRequest, Response
+from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 

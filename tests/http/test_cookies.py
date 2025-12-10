@@ -1,4 +1,5 @@
 from typing import Any
+
 import pytest
 
 from aioscraper.types import Request, Response, SendRequest
@@ -17,7 +18,7 @@ class Scraper:
                 method="GET",
                 cookies={"session": "abc123"},
                 callback=self.parse,
-            )
+            ),
         )
 
     async def parse(self, response: Response, request: Request):

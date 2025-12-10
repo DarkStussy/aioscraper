@@ -12,18 +12,18 @@ The application demonstrates how to:
 """
 
 import asyncio
-from contextlib import asynccontextmanager
 import logging
+from contextlib import asynccontextmanager
 
+from database import CryptoCurrencyDatabase, DatabaseError
+from deps import get_cryptocurrency_database, get_queue
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from aioscraper import AIOScraper
-from aioscraper.config import env, load_config
-
-from deps import get_queue, get_cryptocurrency_database
 from routes import get_api_router
 from scraper import CryptocurrencyPriceScraper
-from database import CryptoCurrencyDatabase, DatabaseError
+
+from aioscraper import AIOScraper
+from aioscraper.config import env, load_config
 
 
 def db_error_handler(_, exc: DatabaseError):
@@ -72,5 +72,5 @@ def create_app():
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(lifespan=lifespan)
     app.include_router(get_api_router())
-    app.add_exception_handler(DatabaseError, db_error_handler)  # type: ignore
+    app.add_exception_handler(DatabaseError, db_error_handler)  # type: ignore[reportArgumentType]
     return app

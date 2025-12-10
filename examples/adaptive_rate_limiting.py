@@ -16,7 +16,6 @@ from aioscraper import AIOScraper
 from aioscraper.config import AdaptiveRateLimitConfig, Config, RateLimitConfig, SessionConfig
 from aioscraper.types import Request, Response, SendRequest
 
-
 # Configure adaptive rate limiting
 scraper = AIOScraper(
     config=Config(
@@ -47,9 +46,9 @@ scraper = AIOScraper(
                     # Use same triggers as retry config (429, 503, timeouts)
                     inherit_retry_triggers=True,
                 ),
-            )
-        )
-    )
+            ),
+        ),
+    ),
 )
 
 
@@ -75,7 +74,7 @@ async def scrape(send_request: SendRequest):
                 callback=handle_response,
                 # Store request number in context for tracking
                 cb_kwargs={"request_num": i + 1},
-            )
+            ),
         )
 
 

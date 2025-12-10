@@ -1,4 +1,5 @@
 from typing import Any
+
 import pytest
 
 from aioscraper.types import Request, Response, SendRequest
@@ -18,7 +19,7 @@ class Scraper:
                 data=self.payload,
                 headers={"Content-Type": "application/octet-stream"},
                 callback=self.parse,
-            )
+            ),
         )
 
     async def parse(self, response: Response):

@@ -2,13 +2,14 @@ import asyncio
 import logging
 import random
 import ssl as ssl_module
-from enum import StrEnum, auto
 from dataclasses import dataclass
+from enum import StrEnum, auto
 from typing import Callable, Hashable
 
-from .model_validator import validate, field
-from .field_validators import RangeValidator, ProxyValidator
-from ..types import Request
+from aioscraper.types import Request
+
+from .field_validators import ProxyValidator, RangeValidator
+from .model_validator import field, validate
 
 
 @dataclass(slots=True, frozen=True)
@@ -50,12 +51,12 @@ class AdaptiveRateLimitConfig:
             Additional exception types to trigger adaptive slowdown.
     """
 
-    min_interval: float = field(default=0.001, validator=RangeValidator(min=0.001))
-    max_interval: float = field(default=5.0, validator=RangeValidator(min=0.001))
-    increase_factor: float = field(default=2.0, validator=RangeValidator(min=1.0))
-    decrease_step: float = field(default=0.01, validator=RangeValidator(min=0.001))
-    success_threshold: int = field(default=5, validator=RangeValidator(min=1))
-    ewma_alpha: float = field(default=0.3, validator=RangeValidator(min=0.0, max=1.0))
+    min_interval: float = field(default=0.001, validator=RangeValidator(min_value=0.001))
+    max_interval: float = field(default=5.0, validator=RangeValidator(min_value=0.001))
+    increase_factor: float = field(default=2.0, validator=RangeValidator(min_value=1.0))
+    decrease_step: float = field(default=0.01, validator=RangeValidator(min_value=0.001))
+    success_threshold: int = field(default=5, validator=RangeValidator(min_value=1))
+    ewma_alpha: float = field(default=0.3, validator=RangeValidator(min_value=0.0, max_value=1.0))
     respect_retry_after: bool = True
     inherit_retry_triggers: bool = True
     custom_trigger_statuses: tuple[int, ...] = ()
@@ -78,8 +79,8 @@ class RateLimitConfig:
 
     enabled: bool = False
     group_by: Callable[[Request], tuple[Hashable, float]] | None = field(default=None, skip_validation=True)
-    default_interval: float = field(default=0.0, validator=RangeValidator(min=0.0))
-    cleanup_timeout: float = field(default=60.0, validator=RangeValidator(min=0.1))
+    default_interval: float = field(default=0.0, validator=RangeValidator(min_value=0.0))
+    cleanup_timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.1))
     adaptive: AdaptiveRateLimitConfig | None = None
 
 
@@ -118,10 +119,10 @@ class RequestRetryConfig:
     """
 
     enabled: bool = False
-    attempts: int = field(default=3, validator=RangeValidator(min=1))
+    attempts: int = field(default=3, validator=RangeValidator(min_value=1))
     backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL_JITTER
-    base_delay: float = field(default=0.5, validator=RangeValidator(min=0.001))
-    max_delay: float = field(default=30.0, validator=RangeValidator(min=0.001))
+    base_delay: float = field(default=0.5, validator=RangeValidator(min_value=0.001))
+    max_delay: float = field(default=30.0, validator=RangeValidator(min_value=0.001))
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
     exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,)
     middleware: MiddlewareConfig = MiddlewareConfig(stop_processing=True)
@@ -136,7 +137,7 @@ class RequestRetryConfig:
 
             def _factory(attempt: int) -> float:
                 delay = self.base_delay * (2**attempt)
-                return min(self.max_delay, (delay / 2) + random.uniform(0, delay / 2))
+                return min(self.max_delay, (delay / 2) + random.uniform(0, delay / 2))  # noqa: S311
 
             return _factory
 
@@ -162,7 +163,7 @@ class SessionConfig:
         rate_limit (RateLimitConfig): Controls built-in rate limiting behaviour
     """
 
-    timeout: float = field(default=60.0, validator=RangeValidator(min=0.001))
+    timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.001))
     ssl: ssl_module.SSLContext | bool = True
     proxy: str | dict[str, str | None] | None = field(default=None, validator=ProxyValidator({"http", "https"}))
     http_backend: HttpBackend | None = None
@@ -183,10 +184,10 @@ class SchedulerConfig:
         ready_queue_max_size (int): Maximum size of the ready queue (0 for unlimited)
     """
 
-    concurrent_requests: int = field(default=64, validator=RangeValidator(min=1))
-    pending_requests: int = field(default=1, validator=RangeValidator(min=1))
-    close_timeout: float | None = field(default=0.1, validator=RangeValidator(min=0.01))
-    ready_queue_max_size: int = field(default=0, validator=RangeValidator(min=0))
+    concurrent_requests: int = field(default=64, validator=RangeValidator(min_value=1))
+    pending_requests: int = field(default=1, validator=RangeValidator(min_value=1))
+    close_timeout: float | None = field(default=0.1, validator=RangeValidator(min_value=0.01))
+    ready_queue_max_size: int = field(default=0, validator=RangeValidator(min_value=0))
 
 
 @dataclass(slots=True, frozen=True)
@@ -202,9 +203,9 @@ class ExecutionConfig:
             Defaults to logging.ERROR.
     """
 
-    timeout: float | None = field(default=None, validator=RangeValidator(min=0.01))
-    shutdown_timeout: float = field(default=0.1, validator=RangeValidator(min=0.001))
-    shutdown_check_interval: float = field(default=0.1, validator=RangeValidator(min=0.01))
+    timeout: float | None = field(default=None, validator=RangeValidator(min_value=0.01))
+    shutdown_timeout: float = field(default=0.1, validator=RangeValidator(min_value=0.001))
+    shutdown_check_interval: float = field(default=0.1, validator=RangeValidator(min_value=0.01))
     log_level: int = logging.ERROR
 
 

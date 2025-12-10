@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from aioscraper._helpers.http import parse_retry_after
-from aioscraper.config import Config, SessionConfig, AdaptiveRateLimitConfig, RateLimitConfig, RequestRetryConfig
+from aioscraper.config import AdaptiveRateLimitConfig, Config, RateLimitConfig, RequestRetryConfig, SessionConfig
 from aioscraper.core.rate_limiter import (
     AdaptiveMetrics,
     AdaptiveStrategy,
@@ -14,7 +14,7 @@ from aioscraper.core.rate_limiter import (
 )
 from aioscraper.exceptions import HTTPException
 from aioscraper.types import Response, SendRequest
-from aioscraper.types.session import Request, PRequest
+from aioscraper.types.session import PRequest, Request
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -408,7 +408,7 @@ class AdaptiveRateLimitScraper:
                     url=f"https://api.example.com/item/{i}",
                     callback=self.handle_response,
                     errback=self.handle_error,
-                )
+                ),
             )
 
     async def handle_response(self, response: Response):
@@ -469,7 +469,7 @@ async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper)
                     respect_retry_after=True,
                 ),
             ),
-        )
+        ),
     )
 
     async with mock_aioscraper:
@@ -505,8 +505,5 @@ async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper)
     # (showing that system adapted down after recovery)
     max_failure_interval = max(failure_intervals)
     assert avg_success_interval < max_failure_interval * 1.5, (
-        f"Expected recovery: max_failure={max_failure_interval:.3f}, " f"avg_success={avg_success_interval:.3f}"
+        f"Expected recovery: max_failure={max_failure_interval:.3f}, avg_success={avg_success_interval:.3f}"
     )
-
-    print(f"\nIntervals during failures: {[f'{i:.3f}' for i in failure_intervals]}")
-    print(f"Intervals during successes: {[f'{i:.3f}' for i in success_intervals]}")

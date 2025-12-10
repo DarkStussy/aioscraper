@@ -1,18 +1,19 @@
 import ssl as ssl_module
 
+from aioscraper._helpers.module import import_exception
+
+from . import env
 from .models import (
     AdaptiveRateLimitConfig,
     Config,
+    ExecutionConfig,
     MiddlewareConfig,
+    PipelineConfig,
     RateLimitConfig,
     RequestRetryConfig,
-    SessionConfig,
     SchedulerConfig,
-    ExecutionConfig,
-    PipelineConfig,
+    SessionConfig,
 )
-from .._helpers.module import import_exception
-from . import env
 
 
 def load_config() -> Config:
@@ -60,17 +61,20 @@ def load_config() -> Config:
                 middleware=MiddlewareConfig(
                     priority=env.parse("SESSION_RETRY_MIDDLEWARE_PRIORITY", default_retry.middleware.priority),
                     stop_processing=env.parse(
-                        "SESSION_RETRY_MIDDLEWARE_STOP", default_retry.middleware.stop_processing
+                        "SESSION_RETRY_MIDDLEWARE_STOP",
+                        default_retry.middleware.stop_processing,
                     ),
                 ),
             ),
             rate_limit=RateLimitConfig(
                 enabled=env.parse("SESSION_RATE_LIMIT_ENABLED", default_config.session.rate_limit.enabled),
                 default_interval=env.parse(
-                    "SESSION_RATE_LIMIT_INTERVAL", default_config.session.rate_limit.default_interval
+                    "SESSION_RATE_LIMIT_INTERVAL",
+                    default_config.session.rate_limit.default_interval,
                 ),
                 cleanup_timeout=env.parse(
-                    "SESSION_RATE_LIMIT_CLEANUP_TIMEOUT", default_config.session.rate_limit.cleanup_timeout
+                    "SESSION_RATE_LIMIT_CLEANUP_TIMEOUT",
+                    default_config.session.rate_limit.cleanup_timeout,
                 ),
                 adaptive=(
                     AdaptiveRateLimitConfig(
@@ -107,7 +111,7 @@ def load_config() -> Config:
                             default_adaptive_rate_limit.inherit_retry_triggers,
                         ),
                     )
-                    if env.parse("SESSION_RATE_LIMIT_ADAPTIVE_ENABLED", False)
+                    if env.parse("SESSION_RATE_LIMIT_ADAPTIVE_ENABLED", default=False)
                     else None
                 ),
             ),
@@ -127,7 +131,8 @@ def load_config() -> Config:
             timeout=env.parse("EXECUTION_TIMEOUT", default_config.execution.timeout),
             shutdown_timeout=env.parse("EXECUTION_SHUTDOWN_TIMEOUT", default_config.execution.shutdown_timeout),
             shutdown_check_interval=env.parse(
-                "EXECUTION_SHUTDOWN_CHECK_INTERVAL", default_config.execution.shutdown_check_interval
+                "EXECUTION_SHUTDOWN_CHECK_INTERVAL",
+                default_config.execution.shutdown_check_interval,
             ),
             log_level=env.parse_log_level("EXECUTION_LOG_LEVEL", default_config.execution.log_level),
         ),

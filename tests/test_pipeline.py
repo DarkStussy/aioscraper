@@ -1,19 +1,19 @@
-from typing import Callable
 from dataclasses import dataclass, field
+from typing import Callable
 
 import pytest
 
 from aioscraper.config import PipelineConfig
-from aioscraper.exceptions import PipelineException, StopMiddlewareProcessing, StopItemProcessing
-from aioscraper.types.session import Request, SendRequest, Response
+from aioscraper.core.pipeline import PipelineDispatcher
+from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
 from aioscraper.types.pipeline import (
     GlobalPipelineMiddleware,
     Pipeline,
+    PipelineContainer,
     PipelineMiddleware,
     PipelineMiddlewareStage,
-    PipelineContainer,
 )
-from aioscraper.core.pipeline import PipelineDispatcher
+from aioscraper.types.session import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -80,7 +80,7 @@ def _add_pipeline(scraper: MockAIOScraper):
 
 def _add_pipeline_via_decorator(scraper: MockAIOScraper):
     @scraper.pipeline(RealItem, "decorator")
-    class _(RealPipeline): ...
+    class _TestPipeline(RealPipeline): ...
 
 
 def global_middleware_factory(global_label: str) -> GlobalPipelineMiddleware[RealItem]:
@@ -137,7 +137,6 @@ async def test_pipeline(
     add_pipeline: Callable[[MockAIOScraper], None],
     add_global_middleware: Callable[[MockAIOScraper, Callable[[str], GlobalPipelineMiddleware[RealItem]]], None],
 ):
-
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: MockResponse(text="test"))
 
     scraper = Scraper()
@@ -243,7 +242,7 @@ async def test_pipeline_multiple_pipelines_order_and_close():
                 pipelines=[first, second],
                 pre_middlewares=[pre_one, pre_two],
                 post_middlewares=[post_one, post_two],
-            )
+            ),
         },
     )
 
@@ -322,7 +321,7 @@ async def test_pipeline_pre_middleware_stop_processing_skips_rest_and_pipelines(
                 pipelines=[pipeline],
                 pre_middlewares=[pre_one, pre_two],
                 post_middlewares=[post_one],
-            )
+            ),
         },
     )
 
@@ -352,7 +351,7 @@ async def test_pipeline_pre_stop_item_processing_returns_early():
                 pipelines=[pipeline],
                 pre_middlewares=[pre_stop],
                 post_middlewares=[post_one],
-            )
+            ),
         },
     )
 
@@ -382,7 +381,7 @@ async def test_pipeline_post_stop_processing_skips_remaining_posts():
                 pipelines=[pipeline],
                 pre_middlewares=[],
                 post_middlewares=[post_one, post_two],
-            )
+            ),
         },
     )
 

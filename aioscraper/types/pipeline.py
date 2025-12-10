@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
-
 PipelineItemType = TypeVar("PipelineItemType")
 
 PipelineMiddlewareStage = Literal["pre", "post"]

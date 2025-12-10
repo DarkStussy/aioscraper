@@ -6,6 +6,7 @@ by the FastAPI lifespan context manager in app.py.
 """
 
 import asyncio
+
 from database import CryptoCurrencyDatabase
 from models import Task
 

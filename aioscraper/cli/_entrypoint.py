@@ -6,8 +6,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
 
-from ..exceptions import CLIError
-from ..core.scraper import AIOScraper
+from aioscraper.core.scraper import AIOScraper
+from aioscraper.exceptions import CLIError
 
 
 def _resolve_file_path(module_ref: str) -> Path | None:

@@ -15,7 +15,7 @@ class Scraper:
                 method="GET",
                 callback=self.parse,
                 cb_kwargs={"expect": "GET"},
-            )
+            ),
         )
         await send_request(
             Request(
@@ -24,7 +24,7 @@ class Scraper:
                 json_data={"foo": "bar"},
                 callback=self.parse,
                 cb_kwargs={"expect": "POST"},
-            )
+            ),
         )
         await send_request(
             Request(
@@ -33,7 +33,7 @@ class Scraper:
                 data="payload",
                 callback=self.parse,
                 cb_kwargs={"expect": "PUT"},
-            )
+            ),
         )
         await send_request(
             Request(
@@ -41,7 +41,7 @@ class Scraper:
                 method="DELETE",
                 callback=self.parse,
                 cb_kwargs={"expect": "DELETE"},
-            )
+            ),
         )
         await send_request(
             Request(
@@ -50,7 +50,7 @@ class Scraper:
                 json_data={"patch": True},
                 callback=self.parse,
                 cb_kwargs={"expect": "PATCH"},
-            )
+            ),
         )
 
     async def parse(self, response: Response, request: Request, expect: str):

@@ -2,16 +2,17 @@ import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from logging import getLogger
 from types import TracebackType
-from typing import AsyncIterator, Callable, Self, Type, Any
+from typing import Any, AsyncIterator, Callable, Self
+
+from aioscraper._helpers.log import get_log_name
+from aioscraper.config import Config, load_config
+from aioscraper.holders import MiddlewareHolder, PipelineHolder
+from aioscraper.middlewares import RetryMiddleware
+from aioscraper.types import Scraper
 
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
 from .session import SessionMakerFactory, get_sessionmaker
-from ..config import Config, load_config
-from ..holders import MiddlewareHolder, PipelineHolder
-from .._helpers.log import get_log_name
-from ..middlewares import RetryMiddleware
-from ..types import Scraper
 
 logger = getLogger(__name__)
 
@@ -89,7 +90,7 @@ class AIOScraper:
 
     async def __aexit__(
         self,
-        exc_type: Type[BaseException] | None,
+        exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
@@ -139,7 +140,7 @@ class AIOScraper:
         finally:
             await self.close()
 
-    async def wait(self, timeout: float | None = None):
+    async def wait(self, timeout: float | None = None):  # noqa: ASYNC109
         "Wait for the scraper to finish."
         if self._task is None:
             logger.debug("Wait called but scraper is not running")
@@ -152,7 +153,7 @@ class AIOScraper:
         try:
             await asyncio.wait_for(self._task, timeout=timeout)
         except asyncio.TimeoutError:
-            logger.log(level=log_level, msg=f"wait timeout exceeded ({timeout}s) - forcing shutdown")
+            logger.log(log_level, "wait timeout exceeded (%ss) - forcing shutdown", timeout)
 
     async def close(self):
         "Close the scraper and its associated resources."

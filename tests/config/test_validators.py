@@ -4,19 +4,19 @@ from decimal import Decimal
 import pytest
 
 from aioscraper.config.field_validators import (
-    RangeValidator,
-    LengthValidator,
-    RegexValidator,
+    ChainValidator,
     ChoicesValidator,
     CustomValidator,
-    ChainValidator,
+    LengthValidator,
     ProxyValidator,
+    RangeValidator,
+    RegexValidator,
 )
 
 
 class TestRangeValidator:
     def test_validates_min_int(self):
-        validator = RangeValidator[int](min=1)
+        validator = RangeValidator[int](min_value=1)
 
         assert validator("port", 1) == 1
         assert validator("port", 100) == 100
@@ -25,7 +25,7 @@ class TestRangeValidator:
             validator("port", 0)
 
     def test_validates_max_int(self):
-        validator = RangeValidator[int](max=100)
+        validator = RangeValidator[int](max_value=100)
 
         assert validator("port", 100) == 100
         assert validator("port", 50) == 50
@@ -34,7 +34,7 @@ class TestRangeValidator:
             validator("port", 101)
 
     def test_validates_min_max_int(self):
-        validator = RangeValidator[int](min=1, max=65535)
+        validator = RangeValidator[int](min_value=1, max_value=65535)
 
         assert validator("port", 1) == 1
         assert validator("port", 8080) == 8080
@@ -47,33 +47,33 @@ class TestRangeValidator:
             validator("port", 65536)
 
     def test_validates_float_range(self):
-        validator = RangeValidator[float](min=0.0, max=1.0)
+        validator = RangeValidator[float](min_value=0.0, max_value=1.0)
 
         assert validator("threshold", 0.0) == 0.0
         assert validator("threshold", 0.5) == 0.5
         assert validator("threshold", 1.0) == 1.0
 
-        with pytest.raises(ValueError, match="minimum is 0.0"):
+        with pytest.raises(ValueError, match=r"minimum is 0.0"):
             validator("threshold", -0.1)
 
-        with pytest.raises(ValueError, match="maximum is 1.0"):
+        with pytest.raises(ValueError, match=r"maximum is 1.0"):
             validator("threshold", 1.1)
 
     def test_validates_decimal_range(self):
-        validator = RangeValidator[Decimal](min=Decimal("0.01"), max=Decimal("999.99"))
+        validator = RangeValidator[Decimal](min_value=Decimal("0.01"), max_value=Decimal("999.99"))
 
         assert validator("price", Decimal("0.01")) == Decimal("0.01")
         assert validator("price", Decimal("50.00")) == Decimal("50.00")
         assert validator("price", Decimal("999.99")) == Decimal("999.99")
 
-        with pytest.raises(ValueError, match="minimum is 0.01"):
+        with pytest.raises(ValueError, match=r"minimum is 0.01"):
             validator("price", Decimal("0.00"))
 
-        with pytest.raises(ValueError, match="maximum is 999.99"):
+        with pytest.raises(ValueError, match=r"maximum is 999.99"):
             validator("price", Decimal("1000.00"))
 
     def test_handles_none_when_no_constraints_violated(self):
-        validator = RangeValidator[int](min=1, max=100)
+        validator = RangeValidator[int](min_value=1, max_value=100)
         assert validator("value", None) is None
 
     def test_requires_at_least_one_constraint(self):
@@ -83,7 +83,7 @@ class TestRangeValidator:
 
 class TestLengthValidator:
     def test_validates_min_string_length(self):
-        validator = LengthValidator(min=5)
+        validator = LengthValidator(min_length=5)
 
         assert validator("api_key", "12345") == "12345"
         assert validator("api_key", "123456") == "123456"
@@ -92,7 +92,7 @@ class TestLengthValidator:
             validator("api_key", "1234")
 
     def test_validates_max_string_length(self):
-        validator = LengthValidator(max=10)
+        validator = LengthValidator(max_length=10)
 
         assert validator("name", "1234567890") == "1234567890"
         assert validator("name", "12345") == "12345"
@@ -101,7 +101,7 @@ class TestLengthValidator:
             validator("name", "12345678901")
 
     def test_validates_min_max_string_length(self):
-        validator = LengthValidator(min=3, max=10)
+        validator = LengthValidator(min_length=3, max_length=10)
 
         assert validator("username", "abc") == "abc"
         assert validator("username", "abcdef") == "abcdef"
@@ -114,7 +114,7 @@ class TestLengthValidator:
             validator("username", "abcdefghijk")
 
     def test_validates_list_length(self):
-        validator = LengthValidator(min=1, max=5)
+        validator = LengthValidator(min_length=1, max_length=5)
 
         assert validator("items", [1]) == [1]
         assert validator("items", [1, 2, 3]) == [1, 2, 3]
@@ -127,7 +127,7 @@ class TestLengthValidator:
             validator("items", [1, 2, 3, 4, 5, 6])
 
     def test_validates_tuple_length(self):
-        validator = LengthValidator(min=2, max=3)
+        validator = LengthValidator(min_length=2, max_length=3)
 
         assert validator("coords", (1, 2)) == (1, 2)
         assert validator("coords", (1, 2, 3)) == (1, 2, 3)
@@ -144,15 +144,15 @@ class TestLengthValidator:
 
     def test_rejects_negative_min(self):
         with pytest.raises(ValueError, match="min must be non-negative"):
-            LengthValidator(min=-1)
+            LengthValidator(min_length=-1)
 
     def test_rejects_negative_max(self):
         with pytest.raises(ValueError, match="max must be non-negative"):
-            LengthValidator(max=-1)
+            LengthValidator(max_length=-1)
 
     def test_rejects_min_greater_than_max(self):
         with pytest.raises(ValueError, match="min cannot be greater than max"):
-            LengthValidator(min=10, max=5)
+            LengthValidator(min_length=10, max_length=5)
 
 
 class TestRegexValidator:
@@ -249,7 +249,7 @@ class TestCustomValidator:
 
         validator = CustomValidator(failing_validator)
 
-        with pytest.raises(ValueError, match="Custom validation failed.*something went wrong"):
+        with pytest.raises(ValueError, match=r"Custom validation failed.*something went wrong"):
             validator("value", 1)
 
 
@@ -257,9 +257,9 @@ class TestChainValidator:
     def test_applies_validators_in_order(self):
         validator = ChainValidator(
             [
-                RangeValidator[int](min=1, max=100),
+                RangeValidator[int](min_value=1, max_value=100),
                 CustomValidator(lambda x: x if x % 2 == 0 else False),
-            ]
+            ],
         )
 
         assert validator("number", 2) == 2
@@ -280,8 +280,8 @@ class TestChainValidator:
             [
                 CustomValidator(lambda x: x.strip()),
                 CustomValidator(lambda x: x.upper()),
-                LengthValidator(min=3),
-            ]
+                LengthValidator(min_length=3),
+            ],
         )
 
         assert validator("name", "  hello  ") == "HELLO"
@@ -310,7 +310,7 @@ class TestProxyValidator:
         assert self.validator("proxy", "http://user:pass@proxy:8080") == "http://user:pass@proxy:8080"
 
     def test_rejects_invalid_url(self):
-        with pytest.raises(ValueError, match="Invalid proxy URL"):
+        with pytest.raises(ValueError, match="Proxy URL must include a scheme"):
             self.validator("proxy", "not-a-url")
 
         with pytest.raises(ValueError, match="Invalid proxy URL"):
@@ -331,11 +331,11 @@ class TestProxyValidator:
     def test_rejects_dict_with_invalid_scheme(self):
         proxy_dict: dict[str, str | None] = {"ftp": "http://proxy:8080"}
 
-        with pytest.raises(ValueError, match="Invalid proxy scheme.*ftp"):
+        with pytest.raises(ValueError, match=r"Invalid proxy scheme.*ftp"):
             self.validator("proxy", proxy_dict)
 
     def test_rejects_dict_with_invalid_url(self):
         proxy_dict: dict[str, str | None] = {"http": "not-a-url"}
 
-        with pytest.raises(ValueError, match="Invalid proxy URL for scheme http"):
+        with pytest.raises(ValueError, match="Proxy URL must include a scheme"):
             self.validator("proxy", proxy_dict)

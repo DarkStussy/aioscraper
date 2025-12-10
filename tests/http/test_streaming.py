@@ -18,7 +18,7 @@ class Scraper:
                 method="GET",
                 callback=self.store_body,
                 cb_kwargs={"key": "chunked"},
-            )
+            ),
         )
         await send_request(
             Request(
@@ -26,7 +26,7 @@ class Scraper:
                 method="GET",
                 callback=self.store_body,
                 cb_kwargs={"key": "large"},
-            )
+            ),
         )
 
     async def store_body(self, response: Response, key: str):

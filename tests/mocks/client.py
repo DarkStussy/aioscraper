@@ -2,9 +2,9 @@ from contextlib import contextmanager
 from typing import Iterator, Sequence
 
 from aiohttp import ClientRequest, TCPConnector
-from aiohttp.tracing import Trace
 from aiohttp.abc import ResolveResult
-from httpx import AsyncClient, URL
+from aiohttp.tracing import Trace
+from httpx import URL, AsyncClient
 
 
 @contextmanager
@@ -20,7 +20,7 @@ def patch_aiohttp(port_: int) -> Iterator[None]:
                 "family": self._family,
                 "proto": 0,
                 "flags": 0,
-            }
+            },
         ]
 
     TCPConnector._resolve_host = _resolve_host
@@ -86,7 +86,7 @@ def patch_httpx(port_: int) -> Iterator[None]:
         location = response.headers.get("Location")
         try:
             target_original = URL(location) if location is not None else next_request.url
-        except Exception:
+        except:  # noqa: E722
             target_original = next_request.url
 
         if not target_original.is_absolute_url:

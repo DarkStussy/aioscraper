@@ -15,7 +15,7 @@ class Scraper:
                 method="GET",
                 params={"q": "test", "page": 2},
                 callback=self.parse,
-            )
+            ),
         )
 
     async def parse(self, response: Response, request: Request):

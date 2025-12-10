@@ -1,5 +1,6 @@
-import pytest
 from http.cookies import Morsel, SimpleCookie
+
+import pytest
 
 from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
 
@@ -37,4 +38,4 @@ def test_parse_cookies_supports_str_morsel_and_basecookie():
 
 def test_parse_cookies_rejects_unknown_type():
     with pytest.raises(TypeError):
-        parse_cookies({"a": object()})  # type: ignore
+        parse_cookies({"a": object()})  # type: ignore[reportArgumentType]

@@ -1,4 +1,5 @@
 from typing import Mapping
+
 import pytest
 
 from aioscraper.types import Request, Response, SendRequest
@@ -17,7 +18,7 @@ class Scraper:
                 method="GET",
                 headers={"X-Test": "header"},
                 callback=self.parse,
-            )
+            ),
         )
 
     async def parse(self, response: Response, request: Request):

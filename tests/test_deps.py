@@ -1,7 +1,7 @@
 import pytest
 
 from aioscraper._helpers.func import get_func_kwargs
-from aioscraper.types import Request, SendRequest, Response
+from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper
 
 

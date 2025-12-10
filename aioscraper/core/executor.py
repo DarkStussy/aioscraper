@@ -2,14 +2,15 @@ import asyncio
 from logging import getLogger
 from typing import Any
 
-from .request_manager import RequestManager
+from aioscraper._helpers.asyncio import execute_coroutines
+from aioscraper._helpers.func import get_func_kwargs
+from aioscraper.config import Config
+from aioscraper.holders import MiddlewareHolder
+from aioscraper.types import Scraper
+
 from .pipeline import PipelineDispatcher
+from .request_manager import RequestManager
 from .session import SessionMaker
-from ..config import Config
-from ..holders import MiddlewareHolder
-from .._helpers.func import get_func_kwargs
-from .._helpers.asyncio import execute_coroutines
-from ..types import Scraper
 
 logger = getLogger(__name__)
 
@@ -57,17 +58,14 @@ class ScraperExecutor:
                             scraper,
                             send_request=self._request_manager.sender,
                             **self._dependencies,
-                        )
+                        ),
                     )
                     for scraper in self._scrapers
-                ]
+                ],
             )
             logger.debug("All scrapers completed, waiting for pending requests")
             await self._request_manager.wait()
             logger.info("Executor finished: all scrapers and requests completed")
-        except Exception as e:
-            logger.error("Executor failed during scraping: %s", e, exc_info=e)
-            raise
         finally:
             logger.debug("Shutting down request manager")
             await self._request_manager.shutdown()
