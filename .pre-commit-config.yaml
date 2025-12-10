@@ -2,6 +2,8 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:
+      - id: check-json
+      - id: check-toml
       - id: check-yaml
       - id: trailing-whitespace
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -11,8 +13,8 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
-      - id: pyright
-        name: pyright type check
-        entry: pyright
+      - id: basedpyright
+        name: basedpyright type check
+        entry: basedpyright
         language: system
         types: [ python ]

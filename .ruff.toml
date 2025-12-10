@@ -69,7 +69,7 @@ exclude = [
     "_build",
     "buck-out",
     "build",
-    "dist",
+    "docs",
     ".pytest_cache",
     ".idea",
     "__pycache__",

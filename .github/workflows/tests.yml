@@ -63,7 +63,7 @@ jobs:
       - name: Lint code
         run: |
           ruff check --output-format=github aioscraper examples tests
-          pyright aioscraper tests
+          basedpyright aioscraper tests
           ruff format --check --diff aioscraper tests
 
       - name: Run tests

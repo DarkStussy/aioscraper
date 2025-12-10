@@ -50,13 +50,16 @@ Running tests
 Style, linting, typing
 ----------------------
 
-- Formatting and linting are driven by ``pyproject.toml`` (flake8/black/pytest settings).
-- Type checking uses ``pyrightconfig.json`` (basic mode).
+- Formatting and linting use `Ruff <https://docs.astral.sh/ruff/>`_ (configured in ``.ruff.toml``).
+- Type checking uses `BasedPyright <https://docs.basedpyright.com/>`_ (configured in ``pyrightconfig.json``).
 - Please format code and add tests for new behavior.
 - Keep documentation in sync with code changes.
 
 .. note::
-   Install the Pyright extension in your IDE (or Pylance in VS Code) for on-the-fly type checking.
+   Install IDE extensions for better development experience:
+
+   - `Ruff extension <https://docs.astral.sh/ruff/editors/setup/>`_
+   - `BasedPyright extension <https://docs.basedpyright.com/latest/installation/ides/#vscode-vscodium>`_
 
 Build documentation
 -------------------
