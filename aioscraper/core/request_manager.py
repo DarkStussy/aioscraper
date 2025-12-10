@@ -15,7 +15,7 @@ from aioscraper.exceptions import HTTPException, InvalidRequestData, StopMiddlew
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types.session import PRequest, Request, SendRequest
 
-from .rate_limiter import RateLimiterManager, RequestOutcome
+from .rate_limiter import RateLimitManager, RequestOutcome
 from .session import SessionMaker
 
 logger = getLogger(__name__)
@@ -88,7 +88,7 @@ class RequestManager:
         self._request_sender = _get_request_sender(self._ready_queue, self._delayed_heap)
         self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}
         self._middleware_holder = middleware_holder
-        self._rate_limiter_manager = RateLimiterManager(
+        self._rate_limiter_manager = RateLimitManager(
             rate_limit_config,
             retry_config=retry_config,
             schedule=lambda pr: self._scheduler.spawn(execute_coroutine(self._send_request(pr.request))),

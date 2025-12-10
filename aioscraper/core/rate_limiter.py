@@ -341,7 +341,7 @@ class RequestGroup:
         return _on_task_done
 
 
-class RateLimiterManager:
+class RateLimitManager:
     """Manages rate limiting for requests using group-based throttling.
 
     Requests are grouped by a configurable key (default: hostname) and processed

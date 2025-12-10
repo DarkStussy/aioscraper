@@ -68,7 +68,7 @@ Execution
 
 .. autoclass:: aioscraper.core.executor.ScraperExecutor
 .. autoclass:: aioscraper.core.request_manager.RequestManager
-.. autoclass:: aioscraper.core.rate_limiter.RateLimiterManager
+.. autoclass:: aioscraper.core.rate_limiter.RateLimitManager
 .. autoclass:: aioscraper.core.rate_limiter.RequestGroup
 .. autoclass:: aioscraper.core.rate_limiter.AdaptiveStrategy
 .. autoclass:: aioscraper.core.rate_limiter.RequestOutcome

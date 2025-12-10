@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
-from aioscraper.core.rate_limiter import RateLimiterManager, RequestGroup, default_group_by_factory
+from aioscraper.core.rate_limiter import RateLimitManager, RequestGroup, default_group_by_factory
 from aioscraper.types.session import PRequest, Request
 
 
@@ -205,11 +205,11 @@ class TestRequestGroup:
         await group.close()
 
 
-class TestRateLimiterManager:
+class TestRateLimitManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_groups_by_hostname(self, mock_schedule):
         """Test that rate limiter groups requests by hostname when enabled."""
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, default_interval=0.05),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -238,7 +238,7 @@ class TestRateLimiterManager:
             call_times.append(asyncio.get_event_loop().time())
             await mock_schedule(pr)
 
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=False, default_interval=default_interval),
             retry_config=RequestRetryConfig(),
             schedule=schedule_with_timing,
@@ -267,7 +267,7 @@ class TestRateLimiterManager:
 
             return ("slow", 0.05)
 
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, group_by=custom_group_by),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -303,7 +303,7 @@ class TestRateLimiterManager:
             else:
                 return ("slow", 0.1)
 
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, group_by=custom_group_by),
             retry_config=RequestRetryConfig(),
             schedule=schedule_with_timing,
@@ -336,7 +336,7 @@ class TestRateLimiterManager:
     async def test_rate_limiter_group_cleanup_after_idle(self, mock_schedule):
         """Test that idle groups are automatically cleaned up."""
         config = RateLimitConfig(enabled=True, default_interval=0.01, cleanup_timeout=0.1)
-        async with RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule) as manager:
+        async with RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule) as manager:
             pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
             await manager(pr)
 
@@ -348,8 +348,8 @@ class TestRateLimiterManager:
 
     @pytest.mark.asyncio
     async def test_rate_limiter_active_property(self, mock_schedule):
-        """Test the active property of RateLimiterManager."""
-        async with RateLimiterManager(
+        """Test the active property of RateLimitManager."""
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, default_interval=0.05),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -371,7 +371,7 @@ class TestRateLimiterManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_close_shuts_down_all_groups(self, mock_schedule):
         """Test that closing rate limiter shuts down all groups."""
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, default_interval=0.01),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -391,7 +391,7 @@ class TestRateLimiterManager:
         def zero_interval_group_by(request: Request) -> tuple[Hashable, float]:
             return ("zero", 0.0)
 
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, group_by=zero_interval_group_by),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -406,7 +406,7 @@ class TestRateLimiterManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_handles_url_without_host(self, mock_schedule):
         """Test that rate limiter handles URLs without a host."""
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, default_interval=0.01),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -423,7 +423,7 @@ class TestRateLimiterManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_reuses_existing_groups(self, mock_schedule):
         """Test that rate limiter reuses existing groups for same host."""
-        async with RateLimiterManager(
+        async with RateLimitManager(
             config=RateLimitConfig(enabled=True, default_interval=0.01),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,

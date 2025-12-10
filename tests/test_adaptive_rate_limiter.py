@@ -9,7 +9,7 @@ from aioscraper.config import AdaptiveRateLimitConfig, Config, RateLimitConfig, 
 from aioscraper.core.rate_limiter import (
     AdaptiveMetrics,
     AdaptiveStrategy,
-    RateLimiterManager,
+    RateLimitManager,
     RequestOutcome,
 )
 from aioscraper.exceptions import HTTPException
@@ -269,7 +269,7 @@ class TestAdaptiveRateLimiterIntegration:
             ),
         )
 
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         for i in range(4):
             pr = PRequest(priority=i, request=Request(url=f"https://example.com/{i}"))
@@ -323,7 +323,7 @@ class TestAdaptiveRateLimiterIntegration:
             adaptive=AdaptiveRateLimitConfig(respect_retry_after=True),
         )
 
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
         pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
@@ -355,7 +355,7 @@ class TestAdaptiveRateLimiterIntegration:
             adaptive=AdaptiveRateLimitConfig(inherit_retry_triggers=True),
         )
 
-        manager = RateLimiterManager(config, schedule=AsyncMock(), retry_config=retry_config)
+        manager = RateLimitManager(config, schedule=AsyncMock(), retry_config=retry_config)
 
         # Verify that triggers were inherited
         assert manager.adaptive_strategy is not None
@@ -375,7 +375,7 @@ class TestAdaptiveRateLimiterIntegration:
 
         config = RateLimitConfig(enabled=True, default_interval=0.05)
 
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         for i in range(3):
             pr = PRequest(priority=i, request=Request(url=f"https://example.com/{i}"))
