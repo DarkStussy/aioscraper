@@ -4,7 +4,7 @@ Contributing
 Thank you for considering contributing! Here is how to get set up and what we expect.
 
 How to setup
------------
+------------
 
 - Install all needed python interpreters:
 
@@ -26,8 +26,8 @@ How to setup
 
      python3 -m venv .venv
      source .venv/bin/activate
-     pip install -e ".[aiohttp,httpx,uvloop,dev,test]"
-     pip install -r docs/requirements.txt
+     pip install -e ".[aiohttp,httpx,uvloop]"
+     pip install -r requirements_dev.txt
 
 - Enable pre-commit hooks:
 
@@ -57,6 +57,18 @@ Style, linting, typing
 
 .. note::
    Install the Pyright extension in your IDE (or Pylance in VS Code) for on-the-fly type checking.
+
+Build documentation
+-------------------
+
+The project documentation is built with Sphinx. You may need ``make`` available on your system. Start by installing the required dependencies:
+
+.. code-block:: bash
+
+   pip install -r docs/requirements.txt
+   sphinx-build -M html docs docs/build -W
+
+After a successful build, view the generated documentation by opening ``docs/build/html/index.html`` in your browser.
 
 Submitting changes
 ------------------
