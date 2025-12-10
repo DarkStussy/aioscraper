@@ -2,7 +2,7 @@
 name = "aioscraper"
 version = "0.10.1"
 authors = [{ name = "darkstussy" }, ]
-description = "Async framework for building modular and scalable web scrapers."
+description = "High-performance asynchronous Python framework for orchestrating API data collection with clean, modular components."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
