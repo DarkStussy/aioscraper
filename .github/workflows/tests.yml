@@ -8,8 +8,9 @@ on:
       - ".github/workflows/tests.yml"
       - "aioscraper/**"
       - "tests/**"
-      - ".flake8"
       - "pyproject.toml"
+      - ".pytest.toml"
+      - ".ruff.toml"
       - "pyrightconfig.json"
       - "requirements_dev.txt"
   pull_request:
@@ -19,9 +20,11 @@ on:
       - ".github/workflows/tests.yml"
       - "aioscraper/**"
       - "tests/**"
-      - ".flake8"
       - "pyproject.toml"
+      - ".pytest.toml"
+      - ".ruff.toml"
       - "pyrightconfig.json"
+      - "requirements_dev.txt"
 
 jobs:
   tests:
