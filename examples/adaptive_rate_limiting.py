@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Adaptive rate limiting example using EWMA + AIMD algorithm.
 

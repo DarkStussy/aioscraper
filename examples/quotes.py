@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Scrape quotes.toscrape.com with BeautifulSoup: collect quotes, authors, and tags across pages.
 

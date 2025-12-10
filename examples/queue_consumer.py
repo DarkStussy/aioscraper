@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 AIOScraper as a queue consumer with FastStream and Redis.
 
