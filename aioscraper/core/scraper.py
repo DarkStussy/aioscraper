@@ -149,7 +149,7 @@ class AIOScraper:
         log_level = self.config.execution.log_level
         timeout = timeout or self.config.execution.timeout
 
-        logger.debug("Waiting for scraper to finish (timeout=%0.10gs)", timeout)
+        logger.debug("Waiting for scraper to finish (timeout=%ss)", timeout)
         try:
             await asyncio.wait_for(self._task, timeout=timeout)
         except asyncio.TimeoutError:

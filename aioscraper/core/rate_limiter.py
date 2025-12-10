@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import sys
 from contextlib import suppress
 from dataclasses import dataclass
 from time import monotonic
-from typing import Any, Awaitable, Callable, Hashable
+from typing import Any, Awaitable, Callable, Hashable, Self
 
 from yarl import URL
 
@@ -313,6 +314,9 @@ class RequestGroup:
                 self._on_finished(self._key, self)
                 break
 
+            if pr.request.url == "stub":
+                break
+
             try:
                 await asyncio.shield(self._schedule(pr))
             except Exception:
@@ -362,6 +366,7 @@ class RateLimiterManager:
         self._cleanup_timeout = config.cleanup_timeout
         self._groups: dict[Hashable, RequestGroup] = {}
         self._enabled = config.enabled
+        self._stopped = False
 
         self._adaptive_strategy: AdaptiveStrategy | None = None
         if config.enabled and config.adaptive:
@@ -432,25 +437,38 @@ class RateLimiterManager:
         "Process a request through the rate limiter."
         await self._handle(pr)
 
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        try:
+            await self.shutdown()
+        finally:
+            await self.close()
+
+    async def shutdown(self) -> bool:
+        if not self._stopped:
+            if groups := self._groups.values():
+                logger.info(
+                    "Rate limiter: shutting down %d active group(s): %s",
+                    len(groups),
+                    ",".join(str(group.key) for group in groups),
+                )
+                for group in groups:
+                    await group.put(PRequest(priority=sys.maxsize, request=Request(url="stub")))
+
+            self._stopped = True
+            return True
+
+        return not self._stopped
+
     async def close(self):
         "Close all request groups and clean up resources."
         groups = list(self._groups.values())
         self._groups.clear()
 
-        if groups:
-            if active_groups := [group.key for group in self._groups.values() if group.active]:
-                logger.info(
-                    "Closing rate limiter: shutting down %d active group(s): %s",
-                    len(active_groups),
-                    active_groups,
-                )
-            else:
-                logger.debug("Closing rate limiter: no active groups")
-
-            for group in groups:
-                await group.close()
-        else:
-            logger.debug("Closing rate limiter: no active groups")
+        for group in groups:
+            await group.close()
 
     def get_group_key(self, request: Request) -> Hashable:
         """Get group key for a request."""

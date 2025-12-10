@@ -63,11 +63,10 @@ class ScraperExecutor:
                     for scraper in self._scrapers
                 ],
             )
-            logger.debug("All scrapers completed, waiting for pending requests")
+            logger.debug("Waiting for pending requests")
             await self._request_manager.wait()
             logger.info("Executor finished: all scrapers and requests completed")
         finally:
-            logger.debug("Shutting down request manager")
             await self._request_manager.shutdown()
 
     async def close(self):

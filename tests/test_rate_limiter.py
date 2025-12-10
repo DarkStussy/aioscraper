@@ -209,24 +209,24 @@ class TestRateLimiterManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_groups_by_hostname(self, mock_schedule):
         """Test that rate limiter groups requests by hostname when enabled."""
-        config = RateLimitConfig(enabled=True, default_interval=0.05)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, default_interval=0.05),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
+            pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
+            pr3 = PRequest(priority=3, request=Request(url="https://other.com/page1"))
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
-        pr3 = PRequest(priority=3, request=Request(url="https://other.com/page1"))
+            await manager(pr1)
+            await manager(pr2)
+            await manager(pr3)
 
-        await manager(pr1)
-        await manager(pr2)
-        await manager(pr3)
+            assert len(manager._groups) == 2
+            assert "example.com" in manager._groups
+            assert "other.com" in manager._groups
 
-        assert len(manager._groups) == 2
-        assert "example.com" in manager._groups
-        assert "other.com" in manager._groups
-
-        await asyncio.sleep(0.2)
-
-        await manager.close()
+            await asyncio.sleep(0.2)
 
     @pytest.mark.asyncio
     async def test_rate_limiter_disabled_applies_simple_delay(self, mock_schedule):
@@ -238,23 +238,23 @@ class TestRateLimiterManager:
             call_times.append(asyncio.get_event_loop().time())
             await mock_schedule(pr)
 
-        config = RateLimitConfig(enabled=False, default_interval=default_interval)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=schedule_with_timing)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=False, default_interval=default_interval),
+            retry_config=RequestRetryConfig(),
+            schedule=schedule_with_timing,
+        ) as manager:
+            pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
+            pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
+            await manager(pr1)
+            await manager(pr2)
 
-        await manager(pr1)
-        await manager(pr2)
+            assert len(manager._groups) == 0
 
-        assert len(manager._groups) == 0
-
-        # Verify calls and timing
-        assert len(call_times) == 2
-        elapsed = call_times[1] - call_times[0]
-        assert elapsed >= default_interval - 0.01
-
-        await manager.close()
+            # Verify calls and timing
+            assert len(call_times) == 2
+            elapsed = call_times[1] - call_times[0]
+            assert elapsed >= default_interval - 0.01
 
     @pytest.mark.asyncio
     async def test_rate_limiter_custom_group_by(self, mock_schedule):
@@ -264,27 +264,28 @@ class TestRateLimiterManager:
             # Group by path and use different intervals
             if "fast" in request.url:
                 return ("fast", 0.01)
-            else:
-                return ("slow", 0.05)
 
-        config = RateLimitConfig(enabled=True, group_by=custom_group_by)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+            return ("slow", 0.05)
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/fast/page"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/slow/page"))
-        pr3 = PRequest(priority=3, request=Request(url="https://other.com/fast/page"))
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, group_by=custom_group_by),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            pr1 = PRequest(priority=1, request=Request(url="https://example.com/fast/page"))
+            pr2 = PRequest(priority=2, request=Request(url="https://example.com/slow/page"))
+            pr3 = PRequest(priority=3, request=Request(url="https://other.com/fast/page"))
 
-        await manager(pr1)
-        await manager(pr2)
-        await manager(pr3)
+            await manager(pr1)
+            await manager(pr2)
+            await manager(pr3)
 
-        # Should have 2 groups: fast and slow
-        assert len(manager._groups) == 2
-        assert "fast" in manager._groups
-        assert "slow" in manager._groups
+            # Should have 2 groups: fast and slow
+            assert len(manager._groups) == 2
+            assert "fast" in manager._groups
+            assert "slow" in manager._groups
 
-        await asyncio.sleep(0.2)
-        await manager.close()
+            await asyncio.sleep(0.2)
 
     @pytest.mark.asyncio
     async def test_rate_limiter_different_intervals_per_group(self, mock_schedule):
@@ -302,87 +303,84 @@ class TestRateLimiterManager:
             else:
                 return ("slow", 0.1)
 
-        config = RateLimitConfig(enabled=True, group_by=custom_group_by)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=schedule_with_timing)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, group_by=custom_group_by),
+            retry_config=RequestRetryConfig(),
+            schedule=schedule_with_timing,
+        ) as manager:
+            for i in range(3):
+                await manager(PRequest(priority=i, request=Request(url=f"https://example.com/fast/{i}")))
+                await manager(PRequest(priority=i, request=Request(url=f"https://example.com/slow/{i}")))
 
-        for i in range(3):
-            await manager(PRequest(priority=i, request=Request(url=f"https://example.com/fast/{i}")))
-            await manager(PRequest(priority=i, request=Request(url=f"https://example.com/slow/{i}")))
+            await asyncio.sleep(0.5)
 
-        await asyncio.sleep(0.5)
+            # Verify fast group used smaller interval
+            assert len(call_times_by_group["fast"]) == 3
+            fast_intervals = [
+                call_times_by_group["fast"][i] - call_times_by_group["fast"][i - 1]
+                for i in range(1, len(call_times_by_group["fast"]))
+            ]
+            for interval in fast_intervals:
+                assert 0.01 <= interval < 0.08
 
-        # Verify fast group used smaller interval
-        assert len(call_times_by_group["fast"]) == 3
-        fast_intervals = [
-            call_times_by_group["fast"][i] - call_times_by_group["fast"][i - 1]
-            for i in range(1, len(call_times_by_group["fast"]))
-        ]
-        for interval in fast_intervals:
-            assert 0.01 <= interval < 0.08
-
-        # Verify slow group used larger interval
-        assert len(call_times_by_group["slow"]) == 3
-        slow_intervals = [
-            call_times_by_group["slow"][i] - call_times_by_group["slow"][i - 1]
-            for i in range(1, len(call_times_by_group["slow"]))
-        ]
-        for interval in slow_intervals:
-            assert interval >= 0.09
-
-        await manager.close()
+            # Verify slow group used larger interval
+            assert len(call_times_by_group["slow"]) == 3
+            slow_intervals = [
+                call_times_by_group["slow"][i] - call_times_by_group["slow"][i - 1]
+                for i in range(1, len(call_times_by_group["slow"]))
+            ]
+            for interval in slow_intervals:
+                assert interval >= 0.09
 
     @pytest.mark.asyncio
     async def test_rate_limiter_group_cleanup_after_idle(self, mock_schedule):
         """Test that idle groups are automatically cleaned up."""
         config = RateLimitConfig(enabled=True, default_interval=0.01, cleanup_timeout=0.1)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        async with RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule) as manager:
+            pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
+            await manager(pr)
 
-        pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
-        await manager(pr)
+            assert "example.com" in manager._groups
 
-        assert "example.com" in manager._groups
+            await asyncio.sleep(0.25)
 
-        await asyncio.sleep(0.25)
-
-        assert "example.com" not in manager._groups
-
-        await manager.close()
+            assert "example.com" not in manager._groups
 
     @pytest.mark.asyncio
     async def test_rate_limiter_active_property(self, mock_schedule):
         """Test the active property of RateLimiterManager."""
-        config = RateLimitConfig(enabled=True, default_interval=0.05)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, default_interval=0.05),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            assert not manager.active
 
-        assert not manager.active
+            pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
+            pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
+            await manager(pr1)
+            await manager(pr2)
 
-        await manager(pr1)
-        await manager(pr2)
+            assert manager.active
 
-        assert manager.active
+            await asyncio.sleep(0.2)
 
-        await asyncio.sleep(0.2)
-
-        assert not manager.active
-
-        await manager.close()
+            assert not manager.active
 
     @pytest.mark.asyncio
     async def test_rate_limiter_close_shuts_down_all_groups(self, mock_schedule):
         """Test that closing rate limiter shuts down all groups."""
-        config = RateLimitConfig(enabled=True, default_interval=0.01)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, default_interval=0.01),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            await manager(PRequest(priority=1, request=Request(url="https://example.com/1")))
+            await manager(PRequest(priority=2, request=Request(url="https://other.com/1")))
+            await manager(PRequest(priority=3, request=Request(url="https://third.com/1")))
 
-        await manager(PRequest(priority=1, request=Request(url="https://example.com/1")))
-        await manager(PRequest(priority=2, request=Request(url="https://other.com/1")))
-        await manager(PRequest(priority=3, request=Request(url="https://third.com/1")))
-
-        assert len(manager._groups) == 3
-
-        await manager.close()
+            assert len(manager._groups) == 3
 
         assert len(manager._groups) == 0
 
@@ -393,96 +391,95 @@ class TestRateLimiterManager:
         def zero_interval_group_by(request: Request) -> tuple[Hashable, float]:
             return ("zero", 0.0)
 
-        config = RateLimitConfig(enabled=True, group_by=zero_interval_group_by)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
-
-        pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
-        await manager(pr)
-
-        # Group should be created with minimum interval
-        assert "zero" in manager._groups
-        group = manager._groups["zero"]
-        assert group._interval == 0.01  # Minimum interval
-
-        await manager.close()
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, group_by=zero_interval_group_by),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
+            await manager(pr)
+            # Group should be created with minimum interval
+            assert "zero" in manager._groups
+            group = manager._groups["zero"]
+            assert group._interval == 0.01  # Minimum interval
 
     @pytest.mark.asyncio
     async def test_rate_limiter_handles_url_without_host(self, mock_schedule):
         """Test that rate limiter handles URLs without a host."""
-        config = RateLimitConfig(enabled=True, default_interval=0.01)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, default_interval=0.01),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            # Request with relative URL (no host)
+            pr = PRequest(priority=1, request=Request(url="/relative/path"))
+            await manager(pr)
 
-        # Request with relative URL (no host)
-        pr = PRequest(priority=1, request=Request(url="/relative/path"))
-        await manager(pr)
+            # Should create group with "unknown" key
+            assert "unknown" in manager._groups
 
-        # Should create group with "unknown" key
-        assert "unknown" in manager._groups
-
-        await asyncio.sleep(0.05)
-        await manager.close()
+            await asyncio.sleep(0.05)
 
     @pytest.mark.asyncio
     async def test_rate_limiter_reuses_existing_groups(self, mock_schedule):
         """Test that rate limiter reuses existing groups for same host."""
-        config = RateLimitConfig(enabled=True, default_interval=0.01)
-        manager = RateLimiterManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
+        async with RateLimiterManager(
+            config=RateLimitConfig(enabled=True, default_interval=0.01),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
+            pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
+            pr3 = PRequest(priority=3, request=Request(url="https://example.com/page3"))
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
-        pr3 = PRequest(priority=3, request=Request(url="https://example.com/page3"))
+            await manager(pr1)
+            first_group = manager._groups["example.com"]
 
-        await manager(pr1)
-        first_group = manager._groups["example.com"]
+            await manager(pr2)
+            second_group = manager._groups["example.com"]
 
-        await manager(pr2)
-        second_group = manager._groups["example.com"]
+            await manager(pr3)
+            third_group = manager._groups["example.com"]
 
-        await manager(pr3)
-        third_group = manager._groups["example.com"]
-
-        assert first_group is second_group
-        assert second_group is third_group
-
-        assert len(manager._groups) == 1
-
-        await manager.close()
+            assert first_group is second_group
+            assert second_group is third_group
+            assert len(manager._groups) == 1
 
 
 class TestDefaultGroupByFactory:
     def test_default_group_by_extracts_hostname(self):
         """Test that default group_by function extracts hostname."""
-        group_by = default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.3)
 
         request = Request(url="https://example.com/path?query=1")
         key, interval = group_by(request)
 
         assert key == "example.com"
-        assert interval == 0.5
+        assert interval == 0.3
 
     def test_default_group_by_handles_port_in_url(self):
         """Test that default group_by handles URLs with ports."""
-        group_by = default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.3)
 
         request = Request(url="https://example.com:8080/path")
         key, interval = group_by(request)
 
         assert key == "example.com"
-        assert interval == 0.5
+        assert interval == 0.3
 
     def test_default_group_by_handles_no_host(self):
         """Test that default group_by handles URLs without host."""
-        group_by = default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.3)
 
         request = Request(url="/relative/path")
         key, interval = group_by(request)
 
         assert key == "unknown"
-        assert interval == 0.5
+        assert interval == 0.3
 
     def test_default_group_by_groups_subdomains_separately(self):
         """Test that different subdomains create different groups."""
-        group_by = default_group_by_factory(default_interval=0.5)
+        group_by = default_group_by_factory(default_interval=0.3)
 
         request1 = Request(url="https://api.example.com/endpoint")
         request2 = Request(url="https://www.example.com/page")

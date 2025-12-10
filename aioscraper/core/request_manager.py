@@ -277,13 +277,13 @@ class RequestManager:
 
     async def _listen_queue(self):
         """Process requests from the queue using the rate limiter."""
-        logger.debug("Queue listener started")
         while (
-            len(self._scheduler) > 0
+            not self._initialized
+            or len(self._scheduler) > 0
             or self._rate_limiter_manager.active
             or not self._ready_queue.empty()
             or len(self._delayed_heap) > 0
-            or not self._initialized
+            or await self._rate_limiter_manager.shutdown()
         ):
             await self._pop_due_delayed()
 
