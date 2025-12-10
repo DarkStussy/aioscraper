@@ -57,7 +57,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .[aiohttp,httpx,uvloop]
+          pip install -e .[aiohttp,httpx]
           pip install -r requirements_dev.txt
 
       - name: Lint code
