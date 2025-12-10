@@ -1,6 +1,21 @@
 Changelog
 =========
 
+.. _changelog-0-10-2:
+
+0.10.2 (2025-12-10)
+-------------------
+
+Changed
+~~~~~~~
+- Renamed ``RateLimiterManager`` to ``RateLimitManager`` for consistency
+- Replaced Pyright with BasedPyright for type checking
+- Replaced Flake8 and Black with Ruff for linting and formatting
+
+Fixed
+~~~~~
+- Graceful shutdown in rate limit manager
+
 .. _changelog-0-10-1:
 
 0.10.1 (2025-12-09)
