@@ -15,35 +15,96 @@ Core
 .. code-block:: python
 
     from dataclasses import dataclass
-    from aioscraper import AIOScraper, Response, Pipeline
+    from aioscraper import AIOScraper, Request, SendRequest, Response, Pipeline
 
     scraper = AIOScraper()
+
+
+    # Mock database client (replace with real DB client in production)
+    class DatabaseClient:
+        async def connect(self):
+            """Establish database connection"""
+            print("Connected to database")
+
+        async def save_article(self, title: str, url: str):
+            """Save article to database"""
+            print(f"Saved: {title} -> {url}")
+
+        async def close(self):
+            """Close database connection"""
+            print("Closed database connection")
 
 
     @dataclass(slots=True)
     class Article:
         title: str
+        url: str
 
 
-    @scraper.pipeline(Article)
-    class PrintPipeline:
+    class SaveArticlePipeline:
+        """Save articles to database using DB client"""
+
+        def __init__(self, db: DatabaseClient):
+            self.db = db
+
         async def put_item(self, item: Article) -> Article:
-            print("store:", item.title)
+            await self.db.save_article(item.title, item.url)
             return item
 
-        async def close(self): ...
+        async def close(self):
+            """Cleanup when scraper shuts down"""
+            pass
+
+
+    # Lifespan: setup and teardown for resources
+    @scraper.lifespan
+    async def lifespan(scraper: AIOScraper):
+        """
+        Manage resources lifecycle.
+
+        Setup phase: create DB client, connect, register as dependency.
+        Teardown phase: close connections.
+        """
+        db = DatabaseClient()
+        await db.connect()
+
+        # Register db as dependency - it will be injected into callbacks/errbacks/middlewares
+        scraper.add_dependencies(db=db)
+
+        # Register pipeline for Article type - will handle all Article items
+        scraper.pipeline.add(Article, SaveArticlePipeline(db))
+
+        yield  # Scraper runs here
+
+        # Cleanup
+        await db.close()
+
+
+    # Entry point: schedule requests to fetch articles
+    @scraper
+    async def get_article(send_request: SendRequest):
+        """Scraper entry point - sends request to article API"""
+        await send_request(Request(url="https://api.article.com", callback=callback))
 
 
     async def callback(response: Response, pipeline: Pipeline):
-        await pipeline(Article(title=(await response.json())["title"]))
+        """
+        Process article response and send to pipeline.
+
+        The pipeline dependency is automatically injected by aioscraper.
+        """
+        data = await response.json()
+        # Send item to pipeline - it will be saved to DB via SaveArticlePipeline
+        await pipeline(Article(title=data["title"], url=response.url))
+
 
 
 Middlewares around pipelines
 ----------------------------
 Pipeline middlewares let you step in before the first pipeline sees an item and after the last one finishes.
-Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out. 
+Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out.
 
-Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await call_next(item)`` to keep the item moving. 
+Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await call_next(item)`` to keep the item moving.
 
 If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` to skip the remaining middlewares in that stage but continue the rest of the flow, or raise :class:`StopItemProcessing <aioscraper.exceptions.StopItemProcessing>` to stop processing the current item altogether.
 
@@ -58,8 +119,8 @@ If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcess
        ...
 
    @scraper.pipeline.global_middleware
-   def wrap_pipeline(db):
-       async def middleware(call_next, item):
+   def wrap_pipeline(db: DatabaseClient):
+       async def middleware(call_next: Pipeline, item: Article) -> Article:
            db.log("start")
            item = await call_next(item)
            db.log("end")

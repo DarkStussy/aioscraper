@@ -13,11 +13,18 @@ Install with an HTTP backend
 
 .. code-block:: bash
 
-   pip install "aioscraper[aiohttp]"   # recommended default
-   # or
+   # Option 1: Use aiohttp (recommended for most cases)
+   pip install "aioscraper[aiohttp]"
+
+   # Option 2: Use httpx (if you prefer httpx ecosystem)
    pip install "aioscraper[httpx]"
 
+   # Option 3: Install both backends for flexibility
+   pip install "aioscraper[aiohttp,httpx]"
+
 At runtime ``aioscraper`` will use ``aiohttp`` when available, otherwise it falls back to ``httpx``.
+
+You can explicitly set the backend by setting the ``SESSION_HTTP_BACKEND`` environment variable to ``aiohttp`` or ``httpx``.
 
 Optional: install with ``uvloop`` (POSIX)
 -----------------------------------------
@@ -29,12 +36,6 @@ Optional: install with ``uvloop`` (POSIX)
    pip install "aioscraper[uvloop]"
 
 If you plan to use ``--uvloop`` in the CLI, install this extra on supported platforms.
-
-Developer extras
-----------------
-- Tests: ``pip install "aioscraper[test]"``
-- Lint/format/type-check: ``pip install "aioscraper[dev]"``
-- Combine extras as needed, e.g. ``pip install "aioscraper[aiohttp,httpx,test]"``
 
 Next steps
 ----------

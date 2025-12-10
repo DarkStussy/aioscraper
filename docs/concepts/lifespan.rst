@@ -15,6 +15,8 @@ What it does
     from typing import Iterable, Self
     from aioscraper import AIOScraper, Request, SendRequest, Response
 
+    scraper = AIOScraper()
+
 
     class DbClient:
         @classmethod
@@ -28,15 +30,17 @@ What it does
             print("db client closed")
 
 
+    @scraper
     async def scrape(send_request: SendRequest, db_client: DbClient):
         for i in await db_client.get():
             await send_request(Request(url=f"https://example.com/?i={i}", callback=handle_response))
 
 
     async def handle_response(response: Response):
-        print(f"[{response.status}] {response.url}")
+        print(f"{response.url}: {response.status}")
 
 
+    @scraper.lifespan
     async def lifespan(scraper: AIOScraper):
         db_client = await DbClient.create()
         scraper.add_dependencies(db_client=db_client)
@@ -45,9 +49,3 @@ What it does
             yield
         finally:
             await db_client.close()
-
-
-    def create_scraper() -> AIOScraper:
-        scraper = AIOScraper(scrape)
-        scraper.lifespan(lifespan)
-        return scraper
