@@ -40,10 +40,13 @@ class Pipeline(Protocol[PipelineItemType]):
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
 
 
+ItemHandler = Pipeline
+
+
 class GlobalPipelineMiddleware(Protocol[PipelineItemType]):
     "Wrapper invoked around the entire pipeline chain for every item type."
 
-    async def __call__(self, call_next: Pipeline, item: PipelineItemType) -> PipelineItemType: ...
+    async def __call__(self, handler: ItemHandler, item: PipelineItemType) -> PipelineItemType: ...
 
 
 @dataclass(slots=True, kw_only=True)

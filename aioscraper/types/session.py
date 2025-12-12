@@ -55,7 +55,6 @@ class Request:
         timeout (float | None): Request timeout in seconds
         allow_redirects (bool): Whether to follow HTTP redirects
         max_redirects (int): Maximum number of redirects to follow
-        raise_for_status (bool): Raise an HTTPException automatically for error statuses
 
         delay (float | None): Delay before sending the request
         priority (int): Priority of the request
@@ -80,7 +79,6 @@ class Request:
     timeout: float | None = None
     allow_redirects: bool = True
     max_redirects: int = 10
-    raise_for_status: bool = True
 
     # not http params
     delay: float | None = None
@@ -109,7 +107,6 @@ class Request:
             timeout=self.timeout,
             allow_redirects=self.allow_redirects,
             max_redirects=self.max_redirects,
-            raise_for_status=self.raise_for_status,
             delay=self.delay,
             priority=self.priority,
             callback=self.callback,

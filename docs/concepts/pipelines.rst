@@ -15,7 +15,7 @@ Core
 .. code-block:: python
 
     from dataclasses import dataclass
-    from aioscraper import AIOScraper, Request, SendRequest, Response, Pipeline
+    from aioscraper import AIOScraper, Request, SendRequest, Response, Pipeline, ItemHandler
 
     scraper = AIOScraper()
 
@@ -104,7 +104,7 @@ Middlewares around pipelines
 Pipeline middlewares let you step in before the first pipeline sees an item and after the last one finishes.
 Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out.
 
-Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await call_next(item)`` to keep the item moving.
+Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await handler(item)`` to keep the item moving.
 
 If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` to skip the remaining middlewares in that stage but continue the rest of the flow, or raise :class:`StopItemProcessing <aioscraper.exceptions.StopItemProcessing>` to stop processing the current item altogether.
 
@@ -120,9 +120,9 @@ If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcess
 
    @scraper.pipeline.global_middleware
    def wrap_pipeline(db: DatabaseClient):
-       async def middleware(call_next: Pipeline, item: Article) -> Article:
+       async def middleware(handler: ItemHandler, item: Article) -> Article:
            db.log("start")
-           item = await call_next(item)
+           item = await handler(item)
            db.log("end")
            return item
 
@@ -130,7 +130,7 @@ If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcess
 
 Flow
 -------------------
-Picture the flow as nested wrappers (matryoshka style): global middlewares form the outer shells around the per-type chain. If you’ve used FastAPI middleware, it’s the same shape: a wrapper receives ``call_next`` and must ``await call_next(item)`` to keep the item moving.
+Picture the flow as nested wrappers (matryoshka style): global middlewares form the outer shells around the per-type chain. If you’ve used FastAPI middleware, it’s the same shape: a wrapper receives ``handler`` and must ``await handler(item)`` to keep the item moving.
 
 .. code-block:: text
 
@@ -145,7 +145,7 @@ Picture the flow as nested wrappers (matryoshka style): global middlewares form 
 When you call ``await pipeline(item)``:
 
 - The dispatcher picks the container by ``type(item)``; if none is registered it raises or warns depending on ``PipelineConfig.strict``.
-- Global middlewares run outer-to-inner. Each wrapper does its work and awaits ``call_next(item)`` to keep going; the final result bubbles back out through them in reverse order.
+- Global middlewares run outer-to-inner. Each wrapper does its work and awaits ``handler(item)`` to keep going; the final result bubbles back out through them in reverse order.
 - Inside the core chain: run all pre-middlewares in registration order (each can mutate/replace the item).
 - Run each pipeline instance in order; each must return the (possibly mutated) item for the next step.
 - Run all post-middlewares in registration order.

@@ -5,7 +5,7 @@ Callbacks drive the happy path, while error handlers keep failures contained. `a
 
 .. rubric:: Key points
 
-- ``Request.callback`` runs only on successful responses (unless ``raise_for_status=False``, then all responses go to callback).
+- ``Request.callback`` runs only on successful responses.
 - ``Request.errback`` handles HTTP statuses ``>=400`` and unexpected exceptions from callbacks or middlewares.
 - ``Request.cb_kwargs`` are merged into callback/errback arguments alongside framework dependencies (``send_request``, ``pipeline``, etc.).
 

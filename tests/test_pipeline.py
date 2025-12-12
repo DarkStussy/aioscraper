@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any, Callable
 
 import pytest
 
@@ -8,6 +8,7 @@ from aioscraper.core.pipeline import PipelineDispatcher
 from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
 from aioscraper.types.pipeline import (
     GlobalPipelineMiddleware,
+    ItemHandler,
     Pipeline,
     PipelineContainer,
     PipelineMiddleware,
@@ -84,9 +85,9 @@ def _add_pipeline_via_decorator(scraper: MockAIOScraper):
 
 
 def global_middleware_factory(global_label: str) -> GlobalPipelineMiddleware[RealItem]:
-    async def middleware(call_next: Pipeline[RealItem], item: RealItem) -> RealItem:
+    async def middleware(handler: Pipeline[RealItem], item: RealItem) -> RealItem:
         item.history.append(f"{global_label}-before")
-        item = await call_next(item)
+        item = await handler(item)
         item.history.append(f"{global_label}-after")
         return item
 
@@ -273,15 +274,15 @@ class AuditPipeline:
 async def test_pipeline_global_middlewares_wrap_chain_order_matches_example():
     pipeline = AuditPipeline()
 
-    async def mw_a(call_next: Pipeline[StateItem], item: StateItem) -> StateItem:
+    async def mw_a(handler: ItemHandler[StateItem], item: StateItem) -> StateItem:
         item.history.append("a-before")
-        item = await call_next(item)
+        item = await handler(item)
         item.history.append("a-after")
         return item
 
-    async def mw_b(call_next: Pipeline[StateItem], item: StateItem) -> StateItem:
+    async def mw_b(handler: ItemHandler[StateItem], item: StateItem) -> StateItem:
         item.history.append("b-before")
-        item = await call_next(item)
+        item = await handler(item)
         item.history.append("b-after")
         return item
 
@@ -397,7 +398,7 @@ async def test_pipeline_post_stop_processing_skips_remaining_posts():
 async def test_pipeline_global_middleware_stop_item_processing_returns_item():
     pipeline = AuditPipeline()
 
-    async def stop_item(call_next, item):
+    async def stop_item(handler: ItemHandler, item: Any):
         raise StopItemProcessing
 
     dispatcher = PipelineDispatcher(

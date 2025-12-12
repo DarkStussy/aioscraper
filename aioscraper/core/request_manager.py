@@ -158,7 +158,7 @@ class RequestManager:
                         )
                         break
 
-                if response.ok or not request.raise_for_status:
+                if response.ok:
                     if request.callback is not None:
                         await request.callback(
                             **get_func_kwargs(

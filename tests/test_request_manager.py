@@ -176,8 +176,8 @@ async def test_request_manager_respects_delay_between_requests(base_manager_fact
 
 
 @pytest.mark.asyncio
-async def test_raise_for_status_triggers_errback_when_enabled(base_manager_factory):
-    """Test that HTTP errors trigger errback when raise_for_status is enabled (default)."""
+async def test_raise_for_status_triggers_errback(base_manager_factory):
+    """Test that HTTP errors trigger errback."""
     captured: dict[str, Any] = {}
 
     async def errback(exc: Exception, request: Request):
@@ -192,32 +192,6 @@ async def test_raise_for_status_triggers_errback_when_enabled(base_manager_facto
     assert captured["exc"].status_code == 502
     assert captured["exc"].message == "bad gateway"
     assert captured["request"].url == "https://api.test.com/error"
-
-
-@pytest.mark.asyncio
-async def test_raise_for_status_false_skips_errback(base_manager_factory):
-    """Test that HTTP errors don't trigger errback when raise_for_status is False."""
-    called: dict[str, Any] = {"errback": False}
-
-    async def callback(response: Response):
-        called["response"] = response
-
-    async def errback():
-        called["errback"] = True
-
-    manager = base_manager_factory(session_factory=lambda: FixedStatusSession(status=500, body="boom"))
-
-    await manager._send_request(
-        Request(
-            url="https://api.test.com/error",
-            callback=callback,
-            errback=errback,
-            raise_for_status=False,
-        ),
-    )
-
-    assert called["response"].status == 500
-    assert called["errback"] is False
 
 
 @pytest.mark.asyncio

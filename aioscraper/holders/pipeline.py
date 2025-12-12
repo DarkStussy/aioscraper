@@ -110,7 +110,7 @@ class PipelineHolder:
         Add a global pipeline middleware factory.
 
         The callable can accept injected dependencies and must return a middleware with signature
-        ``async def mw(call_next, item): ...`` which wraps the entire pipeline chain for every item type.
+        ``async def mw(handler, item): ...`` which wraps the entire pipeline chain for every item type.
         """
         self.add_global_middlewares(middleware)
         return middleware
