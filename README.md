@@ -111,7 +111,7 @@ class StatsPipeline:
         - Aggregate statistics
         """
         self.total_stars += item.stars
-        logger.info(f"✓ {item.name}: ⭐ {item.stars} ({item.language})")
+        logger.info("✓ %s: ⭐ %s (%s)", item.name, item.stars, item.language)
         return item
 
     async def close(self):
@@ -123,7 +123,7 @@ class StatsPipeline:
         - Closing database connections
         - Cleanup operations
         """
-        logger.info(f"Total stars collected: {self.total_stars}")
+        logger.info("Total stars collected: %s", self.total_stars)
 
 
 # this decorator marks this as the scraper's entry point.
@@ -174,12 +174,12 @@ async def on_failure(exc: Exception, repo: str):
     """
     Error callback: handle request/processing failures.
 
-    Use for:
-    - Logging errors
-    - Sending alerts
-    - Custom retry logic
-    """
-    logger.error(f"{repo}: cannot parse response: {exc}")
+       Use for:
+       - Logging errors
+       - Sending alerts
+       - Custom retry logic
+       """
+       logger.error("%s: cannot parse response: %s", repo, exc)
 ```
 
 Run it:

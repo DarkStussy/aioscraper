@@ -1,6 +1,15 @@
 Changelog
 =========
 
+.. _changelog-0-10-3:
+
+0.10.3 (2025-12-12)
+-------------------
+
+Added
+~~~~~
+- ``@compiled`` decorator for optimized dependency injection in callbacks
+
 .. _changelog-0-10-2:
 
 0.10.2 (2025-12-10)

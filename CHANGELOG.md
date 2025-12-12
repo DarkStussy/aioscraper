@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.3 (2025-12-12)
+
+### Added
+- `@compiled` decorator for optimized dependency injection in callbacks
+
 ## 0.10.2 (2025-12-10)
 
 ### Changed
