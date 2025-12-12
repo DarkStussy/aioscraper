@@ -18,5 +18,5 @@ repos:
         entry: basedpyright
         language: python
         additional_dependencies:
-          - basedpyright
+          - basedpyright==1.36.1
         types: [python]
