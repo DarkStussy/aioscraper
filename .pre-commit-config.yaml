@@ -15,6 +15,6 @@ repos:
     hooks:
       - id: basedpyright
         name: basedpyright type check
-        entry: basedpyright
+        entry: python3 -m basedpyright
         language: system
         types: [ python ]
