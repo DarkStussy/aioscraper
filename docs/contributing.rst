@@ -29,12 +29,12 @@ How to setup
      pip install -e ".[aiohttp,httpx,uvloop]"
      pip install -r requirements_dev.txt
 
-- Enable pre-commit hooks:
+- Enable git hooks (we recommend ``prek``, a Rust alternative to ``pre-commit``; using ``pre-commit`` is fine if you prefer):
 
   .. code-block:: bash
 
-     pip install pre-commit
-     pre-commit install
+     pip install prek
+     prek install
 
 Running tests
 -------------
