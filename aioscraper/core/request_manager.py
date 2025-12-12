@@ -13,6 +13,7 @@ from aioscraper._helpers.log import get_log_name
 from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
 from aioscraper.exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
 from aioscraper.holders import MiddlewareHolder
+from aioscraper.types import Response
 from aioscraper.types.session import PRequest, Request, SendRequest
 
 from .rate_limiter import RateLimitManager, RequestOutcome
@@ -159,16 +160,7 @@ class RequestManager:
                         break
 
                 if response.ok:
-                    if request.callback is not None:
-                        await request.callback(
-                            **get_func_kwargs(
-                                request.callback,
-                                request=request,
-                                response=response,
-                                **request.cb_kwargs,
-                                **self._dependencies,
-                            ),
-                        )
+                    await self._callback(request, response)
                 else:
                     http_exc = HTTPException(
                         url=str(url),
@@ -212,6 +204,28 @@ class RequestManager:
                     ),
                 )
 
+    async def _callback(self, request: Request, response: Response):
+        if request.callback is None:
+            return
+
+        if hasattr(request.callback, "__compiled__"):
+            await request.callback(
+                request=request,
+                response=response,
+                **request.cb_kwargs,
+                **self._dependencies,
+            )
+        else:
+            await request.callback(
+                **get_func_kwargs(
+                    request.callback,
+                    request=request,
+                    response=response,
+                    **request.cb_kwargs,
+                    **self._dependencies,
+                ),
+            )
+
     async def _handle_exception(self, request: Request, exc: Exception):
         for exception_middleware in self._middleware_holder.exception:
             try:
@@ -235,15 +249,23 @@ class RequestManager:
 
         if request.errback is not None:
             try:
-                await request.errback(
-                    **get_func_kwargs(
-                        request.errback,
+                if hasattr(request.errback, "__compiled__"):
+                    await request.errback(
                         request=request,
                         exc=exc,
                         **request.cb_kwargs,
                         **self._dependencies,
-                    ),
-                )
+                    )
+                else:
+                    await request.errback(
+                        **get_func_kwargs(
+                            request.errback,
+                            request=request,
+                            exc=exc,
+                            **request.cb_kwargs,
+                            **self._dependencies,
+                        ),
+                    )
             except Exception as errback_exc:
                 logger.exception(
                     "Errback failed for %s %s: original=%s, errback=%s",

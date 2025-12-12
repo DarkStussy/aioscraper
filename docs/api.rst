@@ -1,5 +1,5 @@
 API
-=============
+===
 
 Core
 ----
@@ -9,6 +9,8 @@ Core
    :special-members: __call__
 
 .. autofunction:: aioscraper.core.runner.run_scraper
+
+.. autofunction:: aioscraper.compiled
 
 
 Configuration

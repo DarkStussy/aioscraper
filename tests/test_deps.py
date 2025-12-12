@@ -1,6 +1,6 @@
 import pytest
 
-from aioscraper._helpers.func import get_func_kwargs
+from aioscraper._helpers.func import compiled, get_func_kwargs
 from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper
 
@@ -50,3 +50,51 @@ def test_get_func_kwargs_handles_missing_optional_params():
     kwargs = get_func_kwargs(fn, a=1, c=3)
 
     assert kwargs == {"a": 1}
+
+
+@pytest.mark.asyncio
+async def test_compiled_decorator_filters_kwargs():
+    @compiled
+    async def callback(a: int, b: str):
+        return {"a": a, "b": b}
+
+    result = await callback(a=1, b="test", c=3, d=4)
+
+    assert result == {"a": 1, "b": "test"}
+
+
+@pytest.mark.asyncio
+async def test_compiled_decorator_sets_marker():
+    @compiled
+    async def callback():
+        pass
+
+    assert hasattr(callback, "__compiled__")
+    assert callback.__compiled__ is True
+
+
+@pytest.mark.asyncio
+async def test_compiled_decorator_with_scraper(mock_aioscraper: MockAIOScraper):
+    class CompiledScraper:
+        def __init__(self):
+            self.results = {}
+
+        async def __call__(self, send_request: SendRequest):
+            await send_request(Request(url="https://api.test.com/compiled", callback=self.parse))
+
+        @compiled
+        async def parse(self, response: Response, dep: str):
+            self.results["dep"] = dep
+            self.results["status"] = response.status
+
+    mock_aioscraper.server.add("https://api.test.com/compiled", handler=lambda _: {"ok": True})
+
+    scraper = CompiledScraper()
+    mock_aioscraper(scraper)
+
+    async with mock_aioscraper:
+        mock_aioscraper.add_dependencies(dep="optimized")
+        await mock_aioscraper.wait()
+
+    assert scraper.results["dep"] == "optimized"
+    assert scraper.results["status"] == 200
