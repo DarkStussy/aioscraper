@@ -31,7 +31,7 @@ from typing import Self
 from faststream.redis import RedisBroker, RedisChannelMessage
 from faststream.redis.subscriber.usecases import ChannelSubscriber
 
-from aioscraper import AIOScraper, Request, Response, SendRequest
+from aioscraper import AIOScraper, Request, Response, SendRequest, compiled
 
 scraper = AIOScraper()
 
@@ -77,6 +77,7 @@ async def scrape(send_request: SendRequest, subscriber: ChannelSubscriber):
         )
 
 
+@compiled
 async def callback(response: Response, task: Task):
     """
     Success callback for processing scraped pages.
@@ -87,6 +88,7 @@ async def callback(response: Response, task: Task):
     await task.message.ack()
 
 
+@compiled
 async def errback(exc: Exception, task: Task):
     """Error callback for handling scraping failures."""
     print(f"[error] {task.id}: {task.url} - {exc}")

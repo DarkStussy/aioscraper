@@ -12,7 +12,7 @@ from json import JSONDecodeError
 from database import CryptoCurrencyDatabase
 from models import Task, TaskStatus
 
-from aioscraper import Request, Response, SendRequest
+from aioscraper import Request, Response, SendRequest, compiled
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,7 @@ class CryptocurrencyPriceScraper:
                 ),
             )
 
+    @compiled
     async def _callback(self, response: Response, task: Task, database: CryptoCurrencyDatabase):
         """
         Handler for successful HTTP response from CoinMarketCap API.
@@ -89,6 +90,7 @@ class CryptocurrencyPriceScraper:
         await database.update_task_status(task.id, TaskStatus.SUCCESS)
         await database.commit()
 
+    @compiled
     async def _errback(self, exc: Exception, task: Task):
         """
         Error handler for HTTP request failures.
