@@ -26,7 +26,7 @@ How to setup
 
      python3 -m venv .venv
      source .venv/bin/activate
-     pip install -e ".[aiohttp,httpx,uvloop]"
+     pip install -e ".[aiohttp-speedups,httpx,uvloop]"
      pip install -r requirements_dev.txt
 
 - Enable git hooks (we recommend ``prek``, a Rust alternative to ``pre-commit``; using ``pre-commit`` is fine if you prefer):

@@ -13,14 +13,17 @@ Install with an HTTP backend
 
 .. code-block:: bash
 
-   # Option 1: Use aiohttp (recommended for most cases)
+   # Option 1: Use aiohttp with speedups (recommended for most cases)
+   pip install "aioscraper[aiohttp-speedups]"
+
+   # Option 2: Use aiohttp without speedups (minimal dependencies)
    pip install "aioscraper[aiohttp]"
 
-   # Option 2: Use httpx (if you prefer httpx ecosystem)
+   # Option 3: Use httpx (if you prefer httpx ecosystem)
    pip install "aioscraper[httpx]"
 
-   # Option 3: Install both backends for flexibility
-   pip install "aioscraper[aiohttp,httpx]"
+   # Option 4: Install both backends for flexibility
+   pip install "aioscraper[aiohttp-speedups,httpx]"
 
 At runtime ``aioscraper`` will use ``aiohttp`` when available, otherwise it falls back to ``httpx``.
 

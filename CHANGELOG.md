@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.4 (2025-12-13)
+
+### Changed
+- Split aiohttp dependency into `aiohttp` and `aiohttp-speedups` extras for optional speedups installation
+
 ## 0.10.3 (2025-12-12)
 
 ### Added

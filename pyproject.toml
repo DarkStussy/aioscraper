@@ -1,6 +1,6 @@
 [project]
 name = "aioscraper"
-version = "0.10.3"
+version = "0.10.4"
 authors = [{ name = "darkstussy" }, ]
 description = "High-performance asynchronous Python framework for orchestrating API data collection with clean, modular components."
 readme = "README.md"
@@ -31,6 +31,9 @@ uvloop = [
     "uvloop~=0.22.1"
 ]
 aiohttp = [
+    "aiohttp~=3.13.2",
+]
+aiohttp-speedups = [
     "aiohttp[speedups]~=3.13.2",
 ]
 httpx = [
