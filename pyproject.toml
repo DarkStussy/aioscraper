@@ -4,6 +4,7 @@ version = "0.10.4"
 authors = [{ name = "darkstussy" }, ]
 description = "High-performance asynchronous Python framework for orchestrating API data collection with clean, modular components."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
     "aiojobs~=1.4.0",
