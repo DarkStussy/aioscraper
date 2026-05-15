@@ -119,7 +119,7 @@ async def test_errback_failure_wrapped_in_exception_group():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -157,7 +157,7 @@ async def test_request_manager_respects_delay_between_requests(base_manager_fact
             finished.set()
 
     manager = base_manager_factory(
-        session_factory=lambda: TrackingSession(),
+        session_factory=TrackingSession,
         default_interval=default_interval,
     )
 
@@ -197,7 +197,7 @@ async def test_raise_for_status_triggers_errback(base_manager_factory):
 @pytest.mark.asyncio
 async def test_sender_raises_on_data_and_json(base_manager_factory):
     """Test that sender raises InvalidRequestData when both data and json_data are provided."""
-    manager = base_manager_factory(session_factory=lambda: NoopSession())
+    manager = base_manager_factory(session_factory=NoopSession)
 
     with pytest.raises(InvalidRequestData, match="data and json_data"):
         await manager.sender(
@@ -215,7 +215,7 @@ async def test_sender_raises_on_data_and_json(base_manager_factory):
 @pytest.mark.asyncio
 async def test_sender_raises_on_files_and_json(base_manager_factory):
     """Test that sender raises InvalidRequestData when both files and json_data are provided."""
-    manager = base_manager_factory(session_factory=lambda: NoopSession())
+    manager = base_manager_factory(session_factory=NoopSession)
 
     with pytest.raises(InvalidRequestData, match="files and json_data"):
         await manager.sender(
@@ -239,7 +239,7 @@ async def test_callback_receives_cb_kwargs(base_manager_factory):
         captured["response"] = response
         captured["custom_arg"] = custom_arg
 
-    manager = base_manager_factory(session_factory=lambda: FakeSession())
+    manager = base_manager_factory(session_factory=FakeSession)
 
     await manager._send_request(
         Request(url="https://api.test.com/test", callback=callback, cb_kwargs={"custom_arg": "test_value"}),
@@ -263,7 +263,7 @@ async def test_dependencies_injected_into_callback():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={"custom_dep": "injected_value"},
         middleware_holder=MiddlewareHolder(),
     )
@@ -294,7 +294,7 @@ async def test_dependencies_injected_into_middleware():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={"custom_dep": "middleware_value"},
         middleware_holder=middleware_holder,
     )
@@ -322,7 +322,7 @@ async def test_send_request_available_in_dependencies():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -344,7 +344,7 @@ async def test_queue_processes_requests():
         rate_limit_config=RateLimitConfig(enabled=False, default_interval=0.05),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -387,7 +387,7 @@ async def test_outer_middleware_execution_in_listen_queue():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=middleware_holder,
     )
@@ -425,7 +425,7 @@ async def test_outer_middleware_exception_is_logged():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=middleware_holder,
     )
@@ -478,7 +478,7 @@ async def test_url_with_params_is_parsed():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )
@@ -509,7 +509,7 @@ async def test_close_stops_queue_processing():
         rate_limit_config=RateLimitConfig(),
         retry_config=RequestRetryConfig(),
         shutdown_check_interval=0.01,
-        sessionmaker=lambda: FakeSession(),
+        sessionmaker=FakeSession,
         dependencies={},
         middleware_holder=MiddlewareHolder(),
     )

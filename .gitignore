@@ -156,7 +156,10 @@ cython_debug/
 .idea/
 
 # VSCode
-.vscode
+.vscode/
+
+# AI
+.claude/
 
 # other
 main.py

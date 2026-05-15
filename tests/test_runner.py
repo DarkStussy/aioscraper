@@ -38,7 +38,7 @@ def make_scraper_mock() -> AsyncMock:
     scraper.__aenter__.side_effect = aenter
     scraper.__aexit__.side_effect = aexit
     scraper.wait.side_effect = wait
-    scraper.stop = lambda: scraper._stop.set()
+    scraper.stop = scraper._stop.set
     return scraper
 
 

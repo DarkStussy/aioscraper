@@ -188,7 +188,7 @@ class TestValidateDecorator:
         @dataclass
         @validate
         class Config:
-            server: ServerConfig = field(default_factory=lambda: ServerConfig())
+            server: ServerConfig = field(default_factory=ServerConfig)
 
         config = Config(server=ServerConfig(host="example.com", port=3000))
         assert config.server.host == "example.com"
