@@ -180,7 +180,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = "~=3.13.5" },
+    { name = "aiohttp", marker = "extra == 'aiohttp'", specifier = "~=3.13.2" },
     { name = "aiohttp", extras = ["speedups"], marker = "extra == 'aiohttp-speedups'", specifier = "~=3.13.2" },
     { name = "aiojobs", specifier = "~=1.4.0" },
     { name = "httpx", marker = "extra == 'httpx'", specifier = "~=0.28.1" },

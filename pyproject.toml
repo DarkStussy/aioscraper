@@ -32,7 +32,7 @@ uvloop = [
     "uvloop~=0.22.1"
 ]
 aiohttp = [
-    "aiohttp~=3.13.5",
+    "aiohttp~=3.13.2",
 ]
 aiohttp-speedups = [
     "aiohttp[speedups]~=3.13.2",
