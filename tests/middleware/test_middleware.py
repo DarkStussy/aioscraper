@@ -1,40 +1,45 @@
-from typing import Callable, Literal
+from typing import Callable
 
 import pytest
 
-from aioscraper.exceptions import HTTPException, StopMiddlewareProcessing, StopRequestProcessing
-from aioscraper.types import Middleware, MiddlewareStage, Request, Response, SendRequest
+from aioscraper.exceptions import HTTPException
+from aioscraper.types import (
+    Request,
+    RequestHandler,
+    RequestMiddleware,
+    RequestMiddlewareFactory,
+    Response,
+    SendRequest,
+)
 from tests.mocks import MockAIOScraper, MockResponse
 
 
 class MiddlewareScraper:
     def __init__(self):
-        self.response = None
-        self.outer: bool | None = None
-        self.inner: bool | None = None
-        self.response_flag: bool | None = None
-        self.exception_seen = False
+        self.response: dict | None = None
+        self.before: bool | None = None
+        self.after_flag: bool | None = None
+        self.exception_seen: bool = False
 
     async def __call__(self, send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
         await send_request(Request(url="https://api.test.com/error", errback=self.handle_error))
 
-    async def parse(self, response: Response, request: Request, outer: bool, inner: bool):
+    async def parse(self, response: Response, request: Request, before: bool):
         self.response = await response.json()
-        self.outer = outer
-        self.inner = inner
-        self.response_flag = request.state.get("from_response")
+        self.before = before
+        self.after_flag = request.state.get("after")
 
     async def handle_error(self, exc: Exception):
         self.exception_seen = isinstance(exc, HTTPException)
 
 
-def register_via_decorator(scraper: MockAIOScraper, middleware_type: MiddlewareStage, fn: Middleware):
-    scraper.middleware(middleware_type)(fn)
+def register_via_decorator(scraper: MockAIOScraper, factory: RequestMiddlewareFactory):
+    scraper.middleware(factory)
 
 
-def register_via_add(scraper: MockAIOScraper, middleware_type: MiddlewareStage, fn):
-    scraper.middleware.add(middleware_type, fn)
+def register_via_add(scraper: MockAIOScraper, factory: RequestMiddlewareFactory):
+    scraper.middleware.add(factory)
 
 
 @pytest.mark.asyncio
@@ -47,34 +52,29 @@ def register_via_add(scraper: MockAIOScraper, middleware_type: MiddlewareStage, 
 )
 async def test_middleware(
     mock_aioscraper: MockAIOScraper,
-    register: Callable[[MockAIOScraper, MiddlewareStage, Middleware], None],
+    register: Callable[[MockAIOScraper, RequestMiddlewareFactory], None],
 ):
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
     mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))
 
-    calls = {"outer": 0, "inner": 0, "response": 0, "exception": 0}
+    calls = {"before": 0, "after": 0, "exception": 0}
 
-    async def outer_middleware(request: Request):
-        calls["outer"] += 1
-        request.cb_kwargs["outer"] = True
-        request.state["outer"] = True
+    def factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            calls["before"] += 1
+            request.cb_kwargs["before"] = True
+            try:
+                response = await call_next(request)
+            except HTTPException:
+                calls["exception"] += 1
+                raise
+            calls["after"] += 1
+            request.state["after"] = True
+            return response
 
-    async def inner_middleware(request: Request):
-        calls["inner"] += 1
-        request.cb_kwargs["inner"] = True
+        return middleware
 
-    async def response_middleware(response: Response, request: Request):
-        calls["response"] += 1
-        request.state["from_response"] = True
-
-    async def exception_middleware(exc: Exception):
-        calls["exception"] += 1
-        assert isinstance(exc, HTTPException)
-
-    register(mock_aioscraper, "outer", outer_middleware)
-    register(mock_aioscraper, "inner", inner_middleware)
-    register(mock_aioscraper, "response", response_middleware)
-    register(mock_aioscraper, "exception", exception_middleware)
+    register(mock_aioscraper, factory)
 
     scraper = MiddlewareScraper()
     mock_aioscraper(scraper)
@@ -82,29 +82,42 @@ async def test_middleware(
     async with mock_aioscraper:
         await mock_aioscraper.wait()
 
-    assert scraper.response == {"status": "OK"}
-    assert scraper.outer is True
-    assert scraper.inner is True
-    assert scraper.response_flag is True
-    assert scraper.exception_seen is True
-    assert calls == {"outer": 2, "inner": 2, "response": 2, "exception": 1}
     mock_aioscraper.server.assert_all_routes_handled()
+
+    assert scraper.response == {"status": "OK"}
+    assert scraper.before is True
+    assert scraper.after_flag is True
+    assert scraper.exception_seen is True
+    assert calls == {"before": 2, "after": 1, "exception": 1}
 
 
 @pytest.mark.asyncio
-async def test_middleware_priority_controls_execution_order(mock_aioscraper: MockAIOScraper):
+async def test_middleware_registration_order_controls_wrapping(mock_aioscraper: MockAIOScraper):
+    """First registered middleware is the outermost wrapper."""
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
 
     order: list[str] = []
 
-    async def low():
-        order.append("low")
+    def outer_factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            order.append("outer-before")
+            response = await call_next(request)
+            order.append("outer-after")
+            return response
 
-    async def high():
-        order.append("high")
+        return middleware
 
-    mock_aioscraper.middleware.add("inner", low, priority=10)
-    mock_aioscraper.middleware.add("inner", high, priority=0)
+    def inner_factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            order.append("inner-before")
+            response = await call_next(request)
+            order.append("inner-after")
+            return response
+
+        return middleware
+
+    mock_aioscraper.middleware.add(outer_factory)
+    mock_aioscraper.middleware.add(inner_factory)
 
     async def scrape(send_request: SendRequest):
         await send_request(Request(url="https://api.test.com/v1", callback=handle))
@@ -117,32 +130,29 @@ async def test_middleware_priority_controls_execution_order(mock_aioscraper: Moc
     async with mock_aioscraper:
         await mock_aioscraper.wait()
 
-    assert order == ["high", "low"]
+    assert order == ["outer-before", "inner-before", "inner-after", "outer-after"]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("middleware_type", ["inner", "response"])
-async def test_stop_middleware_processing_short_circuits_chain(
-    mock_aioscraper: MockAIOScraper,
-    middleware_type: Literal["inner", "response"],
-):
+async def test_middleware_short_circuit_skips_dispatch_and_callback(mock_aioscraper: MockAIOScraper):
+    """Middleware that returns without calling call_next short-circuits dispatch and callback."""
     mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
 
     calls: list[str] = []
 
-    async def first():
-        calls.append("first")
-        raise StopMiddlewareProcessing
+    def factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            calls.append("middleware")
+            return None
 
-    async def second():
-        calls.append("second")
+        return middleware
 
-    mock_aioscraper.middleware.add(middleware_type, first, second)
+    mock_aioscraper.middleware.add(factory)
 
     async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=parse))
+        await send_request(Request(url="https://api.test.com/v1", callback=callback))
 
-    async def parse():
+    async def callback():
         calls.append("callback")
 
     mock_aioscraper(scrape)
@@ -150,37 +160,162 @@ async def test_stop_middleware_processing_short_circuits_chain(
     async with mock_aioscraper:
         await mock_aioscraper.wait()
 
-    mock_aioscraper.server.assert_all_routes_handled()
-
-    assert calls[0] == "first"
-    assert "second" not in calls
-    assert "exception" not in calls
-    assert "callback" in calls
+    assert calls == ["middleware"]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("middleware_type", ["inner", "response"])
-async def test_stop_request_processing_short_circuits_everything(
-    mock_aioscraper: MockAIOScraper,
-    middleware_type: Literal["inner", "response"],
-):
-    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
+async def test_middleware_catches_exception_skips_errback(mock_aioscraper: MockAIOScraper):
+    """Middleware that catches the exception and returns None should skip the errback."""
+    mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))
 
     calls: list[str] = []
 
-    async def first():
-        calls.append("first")
-        raise StopRequestProcessing
+    def factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            try:
+                return await call_next(request)
+            except HTTPException:
+                calls.append("caught")
+                return None
 
-    async def second():
-        calls.append("second")
+        return middleware
 
-    mock_aioscraper.middleware.add(middleware_type, first, second)
+    mock_aioscraper.middleware.add(factory)
 
     async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=parse))
+        await send_request(Request(url="https://api.test.com/error", errback=errback))
 
-    async def parse():
+    async def errback(exc: Exception):
+        calls.append("errback")
+
+    mock_aioscraper(scrape)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    mock_aioscraper.server.assert_all_routes_handled()
+
+    assert calls == ["caught"]
+
+
+@pytest.mark.asyncio
+async def test_middleware_reads_response_body_lazily_after_call_next(mock_aioscraper: MockAIOScraper):
+    """Middleware can consume the response body after ``call_next`` returns.
+
+    The response context manager is kept open by the per-request AsyncExitStack
+    until the whole chain unwinds, so body reads work even though dispatch has
+    already returned.
+    """
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
+
+    captured: dict[str, object] = {}
+
+    def factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            response = await call_next(request)
+            assert response is not None
+            captured["status"] = response.status
+            captured["body"] = await response.json()
+            return response
+
+        return middleware
+
+    mock_aioscraper.middleware.add(factory)
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+
+    async def callback(): ...
+
+    mock_aioscraper(scrape)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    mock_aioscraper.server.assert_all_routes_handled()
+
+    assert captured == {"status": 200, "body": {"status": "OK"}}
+
+
+@pytest.mark.asyncio
+async def test_outer_middleware_catches_inner_exception(mock_aioscraper: MockAIOScraper):
+    """Outer middleware can catch an exception raised by an inner middleware (or dispatch)."""
+    mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))
+
+    calls: list[str] = []
+
+    def outer_factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            try:
+                return await call_next(request)
+            except HTTPException:
+                calls.append("outer-caught")
+                return None
+
+        return middleware
+
+    def inner_factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            calls.append("inner-before")
+            try:
+                return await call_next(request)
+            except HTTPException:
+                calls.append("inner-rethrow")
+                raise
+
+        return middleware
+
+    mock_aioscraper.middleware.add(outer_factory)
+    mock_aioscraper.middleware.add(inner_factory)
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/error", errback=errback))
+
+    async def errback(exc: Exception):
+        calls.append("errback")
+
+    mock_aioscraper(scrape)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    mock_aioscraper.server.assert_all_routes_handled()
+
+    assert calls == ["inner-before", "inner-rethrow", "outer-caught"]
+
+
+@pytest.mark.asyncio
+async def test_inner_middleware_short_circuit_propagates_none_to_outer(mock_aioscraper: MockAIOScraper):
+    """When an inner middleware returns ``None``, the outer sees ``None`` from ``call_next``."""
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
+
+    calls: list[str] = []
+    received: dict[str, Response | None] = {}
+
+    def outer_factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            calls.append("outer-before")
+            response = await call_next(request)
+            calls.append("outer-after")
+            received["response"] = response
+            return response
+
+        return middleware
+
+    def inner_factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            calls.append("inner-short-circuit")
+            return None
+
+        return middleware
+
+    mock_aioscraper.middleware.add(outer_factory)
+    mock_aioscraper.middleware.add(inner_factory)
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+
+    async def callback():
         calls.append("callback")
 
     mock_aioscraper(scrape)
@@ -188,66 +323,38 @@ async def test_stop_request_processing_short_circuits_everything(
     async with mock_aioscraper:
         await mock_aioscraper.wait()
 
-    assert calls == ["first"]
+    assert calls == ["outer-before", "inner-short-circuit", "outer-after"]
+    assert received["response"] is None
 
 
 @pytest.mark.asyncio
-async def test_exception_middleware_stop_processing_skips_rest_and_errback(mock_aioscraper: MockAIOScraper):
-    mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))
+async def test_middleware_factory_receives_dependencies(mock_aioscraper: MockAIOScraper):
+    """Middleware factories receive injected dependencies via parameter names."""
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
 
-    calls: list[str] = []
+    captured: dict = {}
 
-    async def exc_one():
-        calls.append("exc1")
-        raise StopMiddlewareProcessing
+    def factory(send_request: SendRequest, custom_dep: str) -> RequestMiddleware:
+        captured["custom_dep"] = custom_dep
+        captured["send_request"] = send_request
 
-    async def exc_two():
-        calls.append("exc2")
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            return await call_next(request)
 
-    async def errback():
-        calls.append("errback")
+        return middleware
 
-    mock_aioscraper.middleware.add("exception", exc_one, exc_two)
+    mock_aioscraper.add_dependencies(custom_dep="injected")
+    mock_aioscraper.middleware.add(factory)
 
     async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/error", errback=errback))
+        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+
+    async def callback(): ...
 
     mock_aioscraper(scrape)
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()
 
-    mock_aioscraper.server.assert_all_routes_handled()
-
-    assert calls == ["exc1", "errback"]
-
-
-@pytest.mark.asyncio
-async def test_exception_middleware_stop_request_processing_skips_errback(mock_aioscraper: MockAIOScraper):
-    mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))
-
-    calls: list[str] = []
-
-    async def exc_one():
-        calls.append("exc1")
-        raise StopRequestProcessing
-
-    async def exc_two():
-        calls.append("exc2")
-
-    async def errback():
-        calls.append("errback")
-
-    mock_aioscraper.middleware.add("exception", exc_one, exc_two)
-
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/error", errback=errback))
-
-    mock_aioscraper(scrape)
-
-    async with mock_aioscraper:
-        await mock_aioscraper.wait()
-
-    mock_aioscraper.server.assert_all_routes_handled()
-
-    assert calls == ["exc1"]
+    assert captured["custom_dep"] == "injected"
+    assert callable(captured["send_request"])

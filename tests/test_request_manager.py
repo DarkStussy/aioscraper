@@ -9,7 +9,7 @@ from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import File, Request, Response
+from aioscraper.types import File, Request, RequestHandler, Response
 
 
 async def _read() -> bytes:
@@ -279,15 +279,20 @@ async def test_dependencies_injected_into_callback():
 
 @pytest.mark.asyncio
 async def test_dependencies_injected_into_middleware():
-    """Test that dependencies are injected into middleware."""
+    """Test that dependencies are injected into middleware factories."""
     captured = {}
 
-    async def inner_middleware(request: Request, custom_dep: str):
-        captured["request"] = request
+    def factory(custom_dep: str):
         captured["custom_dep"] = custom_dep
 
+        async def middleware(call_next: RequestHandler, request: Request):
+            captured["request"] = request
+            return await call_next(request)
+
+        return middleware
+
     middleware_holder = MiddlewareHolder()
-    middleware_holder.add("inner", inner_middleware)
+    middleware_holder.add(factory)
 
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
@@ -364,81 +369,6 @@ async def test_queue_processes_requests():
     assert manager._ready_queue.empty()
 
     await manager.close()
-
-
-@pytest.mark.asyncio
-async def test_outer_middleware_execution_in_listen_queue():
-    """Test that outer middleware is executed in listen_queue."""
-    calls = []
-    finished = asyncio.Event()
-
-    async def outer_middleware(request: Request):
-        calls.append(f"outer: {request.url}")
-
-    async def callback(response: Response):
-        calls.append(f"callback: {response.url}")
-        finished.set()
-
-    middleware_holder = MiddlewareHolder()
-    middleware_holder.add("outer", outer_middleware)
-
-    manager = RequestManager(
-        scheduler_config=SchedulerConfig(),
-        rate_limit_config=RateLimitConfig(),
-        retry_config=RequestRetryConfig(),
-        shutdown_check_interval=0.01,
-        sessionmaker=FakeSession,
-        dependencies={},
-        middleware_holder=middleware_holder,
-    )
-    manager.start_listening()
-
-    await manager.sender(Request(url="https://api.test.com/test", callback=callback))
-
-    await asyncio.wait_for(finished.wait(), timeout=1.0)
-    await manager.wait()
-    await manager.close()
-
-    assert "outer: https://api.test.com/test" in calls
-    assert "callback: https://api.test.com/test" in calls
-
-
-@pytest.mark.asyncio
-async def test_outer_middleware_exception_is_logged():
-    """Test that exceptions in outer middleware are logged but don't stop processing."""
-    calls = []
-    finished = asyncio.Event()
-
-    async def failing_outer_middleware(request: Request):
-        calls.append("outer_called")
-        raise RuntimeError("outer middleware failed")
-
-    async def callback(response: Response):
-        calls.append("callback_called")
-        finished.set()
-
-    middleware_holder = MiddlewareHolder()
-    middleware_holder.add("outer", failing_outer_middleware)
-
-    manager = RequestManager(
-        scheduler_config=SchedulerConfig(),
-        rate_limit_config=RateLimitConfig(),
-        retry_config=RequestRetryConfig(),
-        shutdown_check_interval=0.01,
-        sessionmaker=FakeSession,
-        dependencies={},
-        middleware_holder=middleware_holder,
-    )
-    manager.start_listening()
-
-    await manager.sender(Request(url="https://api.test.com/test", callback=callback))
-
-    await asyncio.wait_for(finished.wait(), timeout=1.0)
-    await manager.wait()
-    await manager.close()
-
-    assert "outer_called" in calls
-    assert "callback_called" in calls
 
 
 @pytest.mark.asyncio

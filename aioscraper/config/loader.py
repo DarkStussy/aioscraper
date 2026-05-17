@@ -7,7 +7,6 @@ from .models import (
     AdaptiveRateLimitConfig,
     Config,
     ExecutionConfig,
-    MiddlewareConfig,
     PipelineConfig,
     RateLimitConfig,
     RequestRetryConfig,
@@ -58,13 +57,6 @@ def load_config() -> Config:
                 max_delay=env.parse("SESSION_RETRY_MAX_DELAY", default_retry.max_delay),
                 statuses=env.parse_tuple("SESSION_RETRY_STATUSES", default_retry.statuses, cast=int),
                 exceptions=retry_exceptions,
-                middleware=MiddlewareConfig(
-                    priority=env.parse("SESSION_RETRY_MIDDLEWARE_PRIORITY", default_retry.middleware.priority),
-                    stop_processing=env.parse(
-                        "SESSION_RETRY_MIDDLEWARE_STOP",
-                        default_retry.middleware.stop_processing,
-                    ),
-                ),
             ),
             rate_limit=RateLimitConfig(
                 enabled=env.parse("SESSION_RATE_LIMIT_ENABLED", default_config.session.rate_limit.enabled),

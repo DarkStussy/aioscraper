@@ -1,5 +1,6 @@
 import asyncio
 import heapq
+from contextlib import AsyncExitStack
 from logging import getLogger
 from time import monotonic
 from typing import Any
@@ -9,11 +10,10 @@ from aiojobs import Scheduler
 from aioscraper._helpers.asyncio import execute_coroutine, execute_coroutines
 from aioscraper._helpers.func import get_func_kwargs
 from aioscraper._helpers.http import parse_retry_after, parse_url
-from aioscraper._helpers.log import get_log_name
 from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
-from aioscraper.exceptions import HTTPException, InvalidRequestData, StopMiddlewareProcessing, StopRequestProcessing
+from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import Response
+from aioscraper.types import RequestHandler, RequestMiddleware, Response
 from aioscraper.types.session import PRequest, Request, SendRequest
 
 from .rate_limiter import RateLimitManager, RequestOutcome
@@ -94,6 +94,7 @@ class RequestManager:
             retry_config=retry_config,
             schedule=lambda pr: self._scheduler.spawn(execute_coroutine(self._send_request(pr.request))),
         )
+        self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
         self._initialized = False
         self._completed = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
@@ -102,30 +103,73 @@ class RequestManager:
     def sender(self) -> SendRequest:
         return self._request_sender
 
+    def _instantiate_middlewares(self) -> list[RequestMiddleware]:
+        "Instantiate registered middleware factories once, injecting dependencies."
+        middlewares: list[RequestMiddleware] = []
+        for factory in self._middleware_holder:
+            try:
+                middlewares.append(factory(**get_func_kwargs(factory, **self._dependencies)))
+            except Exception as exc:
+                raise AIOScraperException(
+                    f"Failed to instantiate request middleware factory {factory!r}",
+                ) from exc
+
+        return middlewares
+
+    def _build_handler(self, stack: AsyncExitStack) -> RequestHandler:
+        "Compose the middleware chain around the innermost dispatch."
+
+        async def dispatch(request: Request) -> Response | None:
+            response = await stack.enter_async_context(self._session.make_request(request))
+
+            if not response.ok:
+                raise HTTPException(
+                    url=str(parse_url(request.url, request.params)),
+                    method=response.method,
+                    headers=response.headers,
+                    status_code=response.status,
+                    message=await response.text(errors="replace"),
+                )
+
+            return response
+
+        handler: RequestHandler = dispatch
+        for middleware in reversed(self._middlewares):
+            next_handler = handler
+
+            async def wrapped(
+                request: Request,
+                _mw: RequestMiddleware = middleware,
+                _next: RequestHandler = next_handler,
+            ) -> Response | None:
+                return await _mw(_next, request)
+
+            handler = wrapped
+
+        return handler
+
     async def _send_request(self, request: Request):
         start_time = monotonic()
         latency = status_code = exception_type = retry_after = None
         url = parse_url(request.url, request.params)
 
         try:
-            for inner_middleware in self._middleware_holder.inner:
-                try:
-                    await inner_middleware(**get_func_kwargs(inner_middleware, request=request, **self._dependencies))
-                except StopRequestProcessing:
-                    logger.debug("StopRequestProcessing in inner middleware for %s %s: aborting", request.method, url)
-                    return
-                except StopMiddlewareProcessing:
+            async with AsyncExitStack() as stack:
+                handler = self._build_handler(stack)
+
+                logger.debug("Sending request: %s %s", request.method, url)
+                response = await handler(request)
+
+                if response is None:
                     logger.debug(
-                        "StopMiddlewareProcessing in inner middleware for %s %s: stopping inner chain",
+                        "Request handled by middleware chain: %s %s",
                         request.method,
                         url,
                     )
-                    break
+                    return
 
-            logger.debug("Sending request: %s %s", request.method, url)
-
-            async with self._session.make_request(request) as response:
-                latency = monotonic() - start_time  # response latency
+                latency = monotonic() - start_time
+                status_code = response.status
                 logger.debug(
                     "Response received: %s %s - status=%d, latency=%.3fs",
                     request.method,
@@ -134,62 +178,19 @@ class RequestManager:
                     latency,
                 )
 
-                for response_middleware in self._middleware_holder.response:
-                    try:
-                        await response_middleware(
-                            **get_func_kwargs(
-                                response_middleware,
-                                request=request,
-                                response=response,
-                                **self._dependencies,
-                            ),
-                        )
-                    except StopRequestProcessing:
-                        logger.debug(
-                            "StopRequestProcessing in response middleware for %s %s: aborting",
-                            request.method,
-                            url,
-                        )
-                        return
-                    except StopMiddlewareProcessing:
-                        logger.debug(
-                            "StopMiddlewareProcessing in response middleware for %s %s: stopping response chain",
-                            request.method,
-                            url,
-                        )
-                        break
-
-                if response.ok:
-                    await self._callback(request, response)
-                else:
-                    http_exc = HTTPException(
-                        url=str(url),
-                        method=response.method,
-                        headers=response.headers,
-                        status_code=response.status,
-                        message=await response.text(errors="replace"),
-                    )
-                    status_code = http_exc.status_code
-                    exception_type = HTTPException
-
-                    logger.debug(
-                        "HTTP error: %s %s - status=%d, latency=%.3fs",
-                        request.method,
-                        url,
-                        status_code,
-                        latency,
-                    )
-
-                    if self._rate_limiter_manager.adaptive_strategy:
-                        retry_after = parse_retry_after(http_exc)
-
-                    await self._handle_exception(request, http_exc)
+                await self._callback(request, response)
         except Exception as exc:
+            latency = monotonic() - start_time
             exception_type = type(exc)
+
+            if isinstance(exc, HTTPException):
+                status_code = exc.status_code
+                if self._rate_limiter_manager.adaptive_strategy:
+                    retry_after = parse_retry_after(exc)
+
             logger.debug("Request exception: %s %s - %s: %s", request.method, url, type(exc).__name__, exc)
             await self._handle_exception(request, exc)
         finally:
-            # Send feedback to adaptive rate limiter
             if self._rate_limiter_manager.adaptive_strategy:
                 if latency is None:
                     latency = monotonic() - start_time
@@ -227,26 +228,6 @@ class RequestManager:
             )
 
     async def _handle_exception(self, request: Request, exc: Exception):
-        for exception_middleware in self._middleware_holder.exception:
-            try:
-                await exception_middleware(
-                    **get_func_kwargs(exception_middleware, exc=exc, request=request, **self._dependencies),
-                )
-            except StopRequestProcessing:
-                logger.debug(
-                    "StopRequestProcessing in exception middleware for %s %s: aborting",
-                    request.method,
-                    request.url,
-                )
-                return
-            except StopMiddlewareProcessing:
-                logger.debug(
-                    "StopMiddlewareProcessing in exception middleware for %s %s: stopping exception chain",
-                    request.method,
-                    request.url,
-                )
-                break
-
         if request.errback is not None:
             try:
                 if hasattr(request.errback, "__compiled__"):
@@ -316,24 +297,13 @@ class RequestManager:
                 continue
 
             try:
-                await asyncio.shield(self._process_request(pr))
+                await asyncio.shield(self._rate_limiter_manager(pr))
             except asyncio.CancelledError:
                 logger.debug("Queue listener cancelled")
                 break
 
         self._completed.set()
         logger.info("Queue listener completed: all requests processed")
-
-    async def _process_request(self, pr: PRequest):
-        for outer_middleware in self._middleware_holder.outer:
-            try:
-                await outer_middleware(**get_func_kwargs(outer_middleware, request=pr.request, **self._dependencies))
-            except (StopMiddlewareProcessing, StopRequestProcessing) as e:
-                logger.debug("%s in outer middleware is ignored", type(e).__name__)
-            except Exception:
-                logger.exception("Error when executed outer middleware %s", get_log_name(outer_middleware))
-
-        await self._rate_limiter_manager(pr)
 
     async def _pop_due_delayed(self):
         """Pop the next due delayed request from the heap."""

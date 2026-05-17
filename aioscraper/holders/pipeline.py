@@ -5,7 +5,7 @@ from aioscraper._helpers.log import get_log_name
 from aioscraper.exceptions import AIOScraperException
 from aioscraper.types.pipeline import (
     BasePipeline,
-    GlobalPipelineMiddleware,
+    GlobalPipelineMiddlewareFactory,
     PipelineContainer,
     PipelineItemType,
     PipelineMiddleware,
@@ -20,7 +20,7 @@ class PipelineHolder:
 
     def __init__(self):
         self.pipelines: dict[Any, PipelineContainer] = {}
-        self.global_middlewares: list[Callable[..., GlobalPipelineMiddleware[Any]]] = []
+        self.global_middleware_factories: list[GlobalPipelineMiddlewareFactory[Any]] = []
 
     def __call__(
         self,
@@ -104,19 +104,19 @@ class PipelineHolder:
 
     def global_middleware(
         self,
-        middleware: Callable[..., GlobalPipelineMiddleware[PipelineItemType]],
-    ) -> Callable[..., GlobalPipelineMiddleware[PipelineItemType]]:
-        """
-        Add a global pipeline middleware factory.
+        factory: GlobalPipelineMiddlewareFactory[PipelineItemType],
+    ) -> GlobalPipelineMiddlewareFactory[PipelineItemType]:
+        "Decorator form of :meth:`add_global_middlewares`."
+        self.add_global_middlewares(factory)
+        return factory
 
-        The callable can accept injected dependencies and must return a middleware with signature
+    def add_global_middlewares(self, *factories: GlobalPipelineMiddlewareFactory[PipelineItemType]):
+        """
+        Register global pipeline middleware factories in order.
+
+        Each factory can accept injected dependencies and must return a middleware with signature
         ``async def mw(handler, item): ...`` which wraps the entire pipeline chain for every item type.
         """
-        self.add_global_middlewares(middleware)
-        return middleware
-
-    def add_global_middlewares(self, *middlewares: Callable[..., GlobalPipelineMiddleware[PipelineItemType]]):
-        "Add global pipeline middlewares as factory."
-        for middleware in middlewares:
-            logger.debug("Installing global middleware %s", get_log_name(middleware))
-            self.global_middlewares.append(middleware)
+        for factory in factories:
+            logger.debug("Installing global pipeline middleware factory %s", get_log_name(factory))
+            self.global_middleware_factories.append(factory)

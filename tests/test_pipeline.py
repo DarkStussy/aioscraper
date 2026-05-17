@@ -271,7 +271,7 @@ class AuditPipeline:
 
 
 @pytest.mark.asyncio
-async def test_pipeline_global_middlewares_wrap_chain_order_matches_example():
+async def test_pipeline_global_middleware_factories_wrap_chain_order_matches_example():
     pipeline = AuditPipeline()
 
     async def mw_a(handler: ItemHandler[StateItem], item: StateItem) -> StateItem:
@@ -289,7 +289,7 @@ async def test_pipeline_global_middlewares_wrap_chain_order_matches_example():
     dispatcher = PipelineDispatcher(
         PipelineConfig(),
         {StateItem: PipelineContainer(pipelines=[pipeline])},
-        global_middlewares=[lambda: mw_a, lambda: mw_b],
+        global_middleware_factories=[lambda: mw_a, lambda: mw_b],
     )
 
     item = await dispatcher.put_item(StateItem())
@@ -404,7 +404,7 @@ async def test_pipeline_global_middleware_stop_item_processing_returns_item():
     dispatcher = PipelineDispatcher(
         PipelineConfig(),
         {StateItem: PipelineContainer(pipelines=[pipeline])},
-        global_middlewares=[lambda: stop_item],
+        global_middleware_factories=[lambda: stop_item],
     )
 
     item = await dispatcher.put_item(StateItem())

@@ -6,18 +6,32 @@ from unittest.mock import patch
 import pytest
 
 from aioscraper.config import BackoffStrategy, Config, RequestRetryConfig, SessionConfig
-from aioscraper.exceptions import HTTPException, StopRequestProcessing
+from aioscraper.exceptions import HTTPException
 from aioscraper.middlewares.retry import RETRY_STATE_KEY, RetryMiddleware
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, RequestHandler, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
-async def _noop_send(req: Request):
+async def _noop_send(req: Request) -> Request:
     return req
+
+
+def _call_next_raising(exc: Exception) -> RequestHandler:
+    async def call_next(request: Request) -> Response | None:
+        raise exc
+
+    return call_next
 
 
 @pytest.mark.asyncio
 async def test_retry_middleware_retries_on_status():
+    send_calls = 0
+
+    async def send(req: Request) -> Request:
+        nonlocal send_calls
+        send_calls += 1
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -27,14 +41,9 @@ async def test_retry_middleware_retries_on_status():
             statuses=(502,),
             exceptions=(),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
-    send_calls = 0
-
-    async def send(req: Request):
-        nonlocal send_calls
-        send_calls += 1
-        return req
 
     exc = HTTPException(
         url="https://example.com",
@@ -44,9 +53,9 @@ async def test_retry_middleware_retries_on_status():
         message="bad gateway",
     )
 
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=send)
+    result = await middleware(_call_next_raising(exc), request)
 
+    assert result is None
     assert send_calls == 1
     assert request.state[RETRY_STATE_KEY] == 1
 
@@ -62,11 +71,13 @@ async def test_retry_middleware_respects_exception_types():
             exceptions=(asyncio.TimeoutError,),
             backoff=BackoffStrategy.CONSTANT,
         ),
+        send_request=_noop_send,
     )
     request = Request(url="https://example.com")
 
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=asyncio.TimeoutError(), send_request=_noop_send)
+    result = await middleware(_call_next_raising(asyncio.TimeoutError()), request)
+
+    assert result is None
 
 
 @pytest.mark.asyncio
@@ -80,6 +91,7 @@ async def test_retry_middleware_stops_after_max_attempts():
             statuses=(500,),
             backoff=BackoffStrategy.CONSTANT,
         ),
+        send_request=_noop_send,
     )
     request = Request(url="https://example.com")
     request.state[RETRY_STATE_KEY] = 1
@@ -92,7 +104,8 @@ async def test_retry_middleware_stops_after_max_attempts():
         message="boom",
     )
 
-    await middleware(request=request, exc=exc, send_request=_noop_send)
+    with pytest.raises(HTTPException):
+        await middleware(_call_next_raising(exc), request)
 
 
 @pytest.mark.asyncio
@@ -107,24 +120,50 @@ async def test_retry_middleware_disabled():
             exceptions=(RuntimeError,),
             backoff=BackoffStrategy.CONSTANT,
         ),
+        send_request=_noop_send,
     )
     request = Request(url="https://example.com")
 
-    await middleware(
-        request=request,
-        exc=HTTPException(
-            url="https://example.com",
-            method="GET",
-            status_code=500,
-            headers={},
-            message="boom",
+    exc = HTTPException(
+        url="https://example.com",
+        method="GET",
+        status_code=500,
+        headers={},
+        message="boom",
+    )
+
+    with pytest.raises(HTTPException):
+        await middleware(_call_next_raising(exc), request)
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_unmatched_exception_is_propagated():
+    middleware = RetryMiddleware(
+        RequestRetryConfig(
+            enabled=True,
+            attempts=2,
+            base_delay=0.1,
+            statuses=(500,),
+            exceptions=(),
+            backoff=BackoffStrategy.CONSTANT,
         ),
         send_request=_noop_send,
     )
+    request = Request(url="https://example.com")
+
+    with pytest.raises(RuntimeError):
+        await middleware(_call_next_raising(RuntimeError("boom")), request)
 
 
 @pytest.mark.asyncio
 async def test_retry_middleware_constant_backoff():
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -133,26 +172,26 @@ async def test_retry_middleware_constant_backoff():
             backoff=BackoffStrategy.CONSTANT,
             statuses=(500,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
 
-    received_request = None
+    result = await middleware(_call_next_raising(exc), request)
 
-    async def mock_send_request(req: Request):
-        nonlocal received_request
-        received_request = req
-        raise StopRequestProcessing  # The middleware raises this, so our mock should too for proper testing.
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
-
+    assert result is None
     assert received_request is not None
     assert received_request.delay == 0.1
 
 
 @pytest.mark.asyncio
 async def test_retry_middleware_linear_backoff():
+    received_requests: list[Request] = []
+
+    async def send(req: Request) -> Request:
+        received_requests.append(req)
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -161,26 +200,18 @@ async def test_retry_middleware_linear_backoff():
             backoff=BackoffStrategy.LINEAR,
             statuses=(500,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
 
-    received_requests = []
-
-    async def mock_send_request(req: Request):
-        received_requests.append(req)
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert len(received_requests) == 1
     assert received_requests[0].delay == 0.1
 
-    # Second attempt
-    request.state[RETRY_STATE_KEY] = 1  # Manually set state for next attempt
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    request.state[RETRY_STATE_KEY] = 1
+    await middleware(_call_next_raising(exc), request)
 
     assert len(received_requests) == 2
     assert received_requests[1].delay == 0.2
@@ -188,6 +219,12 @@ async def test_retry_middleware_linear_backoff():
 
 @pytest.mark.asyncio
 async def test_retry_middleware_exponential_backoff():
+    received_requests: list[Request] = []
+
+    async def send(req: Request) -> Request:
+        received_requests.append(req)
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -197,34 +234,24 @@ async def test_retry_middleware_exponential_backoff():
             backoff=BackoffStrategy.EXPONENTIAL,
             statuses=(500,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
 
-    received_requests = []
-
-    async def mock_send_request(req: Request):
-        received_requests.append(req)
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert len(received_requests) == 1
     assert received_requests[0].delay == 0.2  # 0.1 * (2**1)
 
-    # Second attempt
-    request.state[RETRY_STATE_KEY] = 1  # Manually set state for next attempt
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    request.state[RETRY_STATE_KEY] = 1
+    await middleware(_call_next_raising(exc), request)
 
     assert len(received_requests) == 2
     assert received_requests[1].delay == 0.4  # 0.1 * (2**2)
 
-    # Third attempt
-    request.state[RETRY_STATE_KEY] = 2  # Manually set state for next attempt
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    request.state[RETRY_STATE_KEY] = 2
+    await middleware(_call_next_raising(exc), request)
 
     assert len(received_requests) == 3
     assert received_requests[2].delay == 0.8  # 0.1 * (2**3)
@@ -232,6 +259,13 @@ async def test_retry_middleware_exponential_backoff():
 
 @pytest.mark.asyncio
 async def test_retry_middleware_exponential_backoff_with_max_delay():
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -241,19 +275,12 @@ async def test_retry_middleware_exponential_backoff_with_max_delay():
             backoff=BackoffStrategy.EXPONENTIAL,
             statuses=(500,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
 
-    received_request = None
-
-    async def mock_send_request(req: Request):
-        nonlocal received_request
-        received_request = req
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert received_request is not None
     assert received_request.delay == 0.8  # min(0.8, 0.5 * (2**1))
@@ -261,6 +288,13 @@ async def test_retry_middleware_exponential_backoff_with_max_delay():
 
 @pytest.mark.asyncio
 async def test_retry_middleware_exponential_jitter_backoff():
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
+
     with patch("random.uniform", return_value=0.05):
         middleware = RetryMiddleware(
             RequestRetryConfig(
@@ -271,19 +305,12 @@ async def test_retry_middleware_exponential_jitter_backoff():
                 backoff=BackoffStrategy.EXPONENTIAL_JITTER,
                 statuses=(500,),
             ),
+            send_request=send,
         )
         request = Request(url="https://example.com")
         exc = HTTPException(url="https://example.com", method="GET", status_code=500, headers={}, message="boom")
 
-        received_request = None
-
-        async def mock_send_request(req: Request):
-            nonlocal received_request
-            received_request = req
-            raise StopRequestProcessing
-
-        with pytest.raises(StopRequestProcessing):
-            await middleware(request=request, exc=exc, send_request=mock_send_request)
+        await middleware(_call_next_raising(exc), request)
 
         # delay = 0.1 * (2**1) = 0.2
         # (delay / 2) + random.uniform(0, delay / 2) = 0.1 + 0.05 = 0.15
@@ -377,6 +404,13 @@ async def test_retry_middleware_exhausts_attempts(mock_aioscraper: MockAIOScrape
 @pytest.mark.asyncio
 async def test_retry_middleware_respects_retry_after_seconds():
     """Test that Retry-After header (in seconds) overrides backoff strategy."""
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -385,6 +419,7 @@ async def test_retry_middleware_respects_retry_after_seconds():
             backoff=BackoffStrategy.CONSTANT,
             statuses=(429,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(
@@ -395,15 +430,7 @@ async def test_retry_middleware_respects_retry_after_seconds():
         message="rate limited",
     )
 
-    received_request = None
-
-    async def mock_send_request(req: Request):
-        nonlocal received_request
-        received_request = req
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert received_request is not None
     assert received_request.delay == 5.0
@@ -412,6 +439,12 @@ async def test_retry_middleware_respects_retry_after_seconds():
 @pytest.mark.asyncio
 async def test_retry_middleware_respects_retry_after_http_date():
     """Test that Retry-After header (HTTP-date) overrides backoff strategy."""
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
 
     middleware = RetryMiddleware(
         RequestRetryConfig(
@@ -421,6 +454,7 @@ async def test_retry_middleware_respects_retry_after_http_date():
             backoff=BackoffStrategy.CONSTANT,
             statuses=(503,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
 
@@ -433,24 +467,24 @@ async def test_retry_middleware_respects_retry_after_http_date():
         message="service unavailable",
     )
 
-    received_request = None
-
-    async def mock_send_request(req: Request):
-        nonlocal received_request
-        received_request = req
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert received_request is not None
     # Allow 1 second tolerance for test execution time
+    assert received_request.delay is not None
     assert 9.0 <= received_request.delay <= 11.0
 
 
 @pytest.mark.asyncio
 async def test_retry_middleware_retry_after_case_insensitive():
     """Test that retry-after header is case-insensitive."""
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -459,6 +493,7 @@ async def test_retry_middleware_retry_after_case_insensitive():
             backoff=BackoffStrategy.CONSTANT,
             statuses=(429,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(
@@ -469,15 +504,7 @@ async def test_retry_middleware_retry_after_case_insensitive():
         message="rate limited",
     )
 
-    received_request = None
-
-    async def mock_send_request(req: Request):
-        nonlocal received_request
-        received_request = req
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert received_request is not None
     assert received_request.delay == 3.0
@@ -486,6 +513,13 @@ async def test_retry_middleware_retry_after_case_insensitive():
 @pytest.mark.asyncio
 async def test_retry_middleware_fallback_to_backoff_without_retry_after():
     """Test that backoff is used when Retry-After is not present."""
+    received_request: Request | None = None
+
+    async def send(req: Request) -> Request:
+        nonlocal received_request
+        received_request = req
+        return req
+
     middleware = RetryMiddleware(
         RequestRetryConfig(
             enabled=True,
@@ -494,6 +528,7 @@ async def test_retry_middleware_fallback_to_backoff_without_retry_after():
             backoff=BackoffStrategy.CONSTANT,
             statuses=(500,),
         ),
+        send_request=send,
     )
     request = Request(url="https://example.com")
     exc = HTTPException(
@@ -504,15 +539,7 @@ async def test_retry_middleware_fallback_to_backoff_without_retry_after():
         message="internal error",
     )
 
-    received_request = None
-
-    async def mock_send_request(req: Request):
-        nonlocal received_request
-        received_request = req
-        raise StopRequestProcessing
-
-    with pytest.raises(StopRequestProcessing):
-        await middleware(request=request, exc=exc, send_request=mock_send_request)
+    await middleware(_call_next_raising(exc), request)
 
     assert received_request is not None
     assert received_request.delay == 2.0

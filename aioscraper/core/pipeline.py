@@ -1,11 +1,17 @@
 from logging import getLogger
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from aioscraper._helpers.func import get_func_kwargs
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import PipelineConfig
 from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
-from aioscraper.types.pipeline import GlobalPipelineMiddleware, Pipeline, PipelineContainer, PipelineItemType
+from aioscraper.types.pipeline import (
+    GlobalPipelineMiddleware,
+    GlobalPipelineMiddlewareFactory,
+    Pipeline,
+    PipelineContainer,
+    PipelineItemType,
+)
 
 logger = getLogger(__name__)
 
@@ -17,17 +23,17 @@ class PipelineDispatcher:
         self,
         config: PipelineConfig,
         pipelines: Mapping[Any, PipelineContainer],
-        global_middlewares: list[Callable[..., GlobalPipelineMiddleware[Any]]] | None = None,
+        global_middleware_factories: list[GlobalPipelineMiddlewareFactory[Any]] | None = None,
         dependencies: Mapping[str, Any] | None = None,
     ):
         self._config = config
         self._pipelines = pipelines
-        self._global_middlewares = global_middlewares or []
+        self._global_middleware_factories = global_middleware_factories or []
         self._dependencies: Mapping[str, Any] = dependencies or {}
         logger.info(
-            "Pipeline dispatcher created: pipelines=%d, global_middlewares=%d, strict=%s",
+            "Pipeline dispatcher created: pipelines=%d, global_middleware_factories=%d, strict=%s",
             len(pipelines),
-            len(self._global_middlewares),
+            len(self._global_middleware_factories),
             config.strict,
         )
         self._handler = self._build_handler()
@@ -76,18 +82,20 @@ class PipelineDispatcher:
         async def handler(item: PipelineItemType) -> PipelineItemType:
             return await self._put_item(item)
 
-        for mv_factory in self._global_middlewares:
+        for factory in self._global_middleware_factories:
             try:
-                logger.debug("Instantiating global middleware: %s", get_log_name(mv_factory))
-                mw = mv_factory(**get_func_kwargs(mv_factory, **self._dependencies))
+                logger.debug("Instantiating global pipeline middleware factory: %s", get_log_name(factory))
+                middleware = factory(**get_func_kwargs(factory, **self._dependencies))
             except Exception as e:
-                raise PipelineException(f"Failed to instantiate global middleware {get_log_name(mv_factory)}") from e
+                raise PipelineException(
+                    f"Failed to instantiate global pipeline middleware factory {get_log_name(factory)}",
+                ) from e
 
             next_handler = handler
 
             async def wrapped(
                 item: PipelineItemType,
-                _mw: GlobalPipelineMiddleware[PipelineItemType] = mw,
+                _mw: GlobalPipelineMiddleware[PipelineItemType] = middleware,
                 _next: Pipeline[PipelineItemType] = next_handler,
             ):
                 return await _mw(_next, item)

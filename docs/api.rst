@@ -22,7 +22,6 @@ Configuration
 .. autoclass:: aioscraper.config.models.SchedulerConfig
 .. autoclass:: aioscraper.config.models.ExecutionConfig
 .. autoclass:: aioscraper.config.models.PipelineConfig
-.. autoclass:: aioscraper.config.models.MiddlewareConfig
 .. autoclass:: aioscraper.config.models.HttpBackend
 .. autoclass:: aioscraper.config.models.BackoffStrategy
 .. autoclass:: aioscraper.config.models.RateLimitConfig
@@ -95,7 +94,6 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.HTTPException
 .. autoclass:: aioscraper.exceptions.PipelineException
 .. autoclass:: aioscraper.exceptions.StopItemProcessing
-.. autoclass:: aioscraper.exceptions.StopRequestProcessing
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing
 .. autoclass:: aioscraper.exceptions.InvalidRequestData
 .. autoclass:: aioscraper.exceptions.CLIError

@@ -2,13 +2,13 @@ import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from logging import getLogger
 from types import TracebackType
-from typing import Any, AsyncIterator, Callable, Self
+from typing import Any, AsyncGenerator, Callable, Self
 
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import Config, load_config
 from aioscraper.holders import MiddlewareHolder, PipelineHolder
 from aioscraper.middlewares import RetryMiddleware
-from aioscraper.types import Scraper
+from aioscraper.types import Scraper, SendRequest
 
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
@@ -16,7 +16,7 @@ from .session import SessionMakerFactory, get_sessionmaker
 
 logger = getLogger(__name__)
 
-Lifespan = Callable[["AIOScraper"], AsyncIterator[None]]
+Lifespan = Callable[["AIOScraper"], AsyncGenerator[None]]
 
 
 class AIOScraper:
@@ -115,7 +115,7 @@ class AIOScraper:
             pipeline_dispatcher=PipelineDispatcher(
                 self.config.pipeline,
                 pipelines=self._pipeline_holder.pipelines,
-                global_middlewares=self._pipeline_holder.global_middlewares,
+                global_middleware_factories=self._pipeline_holder.global_middleware_factories,
                 dependencies=self.dependencies,
             ),
             sessionmaker=self._sessionmaker_factory(self.config),
@@ -167,11 +167,10 @@ class AIOScraper:
 
     def _install_builtin_middlewares(self, config: Config):
         retry_config = config.session.retry
-        if retry_config.enabled and not any(
-            isinstance(mw, RetryMiddleware) for mw in self._middleware_holder.exception
-        ):
-            self._middleware_holder.add(
-                "exception",
-                RetryMiddleware(retry_config),
-                priority=retry_config.middleware.priority,
-            )
+        if not retry_config.enabled:
+            return
+
+        def retry_factory(send_request: SendRequest) -> RetryMiddleware:
+            return RetryMiddleware(retry_config, send_request)
+
+        self._middleware_holder.add(retry_factory)

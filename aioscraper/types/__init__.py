@@ -1,7 +1,8 @@
-from .middleware import Middleware, MiddlewareStage
+from .middleware import RequestHandler, RequestMiddleware, RequestMiddlewareFactory
 from .pipeline import (
     BasePipeline,
     GlobalPipelineMiddleware,
+    GlobalPipelineMiddlewareFactory,
     ItemHandler,
     Pipeline,
     PipelineMiddleware,
@@ -25,9 +26,8 @@ __all__ = (
     "BasicAuth",
     "File",
     "GlobalPipelineMiddleware",
+    "GlobalPipelineMiddlewareFactory",
     "ItemHandler",
-    "Middleware",
-    "MiddlewareStage",
     "Pipeline",
     "PipelineMiddleware",
     "PipelineMiddlewareStage",
@@ -35,7 +35,10 @@ __all__ = (
     "Request",
     "RequestCookies",
     "RequestFiles",
+    "RequestHandler",
     "RequestHeaders",
+    "RequestMiddleware",
+    "RequestMiddlewareFactory",
     "Response",
     "Scraper",
     "SendRequest",

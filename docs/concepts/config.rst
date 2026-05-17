@@ -266,8 +266,7 @@ For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the fina
       exceptions=(asyncio.TimeoutError,),
    )
 
-When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as an exception middleware and reschedules the request through the internal queue.
-You can override its priority/``stop_processing`` behaviour via ``RequestRetryConfig.middleware``.
+When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as the innermost middleware (closest to dispatch) and reschedules the request through the internal queue.
 
 Server-side Retry-After
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -317,9 +316,5 @@ API
    :no-index:
 
 .. autoclass:: aioscraper.config.models.AdaptiveRateLimitConfig
-   :members:
-   :no-index:
-
-.. autoclass:: aioscraper.config.models.MiddlewareConfig
    :members:
    :no-index:

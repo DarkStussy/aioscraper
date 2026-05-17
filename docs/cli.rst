@@ -106,8 +106,6 @@ Retry middleware behavior (:ref:`docs <retry-config>`).
 - ``SESSION_RETRY_MAX_DELAY`` → ``max_delay``
 - ``SESSION_RETRY_STATUSES`` → ``statuses``
 - ``SESSION_RETRY_EXCEPTIONS`` → ``exceptions``
-- ``SESSION_RETRY_MIDDLEWARE_PRIORITY`` → ``middleware.priority``
-- ``SESSION_RETRY_MIDDLEWARE_STOP`` → ``middleware.stop_processing``
 
 :class:`RateLimitConfig <aioscraper.config.models.RateLimitConfig>`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

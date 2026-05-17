@@ -88,33 +88,6 @@ class Request:
     errback: Callable[..., Awaitable[Any]] | None = None
     state: dict[str, Any] = field(default_factory=dict)
 
-    def clone(self) -> "Request":
-        "Create a shallow copy of the request, suitable for retries and delayed scheduling."
-
-        return Request(
-            url=self.url,
-            method=self.method,
-            params={**self.params} if self.params is not None else None,
-            data=self.data,
-            json_data=self.json_data,
-            files={**self.files} if self.files is not None else None,
-            cookies={**self.cookies} if self.cookies is not None else None,
-            headers={**self.headers} if self.headers is not None else None,
-            auth=self.auth.copy() if self.auth is not None else None,
-            proxy=self.proxy,
-            proxy_auth=self.proxy_auth.copy() if self.proxy_auth is not None else None,
-            proxy_headers={**self.proxy_headers} if self.proxy_headers is not None else None,
-            timeout=self.timeout,
-            allow_redirects=self.allow_redirects,
-            max_redirects=self.max_redirects,
-            delay=self.delay,
-            priority=self.priority,
-            callback=self.callback,
-            cb_kwargs=self.cb_kwargs.copy(),
-            errback=self.errback,
-            state=self.state.copy(),
-        )
-
 
 @dataclass(slots=True, order=True)
 class PRequest:

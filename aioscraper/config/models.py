@@ -14,22 +14,6 @@ from .model_validator import field, validate
 
 @dataclass(slots=True, frozen=True)
 @validate
-class MiddlewareConfig:
-    """Common options shared by built-in middlewares.
-
-    Args:
-        priority (int): Execution order (lower values run earlier).
-        stop_processing (bool): Whether the middleware should raise
-            :class:`StopRequestProcessing` / :class:`StopMiddlewareProcessing`
-            automatically after running.
-    """
-
-    priority: int = 100
-    stop_processing: bool = False
-
-
-@dataclass(slots=True, frozen=True)
-@validate
 class AdaptiveRateLimitConfig:
     """Configuration for adaptive rate limiting using EWMA + AIMD.
 
@@ -114,8 +98,6 @@ class RequestRetryConfig:
         max_delay (float): Maximum delay between retries in seconds.
         statuses (tuple[int, ...]): HTTP status codes that should trigger a retry.
         exceptions (tuple[type[BaseException], ...]): Exception types that should trigger a retry.
-        middleware (MiddlewareConfig): Overrides for how the retry middleware
-            is registered (priority/stop behaviour).
     """
 
     enabled: bool = False
@@ -125,7 +107,6 @@ class RequestRetryConfig:
     max_delay: float = field(default=30.0, validator=RangeValidator(min_value=0.001))
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
     exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,)
-    middleware: MiddlewareConfig = MiddlewareConfig(stop_processing=True)
 
     @property
     def delay_factory(self) -> Callable[[int], float]:

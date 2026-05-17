@@ -65,23 +65,20 @@ Example
         )
 
 
-    # Middleware: receives injected metrics dependency
-    @scraper.middleware("inner")
-    async def start_request_middleware(metrics: MetricsClient):
-        """Track when request starts"""
-        await metrics.counter("request_started")
+    # Middleware: factory receives injected metrics dependency
+    @scraper.middleware
+    def request_metrics(metrics: MetricsClient):
+        async def middleware(call_next, request):
+            await metrics.counter("request_started")
+            try:
+                response = await call_next(request)
+            except Exception:
+                await metrics.counter("request_ended")
+                raise
+            await metrics.counter("request_ended")
+            return response
 
-
-    @scraper.middleware("response")
-    async def end_request_middleware(metrics: MetricsClient):
-        """Track when request completes successfully"""
-        await metrics.counter("request_ended")
-
-
-    @scraper.middleware("exception")
-    async def end_request_exc_middleware(metrics: MetricsClient):
-        """Track when request fails with exception"""
-        await metrics.counter("request_ended")
+        return middleware
 
 
     # Lifespan: setup dependencies and cleanup

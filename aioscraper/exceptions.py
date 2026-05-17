@@ -37,11 +37,7 @@ class PipelineException(AIOScraperException):
 
 
 class StopMiddlewareProcessing(AIOScraperException):
-    "Stop further middlewares in the current phase (inner/response/exception)."
-
-
-class StopRequestProcessing(AIOScraperException):
-    "Raised by middlewares to stop processing the current request entirely."
+    "Stop further pipeline middlewares in the current phase (pre/post)."
 
 
 class StopItemProcessing(AIOScraperException):

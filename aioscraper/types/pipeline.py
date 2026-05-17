@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
+from typing import Any, Callable, Literal, Protocol, TypeVar, runtime_checkable
 
 PipelineItemType = TypeVar("PipelineItemType")
 
@@ -47,6 +47,9 @@ class GlobalPipelineMiddleware(Protocol[PipelineItemType]):
     "Wrapper invoked around the entire pipeline chain for every item type."
 
     async def __call__(self, handler: ItemHandler, item: PipelineItemType) -> PipelineItemType: ...
+
+
+GlobalPipelineMiddlewareFactory = Callable[..., GlobalPipelineMiddleware[PipelineItemType]]
 
 
 @dataclass(slots=True, kw_only=True)
