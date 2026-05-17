@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.0 (2026-05-18)
+
+### Added
+- Lazy response body reads inside request middlewares — the response connection is kept open by a per-request `AsyncExitStack` until the whole chain and the callback finish.
+
+### Changed
+- **BREAKING:** Reworked request middlewares to a `call_next`-style chain. The `outer`/`inner`/`response`/`exception` stages are gone; each middleware is now a factory returning `async def mw(call_next, request) -> Response | None`. Registration order is the wrapping order (first registered = outermost).
+- **BREAKING:** `RetryMiddleware` rewritten to the new contract. Receives `send_request` via DI.
+- **BREAKING:** `get_sessionmaker` now accepts a `SessionConfig` instead of the full `Config`.
+
+### Removed
+- **BREAKING:** `StopRequestProcessing` exception — return `None` from a middleware to short-circuit without calling the errback.
+- **BREAKING:** `MiddlewareConfig`, `RequestRetryConfig.middleware`, middleware priority, and the `SESSION_RETRY_MIDDLEWARE_PRIORITY` env var. Ordering is now controlled solely by registration order.
+
 ## 0.10.4 (2025-12-13)
 
 ### Changed
