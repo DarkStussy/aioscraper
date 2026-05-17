@@ -118,7 +118,7 @@ class AIOScraper:
                 global_middleware_factories=self._pipeline_holder.global_middleware_factories,
                 dependencies=self.dependencies,
             ),
-            sessionmaker=self._sessionmaker_factory(self.config),
+            sessionmaker=self._sessionmaker_factory(self.config.session),
         )
         try:
             logger.debug("Starting executor")
