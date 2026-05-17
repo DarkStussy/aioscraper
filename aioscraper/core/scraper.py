@@ -16,7 +16,7 @@ from .session import SessionMakerFactory, get_sessionmaker
 
 logger = getLogger(__name__)
 
-Lifespan = Callable[["AIOScraper"], AsyncGenerator[None]]
+Lifespan = Callable[["AIOScraper"], AsyncGenerator[None, None]]
 
 
 class AIOScraper:
