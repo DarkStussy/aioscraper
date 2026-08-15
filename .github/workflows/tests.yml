@@ -14,7 +14,6 @@ on:
       - "uv.lock"
       - ".pytest.toml"
       - ".ruff.toml"
-      - ".coveragerc"
       - "pyrightconfig.json"
   pull_request:
     branches:
@@ -29,7 +28,6 @@ on:
       - "uv.lock"
       - ".pytest.toml"
       - ".ruff.toml"
-      - ".coveragerc"
       - "pyrightconfig.json"
   workflow_call:
 
@@ -124,7 +122,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --python 3.12 --extra aiohttp --extra httpx
 
-      # Threshold lives in .coveragerc so local runs fail the same way.
+      # Threshold lives in pyproject.toml so local runs fail the same way.
       - name: Run tests with coverage
         run: uv run --python 3.12 pytest --cov --cov-report=term-missing
 

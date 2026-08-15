@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.12.0 (2026-08-15)
+
+### Added
+- `SECURITY.md`.
+- `py.typed` marker.
+- `UnsupportedRequestOption`, raised by the httpx backend for `Request.proxy`, `proxy_auth`, `proxy_headers` and a non-default `max_redirects`. They were silently dropped before, sending traffic past the configured proxy.
+- `AIOScraper.errors` and `AIOScraper.error_counts`: unhandled request failures, failing errbacks and resource-close failures are recorded, not only logged.
+- `execution.on_error` (`EXECUTION_ON_ERROR`). `ErrorPolicy.FAIL` makes the CLI exit `1` when a run recorded errors; the default `LOG` exits `0`.
+
+### Changed
+- **BREAKING:** the httpx backend rejects the options above instead of ignoring them. Use the aiohttp backend, or `SessionConfig.proxy`.
+- The httpx client is pinned to the `Request.max_redirects` default; it used its own default of 20.
+- `run_scraper()` returns `True` when a signal stopped the run, and the CLI exits `130` instead of `0`.
+- Lowered the `aiohttp` and `aiohttp-speedups` extras floor to `>=3.12.0` (was `>=3.13.2`).
+- Locked `aiohttp` bumped to 3.14.3, clearing 14 advisories against 3.13.5.
+- `docs/changelog.rst` includes `CHANGELOG.md` via `myst-parser` instead of duplicating it.
+- Tests run with `filterwarnings = ["error"]`; docs build with `fail_on_warning`.
+- CI also runs the docs build, a coverage gate, `pip-audit`, a wheel install smoke test, and the suite against the lowest supported dependencies.
+- Publishing to PyPI requires the tag to match `project.version`, a matching `CHANGELOG.md` section, and green test and docs workflows.
+
+### Fixed
+- On SIGINT/SIGTERM in-flight work gets `execution.shutdown_timeout` to finish instead of being cancelled immediately.
+- `execution.shutdown_check_interval` is applied as the queue poll timeout instead of a hard-coded `0.05s`.
+- Request outcomes are recorded at the transport level: a `429`/`503` re-queued by `RetryMiddleware` reaches the adaptive rate limiter as a failure instead of a success.
+- Callback errors no longer count as transport failures for the adaptive rate limiter.
+- `SCHEDULER_READY_QUEUE_MAX_SIZE` is read by `load_config()`; it was documented but ignored.
+- `scheduler.ready_queue_max_size` also counts delayed retries and requests parked in a rate limiter group, which bypassed it before. It throttles the scraper entrypoint; sends from inside a job are counted but never blocked.
+- httpx backend uses `build_request()` + `send()`; per-request `cookies=` on `request()` is deprecated in httpx.
+- Quick Start snippets in `README.md` and `docs/quickstart.rst` are valid Python.
+- Quick Start env var names: `SESSION_RETRY_ENABLED`, `SESSION_RETRY_ATTEMPTS`, `SESSION_RATE_LIMIT_ENABLED`, `SESSION_RATE_LIMIT_INTERVAL`.
+- Read the Docs installs the `aiohttp`/`httpx` extras, so autodoc can import the session backends.
+
 ## 0.11.0 (2026-05-18)
 
 ### Added

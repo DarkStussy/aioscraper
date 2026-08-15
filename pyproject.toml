@@ -1,6 +1,6 @@
 [project]
 name = "aioscraper"
-version = "0.11.0"
+version = "0.12.0"
 authors = [{ name = "darkstussy" }, ]
 description = "Async Python framework for large-scale API data collection: JSON/REST fan-out with adaptive rate limiting, retries, priority queues and pipelines."
 readme = "README.md"
@@ -59,3 +59,12 @@ dev = [
     "pytest-asyncio~=1.3.0",
     "pytest-cov~=7.0",
 ]
+
+[tool.coverage.run]
+source = ["aioscraper"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
