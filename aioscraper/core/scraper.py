@@ -10,7 +10,7 @@ from aioscraper.holders import MiddlewareHolder, PipelineHolder
 from aioscraper.middlewares import RetryMiddleware
 from aioscraper.types import Scraper, SendRequest
 
-from .errors import ErrorCollector, ScraperError
+from .errors import ErrorCollector, RunResult, ScraperError
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
 from .session import SessionMakerFactory, get_sessionmaker
@@ -152,23 +152,34 @@ class AIOScraper:
             logger.debug("Closing executor resources")
             await executor.close()
 
-    async def shutdown(self):
-        "Trigger a graceful shutdown of the scraper."
+    async def shutdown(self) -> RunResult:
+        """Trigger a graceful shutdown of the scraper.
+
+        Returns:
+            RunResult: What the run recorded before it was shut down.
+        """
         if self._task is None:
             logger.debug("Shutdown called but scraper is not running")
-            return
+            return self._result()
 
         logger.debug("Initiating graceful shutdown (timeout=%0.10gs)", self.config.execution.shutdown_timeout)
         try:
-            await self.wait(timeout=self.config.execution.shutdown_timeout)
+            return await self.wait(timeout=self.config.execution.shutdown_timeout)
         finally:
             await self.close()
 
-    async def wait(self, timeout: float | None = None):  # noqa: ASYNC109
-        "Wait for the scraper to finish."
+    async def wait(self, timeout: float | None = None) -> RunResult:  # noqa: ASYNC109
+        """Wait for the scraper to finish.
+
+        Args:
+            timeout (float | None): Overrides ``execution.timeout`` for this call.
+
+        Returns:
+            RunResult: What the run recorded, including whether the timeout expired.
+        """
         if self._task is None:
             logger.debug("Wait called but scraper is not running")
-            return
+            return self._result()
 
         log_level = self.config.execution.log_level
         timeout = timeout or self.config.execution.timeout
@@ -178,6 +189,12 @@ class AIOScraper:
             await asyncio.wait_for(self._task, timeout=timeout)
         except asyncio.TimeoutError:
             logger.log(log_level, "wait timeout exceeded (%ss) - forcing shutdown", timeout)
+            return self._result(timed_out=True)
+
+        return self._result()
+
+    def _result(self, *, timed_out: bool = False) -> RunResult:
+        return RunResult(errors=self.errors, error_counts=self.error_counts, timed_out=timed_out)
 
     async def close(self):
         "Close the scraper and its associated resources."

@@ -209,7 +209,7 @@ class ExecutionConfig:
     Args:
         timeout (float | None): Overall execution timeout in seconds
         shutdown_timeout (float): Timeout for graceful shutdown in seconds
-        on_error (ErrorPolicy): Whether unhandled errors make the run fail
+        on_error (ErrorPolicy): Whether unhandled errors make the CLI exit non-zero
         log_level (int): Log level for timeout events (e.g., logging.ERROR, logging.WARNING).
             Defaults to logging.ERROR.
     """
@@ -217,7 +217,7 @@ class ExecutionConfig:
     timeout: float | None = field(default=None, validator=RangeValidator(min_value=0.01))
     shutdown_timeout: float = field(default=0.1, validator=RangeValidator(min_value=0.001))
     shutdown_check_interval: float = field(default=0.1, validator=RangeValidator(min_value=0.01))
-    on_error: ErrorPolicy = ErrorPolicy.LOG
+    on_error: ErrorPolicy = ErrorPolicy.FAIL
     log_level: int = logging.ERROR
 
 

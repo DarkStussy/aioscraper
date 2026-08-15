@@ -37,6 +37,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Number of pending requests to maintain (must be > 0)",
     )
     parser.add_argument(
+        "--allow-partial-success",
+        action="store_true",
+        help="Exit 0 even when the run recorded unhandled errors (overrides EXECUTION_ON_ERROR)",
+    )
+    parser.add_argument(
         "--uvloop",
         action="store_true",
         help="Run scraper using uvloop event loop policy (requires uvloop to be installed)",

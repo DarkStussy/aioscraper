@@ -26,7 +26,13 @@ def _apply_uvloop_policy():
         raise CLIError("Failed to apply uvloop event loop policy") from exc
 
 
-async def _run(entrypoint: str, concurrent_requests: int | None = None, pending_requests: int | None = None) -> int:
+async def _run(
+    entrypoint: str,
+    concurrent_requests: int | None = None,
+    pending_requests: int | None = None,
+    *,
+    allow_partial_success: bool = False,
+) -> int:
     logger.debug("Resolving entrypoint: %s", entrypoint)
     init = resolve_entrypoint_factory(entrypoint)
     scraper: AIOScraper = await init() if inspect.iscoroutinefunction(init) else init()
@@ -43,23 +49,29 @@ async def _run(entrypoint: str, concurrent_requests: int | None = None, pending_
             object.__setattr__(scraper.config.scheduler, "pending_requests", pending_requests)
 
     logger.info("Starting scraper from entrypoint: %s", entrypoint)
-    interrupted = await run_scraper(scraper)
+    result = await run_scraper(scraper)
 
-    fail_on_error = scraper.config.execution.on_error is ErrorPolicy.FAIL
-    counts = scraper.error_counts
+    fail_on_error = not allow_partial_success and scraper.config.execution.on_error is ErrorPolicy.FAIL
+    counts = result.error_counts
     if counts:
         # Summary only: each error was already logged with its traceback where it happened.
         summary = ", ".join(f"{context}={count}" for context, count in sorted(counts.items()))
         logger.log(
             logging.ERROR if fail_on_error else logging.WARNING,
             "Finished with %d unhandled error(s): %s",
-            sum(counts.values()),
+            result.total_errors,
             summary,
         )
 
-    if interrupted:
+    if result.interrupted:
         logger.info("Stopped by signal")
         return 130
+
+    # --allow-partial-success and ErrorPolicy.LOG waive recorded errors, not an unfinished run:
+    # work still queued when the budget expired was never attempted.
+    if result.timed_out:
+        logger.error("Stopped by execution timeout (%0.10gs)", scraper.config.execution.timeout)
+        return 124
 
     return 1 if counts and fail_on_error else 0
 
@@ -80,6 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.entrypoint,
                 concurrent_requests=args.concurrent_requests,
                 pending_requests=args.pending_requests,
+                allow_partial_success=args.allow_partial_success,
             ),
         )
     except KeyboardInterrupt:

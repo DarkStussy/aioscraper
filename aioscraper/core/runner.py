@@ -5,6 +5,7 @@ from contextlib import suppress
 from functools import partial
 from typing import Any
 
+from .errors import RunResult
 from .scraper import AIOScraper
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ async def _cancel(task: asyncio.Task[Any]):
         await task
 
 
-async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: asyncio.Event):
+async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: asyncio.Event) -> RunResult | None:
     "Run scraper with shutdown handling, ignoring force-exit logic."
     shutdown_task = asyncio.create_task(shutdown_event.wait())
 
@@ -81,7 +82,7 @@ async def _run_scraper(
     shutdown_event: asyncio.Event | None = None,
     force_exit_event: asyncio.Event | None = None,
     install_signal_handlers: bool = True,
-) -> bool:
+) -> RunResult:
     "Main runner: wires signal handlers, listens for force-exit, delegates shutdown-aware execution."
     loop = asyncio.get_running_loop()
     shutdown = shutdown_event or asyncio.Event()
@@ -96,19 +97,29 @@ async def _run_scraper(
 
     if force_exit_task in done:
         await _cancel(scraper_task)
-        return True
+        return RunResult(errors=scraper.errors, error_counts=scraper.error_counts, interrupted=True)
 
     await _cancel(force_exit_task)
-    await scraper_task
-    # The handlers turn SIGINT/SIGTERM into an event, so KeyboardInterrupt never reaches
-    # the caller: without this flag a signalled run is indistinguishable from a clean one.
-    return shutdown.is_set()
+    result = await scraper_task
+    # Counts are re-read here rather than taken from the scraper's own result: teardown runs
+    # after wait() returns and can record errors of its own.
+    return RunResult(
+        errors=scraper.errors,
+        error_counts=scraper.error_counts,
+        # The handlers turn SIGINT/SIGTERM into an event, so KeyboardInterrupt never reaches
+        # the caller: without this flag a signalled run is indistinguishable from a clean one.
+        interrupted=shutdown.is_set(),
+        timed_out=result is not None and result.timed_out,
+    )
 
 
-async def run_scraper(scraper: AIOScraper) -> bool:
+async def run_scraper(scraper: AIOScraper) -> RunResult:
     """Run the scraper with signal handling.
 
+    Args:
+        scraper (AIOScraper): The scraper to run; its ``config`` must already be set.
+
     Returns:
-        bool: ``True`` when SIGINT/SIGTERM stopped the run, ``False`` on normal completion.
+        RunResult: Unhandled errors, and whether a signal or the timeout stopped the run.
     """
     return await _run_scraper(scraper)

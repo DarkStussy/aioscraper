@@ -10,6 +10,11 @@ Core
 
 .. autofunction:: aioscraper.core.runner.run_scraper
 
+.. autoclass:: aioscraper.core.errors.RunResult
+   :members:
+
+.. autoclass:: aioscraper.core.errors.ScraperError
+
 .. autofunction:: aioscraper.compiled
 
 

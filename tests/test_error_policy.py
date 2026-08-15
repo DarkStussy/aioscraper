@@ -6,9 +6,16 @@ from textwrap import dedent
 import pytest
 
 from aioscraper.cli.__main__ import main
-from aioscraper.config import Config, ErrorPolicy, RateLimitConfig, RequestRetryConfig, SchedulerConfig
+from aioscraper.config import (
+    Config,
+    ErrorPolicy,
+    ExecutionConfig,
+    RateLimitConfig,
+    RequestRetryConfig,
+    SchedulerConfig,
+)
 from aioscraper.core import AIOScraper
-from aioscraper.core.errors import ErrorCollector
+from aioscraper.core.errors import ErrorCollector, RunResult
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.runner import _run_scraper
 from aioscraper.holders import MiddlewareHolder
@@ -136,14 +143,15 @@ async def test_scraper_without_errors_is_clean(mock_aioscraper: MockAIOScraper):
     assert mock_aioscraper.errors == ()
 
 
-def _entrypoint(tmp_path: Path, policy: ErrorPolicy) -> Path:
+def _entrypoint(tmp_path: Path, policy: ErrorPolicy | None = None) -> Path:
+    config = "Config()" if policy is None else f"Config(execution=ExecutionConfig(on_error=ErrorPolicy.{policy.name}))"
     path = tmp_path / "failing_scraper.py"
     path.write_text(
         dedent(f"""
         from aioscraper import AIOScraper, Request
         from aioscraper.config import Config, ErrorPolicy, ExecutionConfig
 
-        scraper = AIOScraper(config=Config(execution=ExecutionConfig(on_error=ErrorPolicy.{policy.name})))
+        scraper = AIOScraper(config={config})
 
         @scraper
         async def run(send_request):
@@ -162,8 +170,46 @@ def test_cli_exits_non_zero_on_unhandled_error(tmp_path: Path, caplog: pytest.Lo
     assert any("unhandled error" in record.message.lower() for record in caplog.records)
 
 
+def test_cli_fails_by_default(tmp_path: Path):
+    """An ETL job losing data must not look successful to cron/CI without being told to."""
+    assert main([str(_entrypoint(tmp_path))]) == 1
+
+
 def test_cli_exits_zero_under_log_policy(tmp_path: Path):
     assert main([str(_entrypoint(tmp_path, ErrorPolicy.LOG))]) == 0
+
+
+def test_allow_partial_success_flag_exits_zero(tmp_path: Path):
+    assert main([str(_entrypoint(tmp_path)), "--allow-partial-success"]) == 0
+
+
+def _slow_entrypoint(tmp_path: Path) -> Path:
+    path = tmp_path / "slow_scraper.py"
+    path.write_text(
+        dedent("""
+        import asyncio
+
+        from aioscraper import AIOScraper
+        from aioscraper.config import Config, ExecutionConfig
+
+        scraper = AIOScraper(config=Config(execution=ExecutionConfig(timeout=0.05)))
+
+        @scraper
+        async def run(send_request):
+            await asyncio.sleep(30)
+        """),
+    )
+    return path
+
+
+def test_cli_exits_124_on_execution_timeout(tmp_path: Path):
+    """A run cut short by the budget left work unattempted, so it is not a success."""
+    assert main([str(_slow_entrypoint(tmp_path))]) == 124
+
+
+def test_allow_partial_success_does_not_waive_a_timeout(tmp_path: Path):
+    """The flag waives recorded errors, not an unfinished run."""
+    assert main([str(_slow_entrypoint(tmp_path)), "--allow-partial-success"]) == 124
 
 
 def test_cli_exits_zero_without_errors(tmp_path: Path):
@@ -179,8 +225,8 @@ def test_cli_exits_zero_without_errors(tmp_path: Path):
     assert main([str(path)]) == 0
 
 
-def test_log_is_the_default_policy():
-    assert Config().execution.on_error is ErrorPolicy.LOG
+def test_fail_is_the_default_policy():
+    assert Config().execution.on_error is ErrorPolicy.FAIL
 
 
 def test_collector_caps_retained_exceptions_but_not_counts():
@@ -213,24 +259,73 @@ async def test_run_scraper_reports_signal_shutdown():
     shutdown = asyncio.Event()
     shutdown.set()
 
-    interrupted = await _run_scraper(scraper, shutdown_event=shutdown, install_signal_handlers=False)
+    result = await _run_scraper(scraper, shutdown_event=shutdown, install_signal_handlers=False)
 
-    assert interrupted is True
+    assert result.interrupted is True
+    assert result.ok is False
 
 
 async def test_run_scraper_reports_normal_completion():
     scraper = AIOScraper()
 
-    interrupted = await _run_scraper(scraper, install_signal_handlers=False)
+    result = await _run_scraper(scraper, install_signal_handlers=False)
 
-    assert interrupted is False
+    assert result.interrupted is False
+    assert result.error_counts == {}
+    assert result.total_errors == 0
+    assert result.ok is True
+
+
+async def test_run_scraper_reports_timeout():
+    scraper = AIOScraper(config=Config(execution=ExecutionConfig(timeout=0.05)))
+
+    @scraper
+    async def run(send_request):
+        await asyncio.sleep(30)
+
+    result = await _run_scraper(scraper, install_signal_handlers=False)
+
+    assert result.timed_out is True
+    assert result.error_counts == {}
+    assert result.ok is False
+
+
+async def test_run_scraper_returns_recorded_errors():
+    """The outcome must be readable from the return value, not only from the scraper."""
+    scraper = AIOScraper()
+
+    @scraper
+    async def run(send_request):
+        await send_request(Request(url="http://127.0.0.1:1/unreachable"))
+
+    result = await _run_scraper(scraper, install_signal_handlers=False)
+
+    assert result.error_counts == {"request": 1}
+    assert result.total_errors == 1
+    assert result.ok is False
+    assert [error.context for error in result.errors] == ["request"]
+
+
+async def test_wait_returns_the_outcome():
+    scraper = AIOScraper()
+
+    @scraper
+    async def run(send_request):
+        await send_request(Request(url="http://127.0.0.1:1/unreachable"))
+
+    async with scraper:
+        result = await scraper.wait()
+
+    assert result.error_counts == {"request": 1}
+    assert result.timed_out is False
+    assert result.ok is False
 
 
 def test_cli_exits_130_when_stopped_by_signal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """KeyboardInterrupt never reaches the CLI, so 130 has to come from the runner flag."""
 
-    async def fake_run_scraper(scraper) -> bool:
-        return True
+    async def fake_run_scraper(scraper) -> RunResult:
+        return RunResult(interrupted=True)
 
     monkeypatch.setattr("aioscraper.cli.__main__.run_scraper", fake_run_scraper)
 

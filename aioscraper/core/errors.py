@@ -1,5 +1,5 @@
 from collections import Counter, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Mapping
 
@@ -19,6 +19,33 @@ class ScraperError:
 
     context: str
     exception: BaseException
+
+
+@dataclass(slots=True, frozen=True)
+class RunResult:
+    """The outcome of a finished run.
+
+    Attributes:
+        errors (tuple[ScraperError, ...]): The most recent unhandled errors, capped by the collector.
+        error_counts (Mapping[str, int]): Exact number of unhandled errors per context.
+        interrupted (bool): SIGINT/SIGTERM stopped the run.
+        timed_out (bool): ``execution.timeout`` expired before the run finished.
+    """
+
+    errors: tuple[ScraperError, ...] = ()
+    error_counts: Mapping[str, int] = field(default_factory=dict)
+    interrupted: bool = False
+    timed_out: bool = False
+
+    @property
+    def total_errors(self) -> int:
+        "How many unhandled errors the run recorded."
+        return sum(self.error_counts.values())
+
+    @property
+    def ok(self) -> bool:
+        "Whether the run finished on its own with nothing recorded."
+        return not self.error_counts and not self.interrupted and not self.timed_out
 
 
 class ErrorCollector:

@@ -60,6 +60,8 @@ Graceful shutdown
 - ``execution.shutdown_check_interval`` - pause between drain checks while waiting for the scheduler/queue to empty.
 - Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
 
+.. _unhandled-errors:
+
 Unhandled errors
 ----------------
 
@@ -67,21 +69,36 @@ A request that fails without an ``errback``, a failing ``errback``, and a resour
 logged and then dropped so the rest of the run continues. A failure handled by your own ``errback`` is
 not recorded: handling it is the point of the callback.
 
-They are also recorded on the scraper:
+:meth:`wait() <aioscraper.core.scraper.AIOScraper.wait>`,
+:meth:`shutdown() <aioscraper.core.scraper.AIOScraper.shutdown>` and
+:func:`run_scraper <aioscraper.core.runner.run_scraper>` return a
+:class:`RunResult <aioscraper.core.errors.RunResult>` describing the outcome:
 
-- :attr:`AIOScraper.error_counts <aioscraper.core.scraper.AIOScraper.error_counts>` - exact totals per context.
-- :attr:`AIOScraper.errors <aioscraper.core.scraper.AIOScraper.errors>` - the most recent exceptions, capped so
-  a run failing millions of requests does not keep every traceback alive.
+- ``error_counts`` - exact totals per context, and ``total_errors`` across all of them.
+- ``errors`` - the most recent exceptions, capped so a run failing millions of requests does not keep every
+  traceback alive.
+- ``interrupted`` / ``timed_out`` - whether a signal or ``execution.timeout`` ended the run.
+- ``ok`` - true only when the run finished on its own with nothing recorded.
+
+The same data stays available on the scraper through
+:attr:`AIOScraper.error_counts <aioscraper.core.scraper.AIOScraper.error_counts>` and
+:attr:`AIOScraper.errors <aioscraper.core.scraper.AIOScraper.errors>`.
 
 ``execution.on_error`` is applied by the **CLI only**, as an exit code:
 
-- ``ErrorPolicy.LOG`` (default) - exit ``0`` regardless.
-- ``ErrorPolicy.FAIL`` - exit ``1`` when anything was recorded.
+- ``ErrorPolicy.FAIL`` (default) - exit ``1`` when anything was recorded.
+- ``ErrorPolicy.LOG`` - exit ``0`` regardless.
 
-Stopping the CLI with SIGINT/SIGTERM exits with ``130``, which takes precedence over both.
+The default is ``FAIL`` because the alternative reports a scheduled job that lost part of its data as a
+success to cron, CI or Kubernetes. Where partial results really are acceptable, say so explicitly - with
+``EXECUTION_ON_ERROR=log`` or the ``--allow-partial-success`` flag, which overrides the config.
 
-:func:`run_scraper <aioscraper.core.runner.run_scraper>` does not act on the policy: it returns ``True`` when a
-signal stopped the run, and leaves the decision to you. Read ``error_counts`` after it returns.
+Neither waives an unfinished run: SIGINT/SIGTERM exits ``130`` and an expired ``execution.timeout`` exits
+``124``, whatever the policy says. They apply to errors that were recorded, while a run cut short left work
+it never attempted.
+
+:func:`run_scraper <aioscraper.core.runner.run_scraper>` itself acts on neither the policy nor the flag: it
+reports the outcome and leaves the decision to the caller.
 
 The shutdown settings above are honored by both the CLI and ``run_scraper``, giving consistent stop behavior in
 code or from the terminal.

@@ -52,8 +52,11 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 
     async def main() -> int:
         scraper = AIOScraper(scrape, config=load_config())
-        interrupted = await run_scraper(scraper)
-        return 130 if interrupted else 0
+        result = await run_scraper(scraper)
+        if result.interrupted:
+            return 130
+
+        return 0 if result.ok else 1
 
 
     if __name__ == "__main__":
@@ -63,7 +66,7 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 This gives you the same signal handling and graceful shutdown behavior as the CLI.
 ``run_scraper`` expects ``scraper.config`` to be set ahead of time, which is why the example passes ``config=load_config()`` to the constructor.
 
-The handlers turn SIGINT/SIGTERM into an event, so ``KeyboardInterrupt`` never reaches the caller: ``run_scraper`` returns ``True`` instead. Acting on that, and on :class:`ExecutionConfig.on_error <aioscraper.config.models.ExecutionConfig>` through :attr:`error_counts <aioscraper.core.scraper.AIOScraper.error_counts>`, is left to the caller — the CLI turns them into exit codes ``130`` and ``1``.
+:func:`run_scraper <aioscraper.core.runner.run_scraper>` returns a :class:`RunResult <aioscraper.core.errors.RunResult>` and never acts on it: turning the outcome into an exit code is the caller's decision, and the CLI is one implementation of it. The handlers turn SIGINT/SIGTERM into an event, so ``KeyboardInterrupt`` never reaches the caller — ``result.interrupted`` is how a signalled run is told apart from a clean one.
 
 .. _cli-configuration:
 
@@ -80,6 +83,15 @@ CLI flags
 
 - ``--concurrent-requests``: Max concurrent requests (overrides ``SCHEDULER_CONCURRENT_REQUESTS``).
 - ``--pending-requests``: Pending requests to keep queued (overrides ``SCHEDULER_PENDING_REQUESTS``).
+- ``--allow-partial-success``: Exit ``0`` even when the run recorded unhandled errors (overrides ``EXECUTION_ON_ERROR``, see :ref:`unhandled errors <unhandled-errors>`).
+
+Exit codes
+~~~~~~~~~~
+
+- ``0`` - the run finished, with nothing recorded or with errors the policy waives.
+- ``1`` - the run finished but recorded unhandled errors under ``ErrorPolicy.FAIL`` (the default).
+- ``124`` - ``execution.timeout`` expired, so the run never finished. Not waivable by the policy or the flag.
+- ``130`` - SIGINT/SIGTERM stopped the run. Takes precedence over the rest.
 
 Environment variables
 ~~~~~~~~~~~~~~~~~~~~~
