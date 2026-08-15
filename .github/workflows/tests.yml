@@ -123,7 +123,13 @@ jobs:
 
       # Threshold lives in pyproject.toml so local runs fail the same way.
       - name: Run tests with coverage
-        run: uv run --python 3.12 pytest --cov --cov-report=term-missing
+        run: uv run --python 3.12 pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
 
   package:
     name: Package

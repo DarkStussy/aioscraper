@@ -9,6 +9,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/aioscraper?color=brightgreen)](https://pypi.org/project/aioscraper/)
 [![PyPI - Downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fshieldcn.dev%2Fpypi%2Fdm%2Faioscraper.json&query=%24.value&label=downloads&color=brightgreen&style=flat)](https://pypistats.org/packages/aioscraper)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/darkstussy/aioscraper/tests.yml?style=flat&label=Tests)
+[![codecov](https://codecov.io/gh/darkstussy/aioscraper/branch/main/graph/badge.svg)](https://codecov.io/gh/darkstussy/aioscraper)
 [![Read the Docs](https://img.shields.io/readthedocs/aioscraper?color=brightgreen)](https://aioscraper.readthedocs.io/)
 ![GitHub last commit](https://img.shields.io/github/last-commit/darkstussy/aioscraper?color=brightgreen)
 
