@@ -1,6 +1,6 @@
 import asyncio
 import heapq
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, suppress
 from functools import partial
 from logging import getLogger
 from time import monotonic
@@ -42,8 +42,48 @@ async def _raise_for_status(request: Request, response: Response):
     )
 
 
-def _get_request_sender(queue: _RequestQueue, heap: _RequestHead) -> SendRequest:
-    "Creates a request sender function that adds requests to the priority queue."
+class _PendingSlots:
+    "Counts requests accepted but not yet handed to the scheduler. A limit of 0 disables counting."
+
+    def __init__(self, limit: int):
+        self._limit = limit
+        self._count = 0
+        self._space = asyncio.Condition()
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    async def acquire(self, *, wait: bool) -> bool:
+        if not self._limit:
+            return False
+
+        async with self._space:
+            if wait:
+                await self._space.wait_for(lambda: self._count < self._limit)
+
+            self._count += 1
+
+        return True
+
+    async def release(self, pr: PRequest):
+        if not pr.holds_slot:
+            return
+
+        pr.holds_slot = False
+        async with self._space:
+            self._count -= 1
+            self._space.notify_all()
+
+
+def _get_request_sender(
+    queue: _RequestQueue,
+    heap: _RequestHead,
+    slots: _PendingSlots,
+    *,
+    wait_for_slot: bool,
+) -> SendRequest:
+    "Creates a request sender. Only the entrypoint variant waits for a free slot."
 
     async def sender(request: Request) -> Request:
         now = monotonic()
@@ -53,10 +93,12 @@ def _get_request_sender(queue: _RequestQueue, heap: _RequestHead) -> SendRequest
         if request.json_data is not None and request.files is not None:
             raise InvalidRequestData("Cannot send both files and json_data")
 
+        holds_slot = await slots.acquire(wait=wait_for_slot)
+
         if request.delay:
-            heapq.heappush(heap, PRequest(priority=now + request.delay, request=request))
+            heapq.heappush(heap, PRequest(priority=now + request.delay, request=request, holds_slot=holds_slot))
         else:
-            await queue.put(PRequest(priority=request.priority, request=request))
+            queue.put_nowait(PRequest(priority=request.priority, request=request, holds_slot=holds_slot))
 
         return request
 
@@ -102,19 +144,29 @@ class RequestManager:
         )
         self._shutdown_check_interval = shutdown_check_interval
         self._session = sessionmaker()
-        self._ready_queue: _RequestQueue = asyncio.PriorityQueue(maxsize=scheduler_config.ready_queue_max_size)
+        # A maxsize would deadlock: _pop_due_delayed fills it from its only consumer.
+        self._ready_queue: _RequestQueue = asyncio.PriorityQueue()
         self._delayed_heap: _RequestHead = []
-        self._request_sender = _get_request_sender(self._ready_queue, self._delayed_heap)
-        self._dependencies: dict[str, Any] = {"send_request": self._request_sender, **dependencies}
+        self._pending_slots = _PendingSlots(scheduler_config.ready_queue_max_size)
+        self._request_sender = _get_request_sender(
+            self._ready_queue,
+            self._delayed_heap,
+            self._pending_slots,
+            wait_for_slot=True,
+        )
+        # A job holds a scheduler slot, and slots free up through the scheduler: waiting deadlocks.
+        self._job_sender = _get_request_sender(
+            self._ready_queue,
+            self._delayed_heap,
+            self._pending_slots,
+            wait_for_slot=False,
+        )
+        self._dependencies: dict[str, Any] = {"send_request": self._job_sender, **dependencies}
         self._middleware_holder = middleware_holder
         self._rate_limiter_manager = RateLimitManager(
             rate_limit_config,
             retry_config=retry_config,
-            schedule=lambda pr: self._scheduler.spawn(
-                execute_coroutine(
-                    self._send_request(pr.request), on_error=partial(self._error_collector.record, "request")
-                ),
-            ),
+            schedule=self._schedule,
             error_collector=self._error_collector,
         )
         self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
@@ -125,6 +177,18 @@ class RequestManager:
     @property
     def sender(self) -> SendRequest:
         return self._request_sender
+
+    async def _schedule(self, pr: PRequest):
+        "Hand a request to the scheduler and free the slot it held while queued."
+        try:
+            await self._scheduler.spawn(
+                execute_coroutine(
+                    self._send_request(pr.request),
+                    on_error=partial(self._error_collector.record, "request"),
+                ),
+            )
+        finally:
+            await self._pending_slots.release(pr)
 
     @property
     def error_collector(self) -> ErrorCollector:
@@ -372,7 +436,14 @@ class RequestManager:
         return timeout
 
     async def close(self):
-        """Close the underlying session."""
+        """Stop the queue listener and close the underlying resources."""
+        # Without this a listener left running after close() fails on closed resources,
+        # and the exception surfaces later as an unretrieved task exception.
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._task
+
         await execute_coroutines(
             self._rate_limiter_manager.close(),
             self._scheduler.close(),

@@ -345,7 +345,9 @@ async def test_send_request_available_in_dependencies():
     await manager._send_request(Request(url="https://api.test.com/test", callback=callback))
 
     assert "response" in captured
-    assert captured["send_request"] is manager.sender
+    # Callbacks get the job sender, which skips the pending limit; manager.sender waits on it.
+    assert captured["send_request"] is manager._job_sender
+    assert captured["send_request"] is not manager.sender
 
     await manager.close()
 

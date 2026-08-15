@@ -162,7 +162,8 @@ class SchedulerConfig:
         concurrent_requests (int): Maximum number of concurrent requests
         pending_requests (int): Number of pending requests to maintain
         close_timeout (float | None): Timeout for closing scheduler in seconds
-        ready_queue_max_size (int): Maximum size of the ready queue (0 for unlimited)
+        ready_queue_max_size (int): Throttles the entrypoint at this many accepted but
+            unscheduled requests (0 for unlimited); sends from inside a job are not blocked
     """
 
     concurrent_requests: int = field(default=64, validator=RangeValidator(min_value=1))

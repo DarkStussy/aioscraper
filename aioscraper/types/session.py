@@ -95,10 +95,18 @@ class Request:
 
 @dataclass(slots=True, order=True)
 class PRequest:
-    "Priority Request Pair - for managing prioritized requests."
+    """Priority Request Pair - for managing prioritized requests.
+
+    Attributes:
+        priority (float): Ordering key; a timestamp for delayed requests.
+        request (Request): The request to send.
+        holds_slot (bool): Whether this entry reserved a scheduler admission slot. Lives
+            here rather than on ``Request`` because one request object can be queued twice.
+    """
 
     priority: float
     request: Request = field(compare=False)
+    holds_slot: bool = field(default=False, compare=False)
 
 
 class Response:
