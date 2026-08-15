@@ -118,6 +118,10 @@ def load_config() -> Config:
                 default_config.scheduler.pending_requests,
             ),
             close_timeout=env.parse("SCHEDULER_CLOSE_TIMEOUT", default_config.scheduler.close_timeout),
+            ready_queue_max_size=env.parse(
+                "SCHEDULER_READY_QUEUE_MAX_SIZE",
+                default_config.scheduler.ready_queue_max_size,
+            ),
         ),
         execution=ExecutionConfig(
             timeout=env.parse("EXECUTION_TIMEOUT", default_config.execution.timeout),

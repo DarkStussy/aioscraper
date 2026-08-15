@@ -150,12 +150,16 @@ jobs:
           uv venv "${RUNNER_TEMP}/wheel-env"
           uv pip install --python "${RUNNER_TEMP}/wheel-env/bin/python" "$(ls dist/*.whl)[aiohttp,httpx]"
 
+      # -I keeps the repository checkout off sys.path, so this imports the installed
+      # wheel and not the source tree it was built from.
       - name: Import both backends and smoke-test the CLI
         run: |
-          "${RUNNER_TEMP}/wheel-env/bin/python" -c "
+          "${RUNNER_TEMP}/wheel-env/bin/python" -I -c "
+          import pathlib
           import aioscraper
           from aioscraper.core.session.aiohttp import AiohttpSession
           from aioscraper.core.session.httpx import HttpxSession
+          assert (pathlib.Path(aioscraper.__file__).parent / 'py.typed').is_file(), 'py.typed missing'
           print(aioscraper.__all__)
           "
           "${RUNNER_TEMP}/wheel-env/bin/aioscraper" --help

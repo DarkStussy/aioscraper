@@ -14,6 +14,7 @@ def test_load_config_reads_env_overrides(monkeypatch):
     monkeypatch.setenv("SCHEDULER_CONCURRENT_REQUESTS", "2")
     monkeypatch.setenv("SCHEDULER_PENDING_REQUESTS", "3")
     monkeypatch.setenv("SCHEDULER_CLOSE_TIMEOUT", "0.7")
+    monkeypatch.setenv("SCHEDULER_READY_QUEUE_MAX_SIZE", "128")
 
     monkeypatch.setenv("EXECUTION_TIMEOUT", "1.2")
     monkeypatch.setenv("EXECUTION_SHUTDOWN_TIMEOUT", "0.4")
@@ -31,6 +32,7 @@ def test_load_config_reads_env_overrides(monkeypatch):
     assert config.scheduler.concurrent_requests == 2
     assert config.scheduler.pending_requests == 3
     assert config.scheduler.close_timeout == 0.7
+    assert config.scheduler.ready_queue_max_size == 128
 
     assert config.execution.timeout == 1.2
     assert config.execution.shutdown_timeout == 0.4
