@@ -1,15 +1,17 @@
 from aioscraper.core.session.httpx import HttpxSession
+from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
 
 
 def test_httpx_session_uses_proxy_string(monkeypatch):
     captured: dict[str, object] = {}
 
     class DummyClient:
-        def __init__(self, *, timeout, verify, proxy=None, mounts=None):
+        def __init__(self, *, timeout, verify, proxy=None, mounts=None, max_redirects=None):
             captured["timeout"] = timeout
             captured["verify"] = verify
             captured["proxy"] = proxy
             captured["mounts"] = mounts
+            captured["max_redirects"] = max_redirects
 
     monkeypatch.setattr("aioscraper.core.session.httpx.AsyncClient", DummyClient)
 
@@ -19,6 +21,8 @@ def test_httpx_session_uses_proxy_string(monkeypatch):
     assert captured["mounts"] is None
     assert captured["timeout"] == 5
     assert captured["verify"] is True
+    # Without this httpx would silently use its own default of 20.
+    assert captured["max_redirects"] == DEFAULT_MAX_REDIRECTS
 
 
 def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch):
@@ -30,7 +34,7 @@ def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch):
             transports.append(proxy)
 
     class DummyClient:
-        def __init__(self, *, timeout, verify, proxy=None, mounts=None):
+        def __init__(self, *, timeout, verify, proxy=None, mounts=None, max_redirects=None):
             captured["proxy"] = proxy
             captured["mounts"] = mounts
 

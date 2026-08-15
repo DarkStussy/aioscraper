@@ -21,6 +21,8 @@ ResponseHeaders = Mapping[str, str]
 
 SendRequest = Callable[["Request"], Awaitable["Request"]]
 
+DEFAULT_MAX_REDIRECTS = 10
+
 
 class File(NamedTuple):
     name: str
@@ -49,12 +51,14 @@ class Request:
         cookies (RequestCookies | None): Request cookies
         headers (RequestHeaders | None): Request headers
         auth (BasicAuth | None): Basic authentication credentials
-        proxy (str | None): Proxy URL (per-request proxies are honored only by the ``aiohttp`` backend)
-        proxy_auth (BasicAuth | None): Proxy authentication credentials
-        proxy_headers (RequestHeaders | None): Proxy headers
+        proxy (str | None): Proxy URL. ``aiohttp`` only; the ``httpx`` backend raises
+            :class:`~aioscraper.exceptions.UnsupportedRequestOption`
+        proxy_auth (BasicAuth | None): Proxy authentication credentials. ``aiohttp`` only
+        proxy_headers (RequestHeaders | None): Proxy headers. ``aiohttp`` only
         timeout (float | None): Request timeout in seconds
         allow_redirects (bool): Whether to follow HTTP redirects
-        max_redirects (int): Maximum number of redirects to follow
+        max_redirects (int): Maximum number of redirects to follow. Only ``aiohttp`` accepts a
+            per-request value; on ``httpx`` the limit is fixed at ``DEFAULT_MAX_REDIRECTS``
 
         delay (float | None): Delay before sending the request
         priority (int): Priority of the request
@@ -78,7 +82,7 @@ class Request:
     proxy_headers: RequestHeaders | None = None
     timeout: float | None = None
     allow_redirects: bool = True
-    max_redirects: int = 10
+    max_redirects: int = DEFAULT_MAX_REDIRECTS
 
     # not http params
     delay: float | None = None

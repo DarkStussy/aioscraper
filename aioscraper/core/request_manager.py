@@ -134,11 +134,15 @@ class RequestManager:
         "Compose the middleware chain around the innermost dispatch."
 
         async def dispatch(request: Request) -> Response | None:
+            # Built before the try: a backend rejecting the request outright is a contract
+            # error, not a transport outcome, and must not reach the adaptive rate limiter.
+            request_ctx = self._session.make_request(request)
+
             start_time = monotonic()
             status_code = exception_type = retry_after = None
 
             try:
-                response = await stack.enter_async_context(self._session.make_request(request))
+                response = await stack.enter_async_context(request_ctx)
                 status_code = response.status
                 await _raise_for_status(request, response)
             except Exception as exc:

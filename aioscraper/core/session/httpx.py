@@ -3,9 +3,42 @@ from ssl import SSLContext
 from httpx import USE_CLIENT_DEFAULT, AsyncClient, AsyncHTTPTransport, BasicAuth
 
 from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
+from aioscraper.exceptions import UnsupportedRequestOption
 from aioscraper.types import Request, Response
+from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
 
 from .base import BaseRequestContextManager, BaseSession
+
+_BACKEND = "httpx"
+
+# httpx resolves proxies per transport and redirect limits per client, so none of these
+# can vary per request without building a client for every request.
+_UNSUPPORTED_HINTS = {
+    "proxy": "Set SessionConfig.proxy, or use the aiohttp backend.",
+    "proxy_auth": "Embed the credentials in the SessionConfig.proxy URL, or use the aiohttp backend.",
+    "proxy_headers": "Use the aiohttp backend.",
+}
+
+
+def _check_supported(request: Request):
+    """Reject request options httpx cannot honor, instead of dropping them silently.
+
+    Args:
+        request (Request): The request about to be sent.
+
+    Raises:
+        UnsupportedRequestOption: One of the options is set and cannot be applied.
+    """
+    for option, hint in _UNSUPPORTED_HINTS.items():
+        if getattr(request, option) is not None:
+            raise UnsupportedRequestOption(_BACKEND, option, hint)
+
+    if request.allow_redirects and request.max_redirects != DEFAULT_MAX_REDIRECTS:
+        raise UnsupportedRequestOption(
+            _BACKEND,
+            "max_redirects",
+            f"The limit is fixed at {DEFAULT_MAX_REDIRECTS}. Use the aiohttp backend for a per-request value.",
+        )
 
 
 class HttpxRequestContextManager(BaseRequestContextManager):
@@ -68,10 +101,26 @@ class HttpxSession(BaseSession):
         else:
             mounts = None
 
-        self._client = AsyncClient(timeout=timeout, verify=verify, proxy=proxy, mounts=mounts)
+        # Pinned to the Request default so both backends follow the same number of
+        # redirects; httpx would otherwise use its own default of 20.
+        self._client = AsyncClient(
+            timeout=timeout,
+            verify=verify,
+            proxy=proxy,
+            mounts=mounts,
+            max_redirects=DEFAULT_MAX_REDIRECTS,
+        )
 
     def make_request(self, request: Request) -> HttpxRequestContextManager:
-        """Create a request context manager coupled with the shared client."""
+        """Create a request context manager coupled with the shared client.
+
+        Args:
+            request (Request): The request to execute.
+
+        Raises:
+            UnsupportedRequestOption: The request sets an option httpx cannot honor per request.
+        """
+        _check_supported(request)
         return HttpxRequestContextManager(request, self._client)
 
     async def close(self):

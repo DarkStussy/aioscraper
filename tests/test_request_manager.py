@@ -14,7 +14,8 @@ from aioscraper.config import (
 from aioscraper.core.rate_limiter import RequestOutcome
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseRequestContextManager, BaseSession
-from aioscraper.exceptions import HTTPException, InvalidRequestData
+from aioscraper.core.session.httpx import HttpxSession
+from aioscraper.exceptions import HTTPException, InvalidRequestData, UnsupportedRequestOption
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.middlewares import RetryMiddleware
 from aioscraper.types import File, Request, RequestHandler, Response, SendRequest
@@ -507,6 +508,40 @@ async def test_retried_request_is_reported_to_adaptive_limiter():
 
     assert manager._completed.is_set()
     assert not manager._delayed_heap
+
+
+@pytest.mark.asyncio
+async def test_unsupported_option_reaches_errback_without_an_outcome():
+    """A backend rejecting the request is a contract error, not a transport outcome."""
+    captured: dict[str, Any] = {}
+
+    async def errback(exc: Exception, request: Request):
+        captured["exc"] = exc
+        captured["request"] = request
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=_adaptive_rate_limit_config(),
+        retry_config=RequestRetryConfig(),
+        shutdown_check_interval=0.01,
+        sessionmaker=lambda: HttpxSession(timeout=1.0, verify=True, proxy=None),
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+    )
+    outcomes = _spy_on_outcomes(manager)
+
+    await manager._send_request(
+        Request(url="https://api.test.com/resource", proxy="http://proxy:8080", errback=errback),
+    )
+
+    assert isinstance(captured["exc"], UnsupportedRequestOption)
+    assert captured["exc"].option == "proxy"
+    assert captured["request"].url == "https://api.test.com/resource"
+
+    # Recording it would count as a success and shrink the interval for a request never sent.
+    assert outcomes == []
+
+    await manager.close()
 
 
 @pytest.mark.asyncio

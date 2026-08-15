@@ -29,6 +29,20 @@ At runtime ``aioscraper`` will use ``aiohttp`` when available, otherwise it fall
 
 You can explicitly set the backend by setting the ``SESSION_HTTP_BACKEND`` environment variable to ``aiohttp`` or ``httpx``.
 
+Backend differences
+-------------------
+
+httpx resolves proxies per transport and redirect limits per client, so these
+:class:`~aioscraper.types.Request` fields cannot vary per request on that backend and raise
+:class:`~aioscraper.exceptions.UnsupportedRequestOption`:
+
+- ``proxy`` - set ``SessionConfig.proxy`` instead
+- ``proxy_auth`` - embed the credentials in the ``SessionConfig.proxy`` URL
+- ``proxy_headers`` - no equivalent
+- ``max_redirects`` - fixed at the ``Request`` default for the whole session
+
+Choose ``aiohttp`` if you need any of them per request.
+
 Optional: install with ``uvloop`` (POSIX)
 -----------------------------------------
 

@@ -32,6 +32,23 @@ class HTTPException(ClientException):
         return f"{self.method} {self.url}: {self.status_code}: {self.message}"
 
 
+class UnsupportedRequestOption(ClientException):
+    """
+    Raised when a request sets an option the selected HTTP backend cannot honor.
+
+    Args:
+        backend (str): Name of the HTTP backend that rejected the option.
+        option (str): Name of the unsupported :class:`~aioscraper.types.Request` field.
+        hint (str): Suggested way to achieve the same result.
+    """
+
+    def __init__(self, backend: str, option: str, hint: str):
+        self.backend = backend
+        self.option = option
+        self.hint = hint
+        super().__init__(f"The {backend} backend does not support Request.{option}. {hint}")
+
+
 class PipelineException(AIOScraperException):
     "Base exception class for all pipeline-related errors."
 

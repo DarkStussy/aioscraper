@@ -92,6 +92,7 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.AIOScraperException
 .. autoclass:: aioscraper.exceptions.ClientException
 .. autoclass:: aioscraper.exceptions.HTTPException
+.. autoclass:: aioscraper.exceptions.UnsupportedRequestOption
 .. autoclass:: aioscraper.exceptions.PipelineException
 .. autoclass:: aioscraper.exceptions.StopItemProcessing
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing
