@@ -15,6 +15,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx_design",
+    "myst_parser",
 ]
 autodoc_default_options = {
     "members": True,

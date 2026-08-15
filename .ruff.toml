@@ -3,6 +3,24 @@ target-version = "py311"
 
 include = ["aioscraper/**.py", "examples/**.py", "tests/**.py"]
 
+force-exclude = true
+exclude = [
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "venv",
+    "_build",
+    "buck-out",
+    "build",
+    "docs",
+    ".pytest_cache",
+    ".idea",
+    "__pycache__",
+]
+
 [lint]
 select = [
     "ALL",
@@ -57,20 +75,3 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
-
-exclude = [
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".tox",
-    ".venv",
-    "venv",
-    "_build",
-    "buck-out",
-    "build",
-    "docs",
-    ".pytest_cache",
-    ".idea",
-    "__pycache__",
-]

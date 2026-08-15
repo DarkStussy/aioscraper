@@ -29,82 +29,82 @@ Save this as ``scraper.py``:
        language: str
 
 
-    # this decorator registers this pipeline to handle RepoStats items
-    @scraper.pipeline(RepoStats)
-    class StatsPipeline:
-        """Pipeline for processing extracted repository data."""
+   # this decorator registers this pipeline to handle RepoStats items
+   @scraper.pipeline(RepoStats)
+   class StatsPipeline:
+       """Pipeline for processing extracted repository data."""
 
-        def __init__(self):
-            self.total_stars = 0
+       def __init__(self):
+           self.total_stars = 0
 
-        async def put_item(self, item: RepoStats) -> RepoStats:
-            """
-            Called for each extracted item.
+       async def put_item(self, item: RepoStats) -> RepoStats:
+           """
+           Called for each extracted item.
 
-            This is where you'd:
-            - Save to database
-            - Send to message queue
-            - Perform validation/transformation
-            - Aggregate statistics
-            """
-            self.total_stars += item.stars
-            logger.info("✓ %s: ⭐ %s (%s)", item.name, item.stars, item.language)
-            return item
+           This is where you'd:
+           - Save to database
+           - Send to message queue
+           - Perform validation/transformation
+           - Aggregate statistics
+           """
+           self.total_stars += item.stars
+           logger.info("✓ %s: ⭐ %s (%s)", item.name, item.stars, item.language)
+           return item
 
-        async def close(self):
-            """
-            Called when scraper shuts down.
+       async def close(self):
+           """
+           Called when scraper shuts down.
 
-            Use for:
-            - Final aggregations
-            - Closing database connections
-            - Cleanup operations
-            """
-            logger.info("Total stars collected: %s", self.total_stars)
-
-
-    # this decorator marks this as the scraper's entry point.
-    @scraper
-    async def get_repos(send_request: SendRequest):
-        """
-        Entry point: defines what to scrape.
-
-        Receives send_request - a function to schedule HTTP requests.
-        """
-        repos = (
-            "django/django",
-            "fastapi/fastapi",
-            "pallets/flask",
-            "encode/httpx",
-            "aio-libs/aiohttp",
-        )
-
-        for repo in repos:
-            await send_request(
-                Request(
-                    url=f"https://api.github.com/repos/{repo}",  # API endpoint
-                    callback=parse_repo,  # Success handler
-                    errback=on_failure,  # Error handler (network failures, timeouts)
-                    cb_kwargs={"repo": repo},  # Additional arguments to pass to callbacks
-                    headers={"Accept": "application/vnd.github+json"},  # Required by GitHub API
-                )
-            )
+           Use for:
+           - Final aggregations
+           - Closing database connections
+           - Cleanup operations
+           """
+           logger.info("Total stars collected: %s", self.total_stars)
 
 
-    async def parse_repo(response: Response, pipeline: Pipeline):
-        """
-        Success callback: parse response and extract data.
+   # this decorator marks this as the scraper's entry point.
+   @scraper
+   async def get_repos(send_request: SendRequest):
+       """
+       Entry point: defines what to scrape.
 
-        The `pipeline` dependency is automatically injected by aioscraper.
-        """
-        data = await response.json()  # Parse JSON response from API
-        await pipeline(  # Send extracted item to pipeline
-            RepoStats(
-                name=data["full_name"],
-                stars=data["stargazers_count"],
-                language=data.get("language", "Unknown"),
-            )
-        )
+       Receives send_request - a function to schedule HTTP requests.
+       """
+       repos = (
+           "django/django",
+           "fastapi/fastapi",
+           "pallets/flask",
+           "encode/httpx",
+           "aio-libs/aiohttp",
+       )
+
+       for repo in repos:
+           await send_request(
+               Request(
+                   url=f"https://api.github.com/repos/{repo}",  # API endpoint
+                   callback=parse_repo,  # Success handler
+                   errback=on_failure,  # Error handler (network failures, timeouts)
+                   cb_kwargs={"repo": repo},  # Additional arguments to pass to callbacks
+                   headers={"Accept": "application/vnd.github+json"},  # Required by GitHub API
+               )
+           )
+
+
+   async def parse_repo(response: Response, pipeline: Pipeline):
+       """
+       Success callback: parse response and extract data.
+
+       The `pipeline` dependency is automatically injected by aioscraper.
+       """
+       data = await response.json()  # Parse JSON response from API
+       await pipeline(  # Send extracted item to pipeline
+           RepoStats(
+               name=data["full_name"],
+               stars=data["stargazers_count"],
+               language=data.get("language", "Unknown"),
+           )
+       )
 
 
    async def on_failure(exc: Exception, repo: str):
@@ -212,12 +212,12 @@ For production use, configure retries, rate limiting, and concurrency via enviro
 .. code-block:: bash
 
    # Enable retries for transient failures
-   export RETRY_ENABLED=true
-   export RETRY_MAX_ATTEMPTS=3
+   export SESSION_RETRY_ENABLED=true
+   export SESSION_RETRY_ATTEMPTS=3
 
    # Enable rate limiting
-   export RATE_LIMIT_ENABLED=true
-   export RATE_LIMIT_DEFAULT_INTERVAL=1.0
+   export SESSION_RATE_LIMIT_ENABLED=true
+   export SESSION_RATE_LIMIT_INTERVAL=1.0
 
    # Set concurrency
    export SCHEDULER_CONCURRENT_REQUESTS=10

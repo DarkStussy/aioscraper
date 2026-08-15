@@ -178,12 +178,12 @@ async def on_failure(exc: Exception, repo: str):
     """
     Error callback: handle request/processing failures.
 
-       Use for:
-       - Logging errors
-       - Sending alerts
-       - Custom retry logic
-       """
-       logger.error("%s: cannot parse response: %s", repo, exc)
+    Use for:
+    - Logging errors
+    - Sending alerts
+    - Custom retry logic
+    """
+    logger.error("%s: cannot parse response: %s", repo, exc)
 ```
 
 Run it:
@@ -194,9 +194,9 @@ aioscraper scraper
 What's happening?
 
 1. `@scraper` registers your entry point
-3. `@scraper.pipeline` registers a pipeline for processing extracted data
-4. `send_request()` schedules multiple API requests concurrently with automatic queuing
-5. `callback=parse_repo` processes successful responses, `errback=on_failure` handles errors
+2. `@scraper.pipeline` registers a pipeline for processing extracted data
+3. `send_request()` schedules multiple API requests concurrently with automatic queuing
+4. `callback=parse_repo` processes successful responses, `errback=on_failure` handles errors
 
 Recommendation:
 
