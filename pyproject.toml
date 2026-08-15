@@ -32,10 +32,10 @@ uvloop = [
     "uvloop>=0.22.1,<1.0.0"
 ]
 aiohttp = [
-    "aiohttp>=3.13.2,<4.0.0",
+    "aiohttp>=3.12.0,<4.0.0",
 ]
 aiohttp-speedups = [
-    "aiohttp[speedups]>=3.13.2,<4.0.0",
+    "aiohttp[speedups]>=3.12.0,<4.0.0",
 ]
 httpx = [
     "httpx>=0.28.1,<1.0.0",

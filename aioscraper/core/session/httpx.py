@@ -22,7 +22,7 @@ class HttpxRequestContextManager(BaseRequestContextManager):
         else:
             content, data = self._request.data, None
 
-        response = await self._client.request(
+        request = self._client.build_request(
             url=str(parse_url(self._request.url, self._request.params)),
             method=self._request.method,
             content=content,
@@ -31,12 +31,15 @@ class HttpxRequestContextManager(BaseRequestContextManager):
             json=self._request.json_data,
             cookies=parse_cookies(self._request.cookies) if self._request.cookies is not None else None,
             headers=self._request.headers,
+            timeout=self._request.timeout or USE_CLIENT_DEFAULT,
+        )
+        response = await self._client.send(
+            request,
             auth=(
                 BasicAuth(username=self._request.auth["username"], password=self._request.auth.get("password", ""))
                 if self._request.auth is not None
                 else USE_CLIENT_DEFAULT
             ),
-            timeout=self._request.timeout or USE_CLIENT_DEFAULT,
             follow_redirects=self._request.allow_redirects,
         )
         return Response(
