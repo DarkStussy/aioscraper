@@ -44,6 +44,46 @@ Callbacks drive the happy path, while error handlers keep failures contained. `a
             logging.exception("Unhandled error for %s", request.url)
 
 
+.. _response-body:
+
+Reading the response body
+-------------------------
+
+The body is streamed from the open connection, which the backend closes once the middleware chain and
+the callback return. **The body must be consumed inside the callback**: a :class:`Response
+<aioscraper.types.session.Response>` read after that has no connection left to read from.
+
+- :meth:`read() <aioscraper.types.session.Response.read>` buffers the whole body, so ``read()``,
+  :meth:`text() <aioscraper.types.session.Response.text>` and
+  :meth:`json() <aioscraper.types.session.Response.json>` can be called repeatedly.
+- :meth:`iter_bytes() <aioscraper.types.session.Response.iter_bytes>` streams it chunk by chunk and
+  buffers nothing. Breaking out of the loop early is allowed; the rest of the body is discarded when
+  the request context closes. Iterating a body that :meth:`read` already buffered replays it from
+  memory.
+- Mixing the two on an unbuffered body raises :class:`StreamConsumed
+  <aioscraper.exceptions.StreamConsumed>`: after streaming, ``read()`` has nothing left to return.
+
+.. code-block:: python
+
+    import hashlib
+
+    from aioscraper.types import Response
+
+
+    async def checksum(response: Response) -> str:
+        digest = hashlib.sha256()
+        async for chunk in response.iter_bytes():
+            digest.update(chunk)
+
+        return digest.hexdigest()
+
+The callback runs on the event loop, so a sink that blocks - a file, a socket, a database driver
+without async support - has to be pushed off it, for example with ``asyncio.to_thread``.
+
+:ref:`max_response_body_size <body-limits>` applies to both reads, so an oversized body raises
+:class:`ResponseTooLarge <aioscraper.exceptions.ResponseTooLarge>` inside the callback, which routes it
+to ``errback``.
+
 Optimizing callbacks
 ---------------------------------------
 

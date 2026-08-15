@@ -28,6 +28,7 @@ def get_sessionmaker(config: SessionConfig) -> SessionMaker:
                 timeout=ClientTimeout(total=config.timeout),
                 connector=TCPConnector(ssl=ssl) if (ssl := config.ssl) is not None else None,
                 proxy=config.proxy if isinstance(config.proxy, str) else None,
+                max_body_size=config.max_response_body_size,
             )
         except ModuleNotFoundError:  # pragma: no cover
             logger.debug("aiohttp not available, trying httpx")
@@ -45,6 +46,7 @@ def get_sessionmaker(config: SessionConfig) -> SessionMaker:
                 timeout=config.timeout,
                 verify=config.ssl,
                 proxy=config.proxy,
+                max_body_size=config.max_response_body_size,
             )
         except ModuleNotFoundError:  # pragma: no cover
             logger.debug("httpx not available")

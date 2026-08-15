@@ -42,6 +42,26 @@ def test_load_config_reads_env_overrides(monkeypatch):
     assert config.pipeline.strict is False
 
 
+def test_load_config_reads_body_limits(monkeypatch):
+    monkeypatch.setenv("SESSION_MAX_RESPONSE_BODY_SIZE", "2048")
+    monkeypatch.setenv("SESSION_MAX_ERROR_BODY_SIZE", "128")
+
+    config = load_config()
+
+    assert config.session.max_response_body_size == 2048
+    assert config.session.max_error_body_size == 128
+
+
+def test_load_config_defaults_body_limits(monkeypatch):
+    monkeypatch.delenv("SESSION_MAX_RESPONSE_BODY_SIZE", raising=False)
+    monkeypatch.delenv("SESSION_MAX_ERROR_BODY_SIZE", raising=False)
+
+    config = load_config()
+
+    assert config.session.max_response_body_size is None
+    assert config.session.max_error_body_size == 65536
+
+
 def test_load_config_reads_retry_methods(monkeypatch):
     monkeypatch.setenv("SESSION_RETRY_METHODS", "get, put")
 

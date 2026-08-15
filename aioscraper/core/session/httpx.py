@@ -44,9 +44,10 @@ def _check_supported(request: Request):
 class HttpxRequestContextManager(BaseRequestContextManager):
     """httpx-backed context manager that executes a prepared HTTP request."""
 
-    def __init__(self, request: Request, client: AsyncClient):
+    def __init__(self, request: Request, client: AsyncClient, max_body_size: int | None = None):
         super().__init__(request)
         self._client = client
+        self._max_body_size = max_body_size
 
     async def __aenter__(self) -> Response:
         """Send the request with httpx and convert the response to internal ``Response``."""
@@ -66,6 +67,7 @@ class HttpxRequestContextManager(BaseRequestContextManager):
             headers=self._request.headers,
             timeout=self._request.timeout or USE_CLIENT_DEFAULT,
         )
+        # without stream=True httpx buffers the whole body inside send(), before any limit applies
         response = await self._client.send(
             request,
             auth=(
@@ -74,14 +76,17 @@ class HttpxRequestContextManager(BaseRequestContextManager):
                 else USE_CLIENT_DEFAULT
             ),
             follow_redirects=self._request.allow_redirects,
+            stream=True,
         )
+        self._exit_stack.push_async_callback(response.aclose)
         return Response(
             url=str(response.url),
             method=response.request.method,
             status=response.status_code,
             headers=response.headers,
             cookies=to_simple_cookie(response.cookies),
-            read=response.aread,
+            aiter_bytes=response.aiter_bytes,
+            max_body_size=self._max_body_size,
         )
 
 
@@ -93,8 +98,10 @@ class HttpxSession(BaseSession):
         timeout: float | None,
         verify: SSLContext | bool,
         proxy: str | dict[str, str | None] | None,
+        max_body_size: int | None = None,
     ):
         """Instantiate an ``AsyncClient`` honoring timeout/SSL/proxy configuration."""
+        self._max_body_size = max_body_size
         if isinstance(proxy, dict):
             mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items() if proxy} or None
             proxy = None
@@ -121,7 +128,7 @@ class HttpxSession(BaseSession):
             UnsupportedRequestOption: The request sets an option httpx cannot honor per request.
         """
         _check_supported(request)
-        return HttpxRequestContextManager(request, self._client)
+        return HttpxRequestContextManager(request, self._client, self._max_body_size)
 
     async def close(self):
         """Close the ``AsyncClient`` to free connectors and sockets."""

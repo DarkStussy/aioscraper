@@ -15,7 +15,7 @@ from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConf
 from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import RequestHandler, RequestMiddleware, Response
-from aioscraper.types.session import PRequest, Request, SendRequest
+from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, PRequest, Request, SendRequest
 
 from .errors import ErrorCollector
 from .rate_limiter import RateLimitManager, RequestOutcome
@@ -28,17 +28,26 @@ _RequestQueue = asyncio.PriorityQueue[PRequest]
 _RequestHead = list[PRequest]
 
 
-async def _raise_for_status(request: Request, response: Response):
+async def _raise_for_status(request: Request, response: Response, max_error_body_size: int):
     "Raise :class:`HTTPException` when the response carries a non-ok status."
     if response.ok:
         return
+
+    message = ""
+    if max_error_body_size > 0:
+        # the body only feeds the exception message, so it is read bounded — and by this budget
+        # rather than max_response_body_size, which bounds what a callback may receive
+        body = await response._read_limited(max_error_body_size + 1)
+        message = body[:max_error_body_size].decode(response.get_encoding(), errors="replace")
+        if len(body) > max_error_body_size:
+            message += " [truncated]"
 
     raise HTTPException(
         url=str(parse_url(request.url, request.params)),
         method=response.method,
         headers=response.headers,
         status_code=response.status,
-        message=await response.text(errors="replace"),
+        message=message,
     )
 
 
@@ -114,6 +123,7 @@ class RequestManager:
         rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
         retry_config (RequestRetryConfig): Configuration for request retries.
         shutdown_check_interval (float): Interval between shutdown checks in seconds
+        max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
         sessionmaker (SessionMaker): A factory for creating session objects.
         dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
         middleware_holder (MiddlewareHolder): A container for middleware collections.
@@ -129,8 +139,10 @@ class RequestManager:
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
         error_collector: ErrorCollector | None = None,
+        max_error_body_size: int = DEFAULT_MAX_ERROR_BODY_SIZE,
     ):
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
+        self._max_error_body_size = max_error_body_size
         logger.info(
             "Creating scheduler: concurrent_requests=%s, pending_requests=%s, close_timeout=%s",
             scheduler_config.concurrent_requests,
@@ -221,7 +233,7 @@ class RequestManager:
             try:
                 response = await stack.enter_async_context(request_ctx)
                 status_code = response.status
-                await _raise_for_status(request, response)
+                await _raise_for_status(request, response, self._max_error_body_size)
             except Exception as exc:
                 exception_type = type(exc)
 

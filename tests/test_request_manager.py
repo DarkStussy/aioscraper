@@ -1,5 +1,4 @@
 import asyncio
-from http.cookies import SimpleCookie
 from typing import Any
 
 import pytest
@@ -19,22 +18,12 @@ from aioscraper.exceptions import HTTPException, InvalidRequestData, Unsupported
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.middlewares import RetryMiddleware
 from aioscraper.types import File, Request, RequestHandler, Response, SendRequest
-
-
-async def _read() -> bytes:
-    return b""
+from tests.mocks import make_response
 
 
 class FakeRequestContextManager(BaseRequestContextManager):
     async def __aenter__(self) -> Response:
-        return Response(
-            url=self._request.url,
-            method=self._request.method,
-            status=200,
-            headers={},
-            cookies=SimpleCookie(),
-            read=_read,
-        )
+        return make_response(url=self._request.url, method=self._request.method, headers={})
 
 
 class FakeSession(BaseSession):
@@ -50,19 +39,7 @@ class FakeSession(BaseSession):
 
 
 def _build_response(request: Request, *, status: int, body: str = "") -> Response:
-    body_bytes = body.encode()
-
-    async def _read() -> bytes:
-        return body_bytes
-
-    return Response(
-        url=request.url,
-        method=request.method,
-        status=status,
-        headers={"Content-Type": "text/plain; charset=utf-8"},
-        cookies=SimpleCookie(),
-        read=_read,
-    )
+    return make_response(body.encode(), url=request.url, method=request.method, status=status)
 
 
 class FixedStatusRequestContextManager(BaseRequestContextManager):

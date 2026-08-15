@@ -32,6 +32,38 @@ class HTTPException(ClientException):
         return f"{self.method} {self.url}: {self.status_code}: {self.message}"
 
 
+class ResponseTooLarge(ClientException):
+    """
+    Raised when a response body exceeds the configured size limit.
+
+    Args:
+        url (str): The URL that returned the oversized body.
+        method (str): The HTTP method used for the request.
+        limit (int): Configured limit in bytes.
+    """
+
+    def __init__(self, url: str, method: str, limit: int):
+        self.url = url
+        self.method = method
+        self.limit = limit
+        super().__init__(f"{method} {url}: response body exceeds {limit} bytes")
+
+
+class StreamConsumed(ClientException):
+    """
+    Raised when a response body is read after its stream has been consumed.
+
+    Args:
+        url (str): The URL whose body was already consumed.
+        method (str): The HTTP method used for the request.
+    """
+
+    def __init__(self, url: str, method: str):
+        self.url = url
+        self.method = method
+        super().__init__(f"{method} {url}: response body has already been consumed")
+
+
 class UnsupportedRequestOption(ClientException):
     """
     Raised when a request sets an option the selected HTTP backend cannot honor.

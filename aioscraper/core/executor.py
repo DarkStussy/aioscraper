@@ -45,6 +45,7 @@ class ScraperExecutor:
             rate_limit_config=self._config.session.rate_limit,
             retry_config=self._config.session.retry,
             shutdown_check_interval=self._config.execution.shutdown_check_interval,
+            max_error_body_size=self._config.session.max_error_body_size,
             sessionmaker=sessionmaker,
             dependencies=self._dependencies,
             middleware_holder=middleware_holder,

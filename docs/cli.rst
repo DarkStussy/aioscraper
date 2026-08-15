@@ -96,6 +96,8 @@ HTTP session and client behavior.
 - ``SESSION_SSL`` → ``ssl``
 - ``SESSION_PROXY`` → ``proxy`` (:ref:`docs <proxy-config>`)
 - ``SESSION_HTTP_BACKEND`` → ``http_backend``
+- ``SESSION_MAX_RESPONSE_BODY_SIZE`` → ``max_response_body_size`` (:ref:`docs <body-limits>`)
+- ``SESSION_MAX_ERROR_BODY_SIZE`` → ``max_error_body_size`` (:ref:`docs <body-limits>`)
 
 :class:`RequestRetryConfig <aioscraper.config.models.RequestRetryConfig>`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

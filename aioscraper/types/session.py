@@ -4,6 +4,7 @@ from http import HTTPMethod
 from http.cookies import BaseCookie, Morsel, SimpleCookie
 from typing import (
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Mapping,
@@ -12,6 +13,8 @@ from typing import (
     NotRequired,
     TypedDict,
 )
+
+from aioscraper.exceptions import ResponseTooLarge, StreamConsumed
 
 QueryParams = MutableMapping[str, str | int | float]
 RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
@@ -22,6 +25,8 @@ ResponseHeaders = Mapping[str, str]
 SendRequest = Callable[["Request"], Awaitable["Request"]]
 
 DEFAULT_MAX_REDIRECTS = 10
+DEFAULT_CHUNK_SIZE = 65536
+DEFAULT_MAX_ERROR_BODY_SIZE = 65536
 
 
 class File(NamedTuple):
@@ -113,9 +118,33 @@ class PRequest:
 
 
 class Response:
-    "Represents an HTTP response with all its components."
+    """
+    Represents an HTTP response with all its components.
 
-    __slots__ = ("_content", "_cookies", "_headers", "_method", "_read", "_status", "_url")
+    The body is streamed from the connection, which the backend closes once the middleware
+    chain and the callback return, so it has to be read inside the callback.
+
+    Args:
+        url (str): Final URL of the response.
+        method (str): HTTP method used.
+        status (int): HTTP status code.
+        headers (ResponseHeaders): Response headers.
+        cookies (SimpleCookie): Parsed response cookies.
+        aiter_bytes (Callable[[int], AsyncIterator[bytes]]): Backend body iterator, taking a chunk size.
+        max_body_size (int | None): Cap on the body in bytes; ``None`` disables the cap.
+    """
+
+    __slots__ = (
+        "_aiter_bytes",
+        "_content",
+        "_cookies",
+        "_headers",
+        "_max_body_size",
+        "_method",
+        "_status",
+        "_streamed",
+        "_url",
+    )
 
     def __init__(
         self,
@@ -124,15 +153,18 @@ class Response:
         status: int,
         headers: ResponseHeaders,
         cookies: SimpleCookie,
-        read: Callable[[], Awaitable[bytes]],
+        aiter_bytes: Callable[[int], AsyncIterator[bytes]],
+        max_body_size: int | None = None,
     ):
         self._url = url
         self._method = method
         self._status = status
         self._headers = headers
         self._cookies = cookies
-        self._read = read
+        self._aiter_bytes = aiter_bytes
+        self._max_body_size = max_body_size
         self._content: bytes | None = None
+        self._streamed = False
 
     @property
     def url(self) -> str:
@@ -167,11 +199,93 @@ class Response:
     def __repr__(self) -> str:
         return f"Response[{self._method} {self._url}]"
 
-    async def read(self) -> bytes:
-        "Read response payload."
-        if self._content is None:
-            self._content = await self._read()
+    def _consume(self):
+        if self._streamed:
+            raise StreamConsumed(self._url, self._method)
 
+        self._streamed = True
+
+    async def _read_limited(self, limit: int) -> bytes:
+        # bounded by the caller alone: the error path budgets the body it needs for a message
+        # regardless of max_body_size, which bounds what a callback may receive
+        if limit <= 0:
+            return b""
+
+        self._consume()
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in self._aiter_bytes(min(limit, DEFAULT_CHUNK_SIZE)):
+            chunks.append(chunk)
+            size += len(chunk)
+            if size >= limit:
+                break
+
+        return b"".join(chunks)[:limit]
+
+    async def iter_bytes(self, chunk_size: int = DEFAULT_CHUNK_SIZE) -> AsyncIterator[bytes]:
+        """
+        Stream the response payload chunk by chunk.
+
+        Breaking out of the loop early is allowed; the connection is released when the request
+        context closes. A body already buffered by :meth:`read` is replayed from memory.
+
+        Args:
+            chunk_size (int): Maximum size of a single chunk in bytes.
+
+        Yields:
+            bytes: Next chunk of the body.
+
+        Raises:
+            ResponseTooLarge: The body exceeds ``max_body_size``.
+            StreamConsumed: The stream has already been consumed.
+        """
+        if self._content is not None:
+            for start in range(0, len(self._content), chunk_size):
+                yield self._content[start : start + chunk_size]
+
+            return
+
+        self._consume()
+        size = 0
+        async for chunk in self._aiter_bytes(chunk_size):
+            size += len(chunk)
+            if self._max_body_size is not None and size > self._max_body_size:
+                raise ResponseTooLarge(self._url, self._method, self._max_body_size)
+
+            yield chunk
+
+    async def read(self, *, limit: int | None = None) -> bytes:
+        """
+        Read response payload.
+
+        An unlimited read buffers the body and can be repeated; a limited read consumes the
+        stream without buffering, so it cannot be followed by another read.
+
+        Args:
+            limit (int | None): Read at most this many bytes, itself capped by ``max_body_size``;
+                ``None`` reads the whole body.
+
+        Returns:
+            bytes: The body, truncated to the effective limit when one is given.
+
+        Raises:
+            ResponseTooLarge: The body exceeds ``max_body_size``; only an unlimited read can hit it.
+            StreamConsumed: The stream has already been consumed.
+        """
+        if self._content is not None:
+            return self._content if limit is None else self._content[:limit]
+
+        if limit is not None:
+            if self._max_body_size is not None:
+                limit = min(limit, self._max_body_size)
+
+            return await self._read_limited(limit)
+
+        content = bytearray()
+        async for chunk in self.iter_bytes():
+            content += chunk
+
+        self._content = bytes(content)
         return self._content
 
     async def text(self, encoding: str | None = "utf-8", errors: str = "strict") -> str:

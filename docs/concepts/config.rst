@@ -87,6 +87,36 @@ The shutdown settings above are honored by both the CLI and ``run_scraper``, giv
 code or from the terminal.
 
 
+.. _body-limits:
+
+Body limits
+-----------
+
+Two independent caps bound how much of a response ends up in memory:
+
+- ``max_response_body_size`` (``SESSION_MAX_RESPONSE_BODY_SIZE``) applies to bodies handed to callbacks,
+  through both :meth:`read() <aioscraper.types.session.Response.read>` and :meth:`iter_bytes()
+  <aioscraper.types.session.Response.iter_bytes>`. It raises :class:`ResponseTooLarge
+  <aioscraper.exceptions.ResponseTooLarge>` at the chunk that crosses it, so the rest is never pulled from
+  the socket. Defaults to ``None`` - unlimited.
+- ``max_error_body_size`` (``SESSION_MAX_ERROR_BODY_SIZE``) applies to a failed response, whose body is read
+  only to fill the :class:`HTTPException <aioscraper.exceptions.HTTPException>` message. Defaults to 64 KiB;
+  a longer body is cut at the limit and the message ends with ``[truncated]``. ``0`` skips reading it.
+
+.. code-block:: python
+
+    from aioscraper.config import SessionConfig
+
+    session_config = SessionConfig(
+        max_response_body_size=32 * 1024 * 1024,
+        max_error_body_size=8 * 1024,
+    )
+
+The error cap is separate and on by default: an endpoint answering ``500`` with gigabytes of HTML would
+otherwise be buffered whole to build an error message.
+
+See :ref:`reading the response body <response-body>` for the streaming contract these limits apply to.
+
 .. _proxy-config:
 
 Proxies

@@ -49,6 +49,16 @@ def load_config() -> Config:
             ssl=ssl_ctx,
             proxy=env.parse_proxy("SESSION_PROXY", None),
             http_backend=env.parse("SESSION_HTTP_BACKEND", default_config.session.http_backend),
+            max_response_body_size=env.parse(
+                "SESSION_MAX_RESPONSE_BODY_SIZE",
+                default_config.session.max_response_body_size,
+                cast=int,
+            ),
+            max_error_body_size=env.parse(
+                "SESSION_MAX_ERROR_BODY_SIZE",
+                default_config.session.max_error_body_size,
+                cast=int,
+            ),
             retry=RequestRetryConfig(
                 enabled=env.parse("SESSION_RETRY_ENABLED", default_retry.enabled),
                 attempts=env.parse("SESSION_RETRY_ATTEMPTS", default_retry.attempts),

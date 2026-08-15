@@ -8,6 +8,7 @@ from http import HTTPMethod
 from typing import Callable, Hashable
 
 from aioscraper.types import Request
+from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE
 
 from .field_validators import CustomValidator, ProxyValidator, RangeValidator
 from .model_validator import field, validate
@@ -147,6 +148,8 @@ class SessionConfig:
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``; ``None`` lets the factory auto-detect
+        max_response_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap
+        max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
         retry (RequestRetryConfig): Controls built-in retry middleware behaviour
         rate_limit (RateLimitConfig): Controls built-in rate limiting behaviour
     """
@@ -155,6 +158,11 @@ class SessionConfig:
     ssl: ssl_module.SSLContext | bool = True
     proxy: str | dict[str, str | None] | None = field(default=None, validator=ProxyValidator({"http", "https"}))
     http_backend: HttpBackend | None = None
+    max_response_body_size: int | None = field(default=None, validator=RangeValidator(min_value=1))
+    max_error_body_size: int = field(
+        default=DEFAULT_MAX_ERROR_BODY_SIZE,
+        validator=RangeValidator(min_value=0),
+    )
     retry: RequestRetryConfig = RequestRetryConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
 

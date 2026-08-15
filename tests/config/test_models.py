@@ -26,6 +26,16 @@ class TestSessionConfig:
         assert config.ssl is True
         assert config.proxy is None
         assert config.http_backend is None
+        assert config.max_response_body_size is None
+        assert config.max_error_body_size == 65536
+
+    def test_validates_max_response_body_size_min(self):
+        with pytest.raises(ConfigValidationError, match=r"max_response_body_size.*minimum is 1"):
+            SessionConfig(max_response_body_size=0)
+
+    def test_validates_max_error_body_size_min(self):
+        with pytest.raises(ConfigValidationError, match=r"max_error_body_size.*minimum is 0"):
+            SessionConfig(max_error_body_size=-1)
 
     def test_validates_timeout_min(self):
         with pytest.raises(ConfigValidationError, match=r"timeout.*minimum is 0.001"):

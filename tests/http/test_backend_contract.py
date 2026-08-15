@@ -41,15 +41,18 @@ async def test_httpx_rejects_unsupported_options(httpx_session: HttpxSession, kw
     await httpx_session.close()
 
 
+class _StubContent:
+    async def iter_chunked(self, n: int) -> AsyncGenerator[bytes, None]:
+        yield b""
+
+
 class _StubResponse:
     url = "https://api.test.com/resource"
     method = "GET"
     status = 200
     headers: dict[str, str] = {}  # noqa: RUF012
     cookies = SimpleCookie()
-
-    async def read(self) -> bytes:
-        return b""
+    content = _StubContent()
 
 
 @asynccontextmanager

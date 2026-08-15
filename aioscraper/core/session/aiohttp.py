@@ -9,9 +9,10 @@ from .base import BaseRequestContextManager, BaseSession
 class AiohttpRequestContextManager(BaseRequestContextManager):
     """aiohttp-backed context manager that issues a single HTTP request."""
 
-    def __init__(self, request: Request, session: ClientSession):
+    def __init__(self, request: Request, session: ClientSession, max_body_size: int | None = None):
         super().__init__(request)
         self._session = session
+        self._max_body_size = max_body_size
 
     async def __aenter__(self) -> Response:
         """Prepare payload/files, dispatch the request and wrap the aiohttp response."""
@@ -73,7 +74,8 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
             status=response.status,
             headers=response.headers,
             cookies=response.cookies,
-            read=response.read,
+            aiter_bytes=response.content.iter_chunked,
+            max_body_size=self._max_body_size,
         )
 
 
@@ -85,13 +87,15 @@ class AiohttpSession(BaseSession):
         timeout: ClientTimeout,
         connector: TCPConnector | None,
         proxy: str | None,
+        max_body_size: int | None = None,
     ):
         self._timeout = timeout
+        self._max_body_size = max_body_size
         self._session = ClientSession(timeout=timeout, connector=connector, proxy=proxy)
 
     def make_request(self, request: Request) -> AiohttpRequestContextManager:
         """Create an aiohttp request context manager bound to the shared client."""
-        return AiohttpRequestContextManager(request, self._session)
+        return AiohttpRequestContextManager(request, self._session, self._max_body_size)
 
     async def close(self):
         """Close the underlying ``ClientSession`` and release network resources."""
