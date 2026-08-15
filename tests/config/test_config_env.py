@@ -42,6 +42,22 @@ def test_load_config_reads_env_overrides(monkeypatch):
     assert config.pipeline.strict is False
 
 
+def test_load_config_reads_retry_methods(monkeypatch):
+    monkeypatch.setenv("SESSION_RETRY_METHODS", "get, put")
+
+    config = load_config()
+
+    assert config.session.retry.methods == ("GET", "PUT")
+
+
+def test_load_config_defaults_retry_methods_to_idempotent(monkeypatch):
+    monkeypatch.delenv("SESSION_RETRY_METHODS", raising=False)
+
+    config = load_config()
+
+    assert config.session.retry.methods == ("GET", "HEAD", "OPTIONS", "TRACE")
+
+
 def test_load_config_parses_proxy_json(monkeypatch):
     monkeypatch.setenv("SESSION_PROXY", '{"http": "http://p:1", "https": "http://p:2"}')
 

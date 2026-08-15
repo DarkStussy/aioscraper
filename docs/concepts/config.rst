@@ -253,7 +253,7 @@ Retries
 
 Set :class:`SessionConfig.retry <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable the built-in retry middleware.
 
-You can pick the number of retry attempts, backoff strategy, status codes, exception types:
+You can pick the number of retry attempts, backoff strategy, status codes, exception types, HTTP methods:
 
 The ``backoff`` option accepts the following values:
 
@@ -290,9 +290,55 @@ For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the fina
       max_delay=5.0,
       statuses=(500, 502, 503),
       exceptions=(asyncio.TimeoutError,),
+      methods=("GET", "HEAD", "OPTIONS", "TRACE"),
    )
 
 When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as the innermost middleware (closest to dispatch) and reschedules the request through the internal queue.
+
+.. _retry-idempotency:
+
+Idempotency
+~~~~~~~~~~~
+
+A retry replays the whole request. If the server already applied it and only the response was lost, a
+replayed ``POST``/``PATCH`` is a second charge, a duplicate entity or a duplicate row. ``methods``
+therefore lists only the idempotent methods by default — ``GET``, ``HEAD``, ``OPTIONS``, ``TRACE`` — and
+requests using any other method are never retried, whatever the status or exception says. Method matching
+is case-insensitive.
+
+``PUT`` and ``DELETE`` are idempotent per RFC 9110, but only if the endpoint implements them that way, so
+they are opt-in:
+
+.. code-block:: python
+
+   from aioscraper.config import RequestRetryConfig
+
+   retry_config = RequestRetryConfig(enabled=True, methods=("GET", "HEAD", "PUT", "DELETE"))
+
+:attr:`Request.retryable <aioscraper.types.session.Request.retryable>` overrides the method check for a
+single request — ``True`` retries it, ``False`` never does, ``None`` (the default) defers to ``methods``:
+
+.. code-block:: python
+
+   from uuid import uuid4
+
+   from aioscraper.types import Request, SendRequest
+
+
+   async def scraper(send_request: SendRequest):
+       # safe to replay: the server deduplicates by Idempotency-Key
+       await send_request(
+           Request(
+               url="https://api.example.com/payments",
+               method="POST",
+               json_data={"amount": 100},
+               headers={"Idempotency-Key": str(uuid4())},
+               retryable=True,
+           ),
+       )
+
+Generating the idempotency key and choosing its scope are the application's job: aioscraper replays the
+request object as it is, headers and body included.
 
 Server-side Retry-After
 ~~~~~~~~~~~~~~~~~~~~~~~

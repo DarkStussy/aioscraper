@@ -4,11 +4,12 @@ import random
 import ssl as ssl_module
 from dataclasses import dataclass
 from enum import StrEnum, auto
+from http import HTTPMethod
 from typing import Callable, Hashable
 
 from aioscraper.types import Request
 
-from .field_validators import ProxyValidator, RangeValidator
+from .field_validators import CustomValidator, ProxyValidator, RangeValidator
 from .model_validator import field, validate
 
 
@@ -98,6 +99,8 @@ class RequestRetryConfig:
         max_delay (float): Maximum delay between retries in seconds.
         statuses (tuple[int, ...]): HTTP status codes that should trigger a retry.
         exceptions (tuple[type[BaseException], ...]): Exception types that should trigger a retry.
+        methods (tuple[str, ...]): HTTP methods eligible for a retry, case-insensitive.
+            ``Request.retryable`` overrides it per request.
     """
 
     enabled: bool = False
@@ -107,6 +110,10 @@ class RequestRetryConfig:
     max_delay: float = field(default=30.0, validator=RangeValidator(min_value=0.001))
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
     exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,)
+    methods: tuple[str, ...] = field(
+        default=(HTTPMethod.GET, HTTPMethod.HEAD, HTTPMethod.OPTIONS, HTTPMethod.TRACE),
+        validator=CustomValidator(lambda methods: tuple(method.upper() for method in methods)),
+    )
 
     @property
     def delay_factory(self) -> Callable[[int], float]:

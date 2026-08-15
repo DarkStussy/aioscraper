@@ -60,6 +60,101 @@ async def test_retry_middleware_retries_on_status():
     assert request.state[RETRY_STATE_KEY] == 1
 
 
+def _retry_middleware(send: SendRequest, **overrides) -> RetryMiddleware:
+    config = RequestRetryConfig(
+        enabled=True,
+        attempts=2,
+        base_delay=0.1,
+        backoff=BackoffStrategy.CONSTANT,
+        statuses=(502,),
+        exceptions=(),
+        **overrides,
+    )
+    return RetryMiddleware(config, send_request=send)
+
+
+def _bad_gateway() -> HTTPException:
+    return HTTPException(
+        url="https://example.com",
+        method="POST",
+        status_code=502,
+        headers={},
+        message="bad gateway",
+    )
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_skips_non_idempotent_method():
+    middleware = _retry_middleware(_noop_send)
+    request = Request(url="https://example.com", method="POST")
+
+    with pytest.raises(HTTPException):
+        await middleware(_call_next_raising(_bad_gateway()), request)
+
+    assert RETRY_STATE_KEY not in request.state
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_method_check_is_case_insensitive():
+    send_calls = 0
+
+    async def send(req: Request) -> Request:
+        nonlocal send_calls
+        send_calls += 1
+        return req
+
+    middleware = _retry_middleware(send, methods=("get",))
+    request = Request(url="https://example.com", method="Get")
+
+    assert await middleware(_call_next_raising(_bad_gateway()), request) is None
+    assert send_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_retries_configured_method():
+    send_calls = 0
+
+    async def send(req: Request) -> Request:
+        nonlocal send_calls
+        send_calls += 1
+        return req
+
+    middleware = _retry_middleware(send, methods=("GET", "PUT"))
+    request = Request(url="https://example.com", method="PUT")
+
+    assert await middleware(_call_next_raising(_bad_gateway()), request) is None
+    assert send_calls == 1
+    assert request.state[RETRY_STATE_KEY] == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_retryable_true_overrides_methods():
+    send_calls = 0
+
+    async def send(req: Request) -> Request:
+        nonlocal send_calls
+        send_calls += 1
+        return req
+
+    middleware = _retry_middleware(send)
+    request = Request(url="https://example.com", method="POST", retryable=True)
+
+    assert await middleware(_call_next_raising(_bad_gateway()), request) is None
+    assert send_calls == 1
+    assert request.state[RETRY_STATE_KEY] == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_middleware_retryable_false_overrides_methods():
+    middleware = _retry_middleware(_noop_send)
+    request = Request(url="https://example.com", retryable=False)
+
+    with pytest.raises(HTTPException):
+        await middleware(_call_next_raising(_bad_gateway()), request)
+
+    assert RETRY_STATE_KEY not in request.state
+
+
 @pytest.mark.asyncio
 async def test_retry_middleware_respects_exception_types():
     middleware = RetryMiddleware(

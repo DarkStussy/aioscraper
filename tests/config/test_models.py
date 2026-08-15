@@ -81,6 +81,11 @@ class TestRequestRetryConfig:
         assert config.max_delay == 30.0
         assert config.statuses == (500, 502, 503, 504, 522, 524, 408, 429)
         assert config.exceptions == (asyncio.TimeoutError,)
+        assert config.methods == ("GET", "HEAD", "OPTIONS", "TRACE")
+
+    def test_normalizes_methods_to_upper_case(self):
+        config = RequestRetryConfig(methods=("get", "Put"))
+        assert config.methods == ("GET", "PUT")
 
     def test_validates_attempts_min(self):
         with pytest.raises(ConfigValidationError, match=r"attempts.*minimum is 1"):

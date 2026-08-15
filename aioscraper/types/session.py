@@ -61,6 +61,8 @@ class Request:
             per-request value; on ``httpx`` the limit is fixed at ``DEFAULT_MAX_REDIRECTS``
 
         delay (float | None): Delay before sending the request
+        retryable (bool | None): Overrides the retry middleware's method check; ``None`` defers to
+            :attr:`RequestRetryConfig.methods <aioscraper.config.models.RequestRetryConfig.methods>`
         priority (int): Priority of the request
         callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
         cb_kwargs (dict[str, Any]): Keyword arguments for the callback function
@@ -86,6 +88,7 @@ class Request:
 
     # not http params
     delay: float | None = None
+    retryable: bool | None = None
     priority: int = 0
     callback: Callable[..., Awaitable[Any]] | None = None
     cb_kwargs: dict[str, Any] = field(default_factory=dict)
