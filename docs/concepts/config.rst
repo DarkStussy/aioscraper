@@ -283,11 +283,11 @@ When requests succeed consistently:
    2.7s    Request #8 → 200 OK    0.400s → 0.390s (count≥5, -0.01)
    3.1s    Request #9 → 200 OK    0.390s (no change, count=1)
 
-**Integration with retry middleware:**
+**Integration with retries:**
 
-When both adaptive rate limiting and :ref:`retry middleware <retry-config>` are enabled:
+When both adaptive rate limiting and :ref:`retries <retry-config>` are enabled:
 
-- **Retry middleware** handles retry logic (attempts, backoff)
+- **Retries** handle the repeat itself (attempts, backoff)
 - **Adaptive rate limiter** adjusts the *sending rate* to prevent future failures
 - Trigger statuses/exceptions are shared when ``inherit_retry_triggers=True``
 
@@ -298,9 +298,32 @@ This prevents the system from repeatedly hammering an overloaded server while re
 Retries
 -------
 
-Set :class:`SessionConfig.retry <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable the built-in retry middleware.
+Set :class:`SessionConfig.retry <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable built-in retries.
 
-You can pick the number of retry attempts, backoff strategy, status codes, exception types, HTTP methods:
+Retries are applied by the dispatcher, not by a middleware: a matching failure is admitted to the internal
+queue again with the computed delay, and neither the callback nor the errback fires for that attempt. The
+decision sits around the whole :doc:`middleware chain <middlewares>`, so a failure a middleware raised
+itself is judged too, while the callback stays outside it — failing to process a response is no reason to
+fetch it again.
+
+The retry count belongs to the attempt, not to the request object, so sending one ``Request`` twice gives
+each send its own budget, and a request reused in a later run starts from zero.
+
+.. code-block:: python
+
+   import asyncio
+   from aioscraper.config import RequestRetryConfig, BackoffStrategy
+
+   retry_config = RequestRetryConfig(
+      enabled=True,
+      attempts=5,
+      backoff=BackoffStrategy.EXPONENTIAL_JITTER,
+      base_delay=1.0,
+      max_delay=5.0,
+      statuses=(500, 502, 503),
+      exceptions=(asyncio.TimeoutError,),
+      methods=("GET", "HEAD", "OPTIONS", "TRACE"),
+   )
 
 The ``backoff`` option accepts the following values:
 
@@ -323,24 +346,27 @@ For ``EXPONENTIAL_JITTER``, the delay is calculated as follows:
 
 For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the final delay to avoid excessively long waits.
 
+``should_retry`` covers failures ``statuses``/``exceptions`` cannot express — a marker in the error body,
+or an error code inside a ``200`` that your own middleware turns into an exception:
 
 .. code-block:: python
 
-   import asyncio
-   from aioscraper.config import RequestRetryConfig, BackoffStrategy
+   from aioscraper.config import RequestRetryConfig
+   from aioscraper.exceptions import HTTPException
+   from aioscraper.types import Request
 
-   retry_config = RequestRetryConfig(
-      enabled=True,
-      attempts=5,
-      backoff=BackoffStrategy.EXPONENTIAL_JITTER,
-      base_delay=1.0,
-      max_delay=5.0,
-      statuses=(500, 502, 503),
-      exceptions=(asyncio.TimeoutError,),
-      methods=("GET", "HEAD", "OPTIONS", "TRACE"),
-   )
 
-When enabled, :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is registered automatically as the innermost middleware (closest to dispatch) and reschedules the request through the internal queue.
+   def should_retry(request: Request, exc: Exception, retries: int) -> bool | None:
+       if isinstance(exc, HTTPException) and "rate limit" in exc.message:
+           return True
+
+       return None  # fall back to the statuses/exceptions match
+
+
+   retry_config = RequestRetryConfig(enabled=True, should_retry=should_retry)
+
+``True``/``False`` is final; ``None`` defers to ``statuses``/``exceptions``. The method check below runs
+before the hook either way, so a hook cannot widen retries to a non-idempotent request.
 
 .. _retry-idempotency:
 

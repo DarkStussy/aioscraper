@@ -16,9 +16,14 @@ from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.core.session.httpx import HttpxSession
 from aioscraper.exceptions import HTTPException, InvalidRequestData, UnsupportedRequestOption
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.middlewares import RetryMiddleware
-from aioscraper.types import File, Request, RequestHandler, Response, SendRequest
+from aioscraper.types import File, Request, RequestHandler, Response
+from aioscraper.types.session import Attempt
 from tests.mocks import make_response
+
+
+def attempt(request: Request, *, retries: int = 0) -> Attempt:
+    "Wrap a request the way the queue would before it reaches _send_request."
+    return Attempt(priority=request.priority, request=request, retries=retries)
 
 
 class FakeRequestContextManager(BaseRequestContextManager):
@@ -172,7 +177,7 @@ async def test_raise_for_status_triggers_errback(base_manager_factory):
 
     manager = base_manager_factory(session_factory=lambda: FixedStatusSession(status=502, body="bad gateway"))
 
-    await manager._send_request(Request(url="https://api.test.com/error", errback=errback))
+    await manager._send_request(attempt(Request(url="https://api.test.com/error", errback=errback)))
 
     assert isinstance(captured["exc"], HTTPException)
     assert captured["exc"].status_code == 502
@@ -228,7 +233,9 @@ async def test_callback_receives_cb_kwargs(base_manager_factory):
     manager = base_manager_factory(session_factory=FakeSession)
 
     await manager._send_request(
-        Request(url="https://api.test.com/test", callback=callback, cb_kwargs={"custom_arg": "test_value"}),
+        attempt(
+            Request(url="https://api.test.com/test", callback=callback, cb_kwargs={"custom_arg": "test_value"}),
+        )
     )
 
     assert "response" in captured
@@ -255,7 +262,7 @@ async def test_dependencies_injected_into_callback():
     )
     manager.start_listening()
 
-    await manager._send_request(Request(url="https://api.test.com/test", callback=callback))
+    await manager._send_request(attempt(Request(url="https://api.test.com/test", callback=callback)))
 
     assert "response" in captured
     assert captured["custom_dep"] == "injected_value"
@@ -291,7 +298,7 @@ async def test_dependencies_injected_into_middleware():
     )
     manager.start_listening()
 
-    await manager._send_request(Request(url="https://api.test.com/test"))
+    await manager._send_request(attempt(Request(url="https://api.test.com/test")))
 
     assert "request" in captured
     assert captured["custom_dep"] == "middleware_value"
@@ -319,7 +326,7 @@ async def test_send_request_available_in_dependencies():
     )
     manager.start_listening()
 
-    await manager._send_request(Request(url="https://api.test.com/test", callback=callback))
+    await manager._send_request(attempt(Request(url="https://api.test.com/test", callback=callback)))
 
     assert "response" in captured
     # Callbacks get the job sender, which skips the pending limit; manager.sender waits on it.
@@ -374,7 +381,7 @@ async def test_exception_logged_when_no_errback(caplog):
     manager.start_listening()
 
     # Should not raise, just log
-    await manager._send_request(Request(url="https://api.test.com/test"))
+    await manager._send_request(attempt(Request(url="https://api.test.com/test")))
 
     # Verify that error was logged
     assert any("https://api.test.com/test" in record.message for record in caplog.records)
@@ -403,7 +410,9 @@ async def test_url_with_params_is_parsed():
     manager.start_listening()
 
     await manager._send_request(
-        Request(url="https://api.test.com/test", params={"key": "value", "foo": "bar"}, callback=callback),
+        attempt(
+            Request(url="https://api.test.com/test", params={"key": "value", "foo": "bar"}, callback=callback),
+        )
     )
 
     # URL should contain query params
@@ -432,28 +441,29 @@ def _spy_on_outcomes(manager: RequestManager) -> list[RequestOutcome]:
     return outcomes
 
 
+def _spy_on_retries(manager: RequestManager) -> asyncio.Event:
+    "Fires once a failure has been re-admitted; the outcome is recorded before that."
+    retried = asyncio.Event()
+    retry = manager._retry
+
+    async def spy(attempt: Attempt, exc: Exception) -> bool:
+        result = await retry(attempt, exc)
+        retried.set()
+        return result
+
+    manager._retry = spy  # type: ignore[reportAttributeAccessIssue]
+    return retried
+
+
 @pytest.mark.asyncio
 async def test_retried_request_is_reported_to_adaptive_limiter():
-    """A 503 swallowed by the retry middleware must still be seen as a failure."""
-    retried = asyncio.Event()
+    """A 503 swallowed by the retry policy must still be seen as a failure."""
     retry_config = RequestRetryConfig(
         enabled=True,
         attempts=3,
         backoff=BackoffStrategy.CONSTANT,
         base_delay=10.0,
     )
-    middleware_holder = MiddlewareHolder()
-
-    def retry_factory(send_request: SendRequest) -> RetryMiddleware:
-        # Fires when the retry is re-queued; the outcome is recorded before that.
-        async def tracking_sender(request: Request) -> Request:
-            result = await send_request(request)
-            retried.set()
-            return result
-
-        return RetryMiddleware(retry_config, tracking_sender)
-
-    middleware_holder.add(retry_factory)
 
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
@@ -462,10 +472,11 @@ async def test_retried_request_is_reported_to_adaptive_limiter():
         shutdown_check_interval=0.01,
         sessionmaker=lambda: FixedStatusSession(status=503, body="unavailable"),
         dependencies={},
-        middleware_holder=middleware_holder,
+        middleware_holder=MiddlewareHolder(),
     )
     manager.start_listening()
     outcomes = _spy_on_outcomes(manager)
+    retried = _spy_on_retries(manager)
 
     try:
         # base_delay=10s keeps the retry parked in the heap: exactly one attempt runs.
@@ -510,7 +521,9 @@ async def test_unsupported_option_reaches_errback_without_an_outcome():
     outcomes = _spy_on_outcomes(manager)
 
     await manager._send_request(
-        Request(url="https://api.test.com/resource", proxy="http://proxy:8080", errback=errback),
+        attempt(
+            Request(url="https://api.test.com/resource", proxy="http://proxy:8080", errback=errback),
+        )
     )
 
     assert isinstance(captured["exc"], UnsupportedRequestOption)
@@ -544,7 +557,7 @@ async def test_callback_failure_is_not_reported_as_transport_failure():
     assert manager._rate_limiter_manager.adaptive_strategy is not None
     assert TimeoutError in manager._rate_limiter_manager.adaptive_strategy.trigger_exceptions
 
-    await manager._send_request(Request(url="https://api.test.com/ok", callback=callback))
+    await manager._send_request(attempt(Request(url="https://api.test.com/ok", callback=callback)))
 
     assert len(outcomes) == 1
     assert outcomes[0].status_code == 200
@@ -575,7 +588,7 @@ async def test_errback_failure_is_not_reported_as_transport_failure():
     outcomes = _spy_on_outcomes(manager)
 
     with pytest.raises(ExceptionGroup) as excinfo:
-        await manager._send_request(Request(url="https://api.test.com/ok", callback=callback, errback=errback))
+        await manager._send_request(attempt(Request(url="https://api.test.com/ok", callback=callback, errback=errback)))
 
     assert isinstance(excinfo.value.exceptions[0], TimeoutError)
     assert isinstance(excinfo.value.exceptions[1], ValueError)

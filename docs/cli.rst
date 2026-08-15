@@ -114,7 +114,7 @@ HTTP session and client behavior.
 :class:`RequestRetryConfig <aioscraper.config.models.RequestRetryConfig>`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Retry middleware behavior (:ref:`docs <retry-config>`).
+Retry behavior (:ref:`docs <retry-config>`).
 
 - ``SESSION_RETRY_ENABLED`` → ``enabled``
 - ``SESSION_RETRY_ATTEMPTS`` → ``attempts``

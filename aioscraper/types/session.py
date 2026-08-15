@@ -66,13 +66,14 @@ class Request:
             per-request value; on ``httpx`` the limit is fixed at ``DEFAULT_MAX_REDIRECTS``
 
         delay (float | None): Delay before sending the request
-        retryable (bool | None): Overrides the retry middleware's method check; ``None`` defers to
+        retryable (bool | None): Overrides the retry policy's method check; ``None`` defers to
             :attr:`RequestRetryConfig.methods <aioscraper.config.models.RequestRetryConfig.methods>`
         priority (int): Priority of the request
         callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
         cb_kwargs (dict[str, Any]): Keyword arguments for the callback function
         errback (Callable[..., Awaitable] | None): Async error callback function
-        state (dict[str, Any]): State for middlewares
+        state (dict[str, Any]): Free-form bag for middlewares and callbacks, shared by every send
+            of this object. The framework never writes to it
     """
 
     url: str
@@ -102,19 +103,23 @@ class Request:
 
 
 @dataclass(slots=True, order=True)
-class PRequest:
-    """Priority Request Pair - for managing prioritized requests.
+class Attempt:
+    """One admission-to-dispatch cycle of a request.
+
+    Everything the framework tracks per attempt lives here rather than on ``Request``: the same
+    request object can be sent more than once, and a retry admits a new attempt of it.
 
     Attributes:
         priority (float): Ordering key; a timestamp for delayed requests.
         request (Request): The request to send.
-        holds_slot (bool): Whether this entry reserved a scheduler admission slot. Lives
-            here rather than on ``Request`` because one request object can be queued twice.
+        holds_slot (bool): Whether this entry reserved a scheduler admission slot.
+        retries (int): How many times this request was already re-admitted by the retry policy.
     """
 
     priority: float
     request: Request = field(compare=False)
     holds_slot: bool = field(default=False, compare=False)
+    retries: int = field(default=0, compare=False)
 
 
 class Response:

@@ -2,6 +2,7 @@ from typing import Callable
 
 import pytest
 
+from aioscraper.config import BackoffStrategy, Config, RequestRetryConfig, SessionConfig
 from aioscraper.exceptions import HTTPException
 from aioscraper.types import (
     Request,
@@ -358,3 +359,122 @@ async def test_middleware_factory_receives_dependencies(mock_aioscraper: MockAIO
 
     assert captured["custom_dep"] == "injected"
     assert callable(captured["send_request"])
+
+
+def _retry_everything(attempts: int = 1) -> Config:
+    return Config(
+        session=SessionConfig(
+            retry=RequestRetryConfig(
+                enabled=True,
+                attempts=attempts,
+                base_delay=0.01,
+                backoff=BackoffStrategy.CONSTANT,
+                should_retry=lambda request, exc, retries: True,
+            ),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_middleware_failure_reaches_the_retry_policy(mock_aioscraper: MockAIOScraper):
+    """A middleware turning a 200 into a failure is a failure of the attempt, not of the response."""
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"}, repeat=2)
+
+    attempts = 0
+    errors: list[Exception] = []
+
+    async def on_error(exc: Exception):
+        errors.append(exc)
+
+    def factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            nonlocal attempts
+            response = await call_next(request)
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("bad payload")
+
+            return response
+
+        return middleware
+
+    mock_aioscraper.middleware.add(factory)
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
+
+    async def callback(): ...
+
+    mock_aioscraper(scrape)
+    mock_aioscraper.config = _retry_everything()
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert attempts == 2
+    assert errors == []
+    mock_aioscraper.server.assert_all_routes_handled()
+
+
+@pytest.mark.asyncio
+async def test_callback_failure_is_not_retried(mock_aioscraper: MockAIOScraper):
+    """Retrying a callback failure would send the request again over a response already read."""
+    mock_aioscraper.server.add("https://api.test.com/v1", handler=lambda _: {"status": "OK"})
+
+    calls = 0
+    errors: list[Exception] = []
+
+    async def on_error(exc: Exception):
+        errors.append(exc)
+
+    async def callback():
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("bad payload")
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
+
+    mock_aioscraper(scrape)
+    mock_aioscraper.config = _retry_everything()
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert calls == 1
+    assert [type(exc) for exc in errors] == [RuntimeError]
+    mock_aioscraper.server.assert_all_routes_handled()
+
+
+@pytest.mark.asyncio
+async def test_middleware_can_swallow_a_failure_before_the_retry_policy(mock_aioscraper: MockAIOScraper):
+    """Returning None means the middleware handled it, so there is nothing left to retry."""
+    mock_aioscraper.server.add("https://api.test.com/error", handler=lambda _: MockResponse(status=500))
+
+    errors: list[Exception] = []
+
+    async def on_error(exc: Exception):
+        errors.append(exc)
+
+    def factory() -> RequestMiddleware:
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            try:
+                return await call_next(request)
+            except HTTPException:
+                return None
+
+        return middleware
+
+    mock_aioscraper.middleware.add(factory)
+
+    async def scrape(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/error", errback=on_error))
+
+    mock_aioscraper(scrape)
+    mock_aioscraper.config = _retry_everything(attempts=3)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert errors == []
+    mock_aioscraper.server.assert_all_routes_handled()

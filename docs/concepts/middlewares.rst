@@ -71,14 +71,9 @@ When a queued request is dispatched:
 - The request's ``callback`` runs on a non-``None`` ``Response``; ``errback`` runs if an exception reaches the top. Returning ``None`` from a middleware signals the request was handled internally — neither callback nor errback fires.
 - The response body stays readable through the entire chain and the callback, so any layer can lazily call ``await response.json()`` / ``.text()`` / ``.read()``.
 
-Built-in middlewares
---------------------
+Passing data along the chain
+----------------------------
 
-The framework provides built-in middlewares that integrate into the same chain and can be enabled through configuration.
+``Request.state`` is a free-form dict a middleware can use to hand something to the layers below it and to the callback. The framework never writes to it.
 
-Retry Middleware
-~~~~~~~~~~~~~~~~
-
-The :class:`RetryMiddleware <aioscraper.middlewares.retry.RetryMiddleware>` is enabled through :ref:`retry config <retry-config>`.
-
-When active, it wraps ``call_next`` and, on a matching status code or exception, re-enqueues the request with the configured backoff. The current attempt is short-circuited (no errback is fired) until the maximum number of attempts is exhausted, at which point the exception is propagated to the errback.
+It belongs to the request **object**: sending the same ``Request`` twice, or sending it again in a later run, shares the same dict between those sends. Anything that must not be shared has to be keyed accordingly, or built from ``request`` and the response instead.

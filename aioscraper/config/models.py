@@ -90,7 +90,7 @@ class BackoffStrategy(StrEnum):
 @dataclass(slots=True, frozen=True)
 @validate
 class RequestRetryConfig:
-    """Retry behaviour applied by the built-in retry middleware.
+    """Retry behavior applied by the dispatcher.
 
     Args:
         enabled (bool): Toggle retries on or off.
@@ -102,6 +102,9 @@ class RequestRetryConfig:
         exceptions (tuple[type[BaseException], ...]): Exception types that should trigger a retry.
         methods (tuple[str, ...]): HTTP methods eligible for a retry, case-insensitive.
             ``Request.retryable`` overrides it per request.
+        should_retry (Callable[[Request, Exception, int], bool | None] | None): Decides a failure the
+            ``statuses``/``exceptions`` match cannot express; ``None`` defers to that match, and the
+            method check applies first.
     """
 
     enabled: bool = False
@@ -114,6 +117,10 @@ class RequestRetryConfig:
     methods: tuple[str, ...] = field(
         default=(HTTPMethod.GET, HTTPMethod.HEAD, HTTPMethod.OPTIONS, HTTPMethod.TRACE),
         validator=CustomValidator(lambda methods: tuple(method.upper() for method in methods)),
+    )
+    should_retry: Callable[[Request, Exception, int], bool | None] | None = field(
+        default=None,
+        skip_validation=True,
     )
 
     @property
@@ -150,8 +157,8 @@ class SessionConfig:
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``; ``None`` lets the factory auto-detect
         max_response_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
-        retry (RequestRetryConfig): Controls built-in retry middleware behaviour
-        rate_limit (RateLimitConfig): Controls built-in rate limiting behaviour
+        retry (RequestRetryConfig): Controls built-in retry behavior
+        rate_limit (RateLimitConfig): Controls built-in rate limiting behavior
     """
 
     timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.001))

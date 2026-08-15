@@ -64,11 +64,6 @@ Pipeline
 .. autoclass:: aioscraper.types.pipeline.GlobalPipelineMiddleware
    :special-members: __call__
 
-Middlewares
------------
-
-.. autoclass:: aioscraper.middlewares.retry.RetryMiddleware
-
 Execution
 ---------
 

@@ -15,17 +15,18 @@ from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConf
 from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import RequestHandler, RequestMiddleware, Response
-from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, PRequest, Request, SendRequest
+from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, Attempt, Request, SendRequest
 
 from .errors import ErrorCollector
 from .rate_limiter import RateLimitManager, RequestOutcome
+from .retry import RetryPolicy
 from .session import SessionMaker
 
 logger = getLogger(__name__)
 
 
-_RequestQueue = asyncio.PriorityQueue[PRequest]
-_RequestHead = list[PRequest]
+_RequestQueue = asyncio.PriorityQueue[Attempt]
+_RequestHead = list[Attempt]
 
 
 async def _raise_for_status(request: Request, response: Response, max_error_body_size: int):
@@ -75,14 +76,40 @@ class _PendingSlots:
 
         return True
 
-    async def release(self, pr: PRequest):
-        if not pr.holds_slot:
+    async def release(self, attempt: Attempt):
+        if not attempt.holds_slot:
             return
 
-        pr.holds_slot = False
+        attempt.holds_slot = False
         async with self._space:
             self._count -= 1
             self._space.notify_all()
+
+
+async def _admit(
+    queue: _RequestQueue,
+    heap: _RequestHead,
+    slots: _PendingSlots,
+    request: Request,
+    *,
+    delay: float | None,
+    wait_for_slot: bool,
+    retries: int = 0,
+) -> None:
+    "Queue one attempt of a request, on the delayed heap when it must wait first."
+    # Taken before the slot is acquired: waiting for admission must not extend the delay.
+    now = monotonic()
+    holds_slot = await slots.acquire(wait=wait_for_slot)
+
+    if delay:
+        heapq.heappush(
+            heap,
+            Attempt(priority=now + delay, request=request, holds_slot=holds_slot, retries=retries),
+        )
+    else:
+        queue.put_nowait(
+            Attempt(priority=request.priority, request=request, holds_slot=holds_slot, retries=retries),
+        )
 
 
 def _get_request_sender(
@@ -95,20 +122,13 @@ def _get_request_sender(
     "Creates a request sender. Only the entrypoint variant waits for a free slot."
 
     async def sender(request: Request) -> Request:
-        now = monotonic()
         if request.json_data is not None and request.data is not None:
             raise InvalidRequestData("Cannot send both data and json_data")
 
         if request.json_data is not None and request.files is not None:
             raise InvalidRequestData("Cannot send both files and json_data")
 
-        holds_slot = await slots.acquire(wait=wait_for_slot)
-
-        if request.delay:
-            heapq.heappush(heap, PRequest(priority=now + request.delay, request=request, holds_slot=holds_slot))
-        else:
-            queue.put_nowait(PRequest(priority=request.priority, request=request, holds_slot=holds_slot))
-
+        await _admit(queue, heap, slots, request, delay=request.delay, wait_for_slot=wait_for_slot)
         return request
 
     return sender
@@ -181,6 +201,7 @@ class RequestManager:
             schedule=self._schedule,
             error_collector=self._error_collector,
         )
+        self._retry_policy = RetryPolicy(retry_config)
         self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
         self._initialized = False
         self._completed = asyncio.Event()
@@ -190,17 +211,17 @@ class RequestManager:
     def sender(self) -> SendRequest:
         return self._request_sender
 
-    async def _schedule(self, pr: PRequest):
-        "Hand a request to the scheduler and free the slot it held while queued."
+    async def _schedule(self, attempt: Attempt):
+        "Hand an attempt to the scheduler and free the slot it held while queued."
         try:
             await self._scheduler.spawn(
                 execute_coroutine(
-                    self._send_request(pr.request),
+                    self._send_request(attempt),
                     on_error=partial(self._error_collector.record, "request"),
                 ),
             )
         finally:
-            await self._pending_slots.release(pr)
+            await self._pending_slots.release(attempt)
 
     @property
     def error_collector(self) -> ErrorCollector:
@@ -246,8 +267,8 @@ class RequestManager:
             else:
                 return response
             finally:
-                # Recorded here, not in _send_request: a middleware that swallows the
-                # failure (RetryMiddleware returns None on 429/503) would hide it otherwise.
+                # Recorded here, not around the chain: a middleware or the retry decision above
+                # can swallow the failure before it gets there.
                 self._record_outcome(
                     request,
                     latency=monotonic() - start_time,
@@ -270,6 +291,28 @@ class RequestManager:
             handler = wrapped
 
         return handler
+
+    async def _retry(self, attempt: Attempt, exc: Exception) -> bool:
+        "Admit the request again when the retry policy allows it, reporting whether it was."
+        request = attempt.request
+        delay = self._retry_policy.next_delay(request, exc, attempt.retries)
+        if delay is None:
+            return False
+
+        retries = attempt.retries + 1
+        logger.debug("Retrying %s %s in %0.10gs (retry %d)", request.method, request.url, delay, retries)
+        # Never waits for a slot: this runs inside a request job, and slots free up through
+        # the scheduler.
+        await _admit(
+            self._ready_queue,
+            self._delayed_heap,
+            self._pending_slots,
+            request,
+            delay=delay,
+            wait_for_slot=False,
+            retries=retries,
+        )
+        return True
 
     def _record_outcome(
         self,
@@ -294,7 +337,8 @@ class RequestManager:
             ),
         )
 
-    async def _send_request(self, request: Request):
+    async def _send_request(self, attempt: Attempt):
+        request = attempt.request
         start_time = monotonic()
         url = parse_url(request.url, request.params)
 
@@ -303,11 +347,20 @@ class RequestManager:
                 handler = self._build_handler(stack)
 
                 logger.debug("Sending request: %s %s", request.method, url)
-                response = await handler(request)
+                try:
+                    response = await handler(request)
+                except Exception as exc:
+                    # Wraps the chain rather than dispatch, so a middleware turning a 200 into a
+                    # failure is retried too. The callback below stays outside: failing to process
+                    # a response is no reason to fetch it again.
+                    if await self._retry(attempt, exc):
+                        return
+
+                    raise
 
                 if response is None:
                     logger.debug(
-                        "Request handled by middleware chain: %s %s",
+                        "Request handled without a response: %s %s",
                         request.method,
                         url,
                     )
@@ -416,12 +469,12 @@ class RequestManager:
             # close() cancellation landing in the same iteration as the timeout.
             try:
                 async with asyncio.timeout(self._next_timeout()):
-                    pr = await self._ready_queue.get()
+                    attempt = await self._ready_queue.get()
             except asyncio.TimeoutError:
                 continue
 
             try:
-                await asyncio.shield(self._rate_limiter_manager(pr))
+                await asyncio.shield(self._rate_limiter_manager(attempt))
             except asyncio.CancelledError:
                 logger.debug("Queue listener cancelled")
                 break
@@ -430,12 +483,10 @@ class RequestManager:
         logger.info("Queue listener completed: all requests processed")
 
     async def _pop_due_delayed(self):
-        """Pop the next due delayed request from the heap."""
+        """Pop every due attempt from the delayed heap."""
         now = monotonic()
         while self._delayed_heap and self._delayed_heap[0].priority <= now:
-            pr = heapq.heappop(self._delayed_heap)
-            pr.request.delay = None
-            await self._ready_queue.put(pr)
+            await self._ready_queue.put(heapq.heappop(self._delayed_heap))
 
     def _next_timeout(self) -> float:
         "Capped at the shutdown check interval: the heap can change while the listener waits."

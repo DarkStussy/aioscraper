@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Callable, Hashable, Self
 from yarl import URL
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
-from aioscraper.types.session import PRequest, Request
+from aioscraper.types.session import Attempt, Request
 
 from .errors import ErrorCollector
 
@@ -234,7 +234,7 @@ class RequestGroup:
         key (Hashable): Unique identifier for this request group.
         interval (float): Delay in seconds between processing requests in this group.
         cleanup_timeout (float): Timeout in seconds before cleaning up an idle group.
-        schedule (Callable[[PRequest], Awaitable[None]]): Callback function to schedule request execution.
+        schedule (Callable[[Attempt], Awaitable[None]]): Callback function to schedule request execution.
         on_finished (Callable[[Hashable, RequestGroup], None]):
             Callback invoked when the group finishes or becomes idle.
     """
@@ -244,7 +244,7 @@ class RequestGroup:
         key: Hashable,
         interval: float,
         cleanup_timeout: float,
-        schedule: Callable[[PRequest], Awaitable[None]],
+        schedule: Callable[[Attempt], Awaitable[None]],
         on_finished: Callable[[Hashable, "RequestGroup"], None],
         error_collector: ErrorCollector | None = None,
     ):
@@ -254,7 +254,7 @@ class RequestGroup:
         self._schedule = schedule
         self._on_finished = on_finished
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
-        self._queue: asyncio.PriorityQueue[PRequest] = asyncio.PriorityQueue()
+        self._queue: asyncio.PriorityQueue[Attempt] = asyncio.PriorityQueue()
         self._task: asyncio.Task[None] | None = None
 
     @property
@@ -283,9 +283,9 @@ class RequestGroup:
         self._interval = interval
         self._cleanup_timeout = cleanup_timeout
 
-    async def put(self, pr: PRequest):
+    async def put(self, attempt: Attempt):
         "Add a request to this group's processing queue."
-        await self._queue.put(pr)
+        await self._queue.put(attempt)
 
     def start_listening(self):
         if self._task is not None:
@@ -309,7 +309,7 @@ class RequestGroup:
                 # An idle group is cleaned up after cleanup_timeout. Not wait_for: on
                 # Python <= 3.11 it can swallow a close() cancellation arriving at the same time.
                 async with asyncio.timeout(self._cleanup_timeout):
-                    pr = await self._queue.get()
+                    attempt = await self._queue.get()
             except asyncio.TimeoutError:
                 # Race condition: item may have been added while timeout was firing
                 if not self._queue.empty():
@@ -319,11 +319,11 @@ class RequestGroup:
                 self._on_finished(self._key, self)
                 break
 
-            if pr.request.url == "stub":
+            if attempt.request.url == "stub":
                 break
 
             try:
-                await asyncio.shield(self._schedule(pr))
+                await asyncio.shield(self._schedule(attempt))
             except Exception as exc:
                 logger.exception("Rate limiter scheduler failed for %r", self._key)
                 self._error_collector.record("rate_limiter", exc)
@@ -358,14 +358,14 @@ class RateLimitManager:
     Args:
         config (RateLimitConfig): Rate limiting configuration including grouping strategy and intervals.
         retry_config (RequestRetryConfig): Retry configuration for inheriting trigger conditions.
-        schedule (Callable[[PRequest], Awaitable[Any]]): Callback function to schedule request execution.
+        schedule (Callable[[Attempt], Awaitable[Any]]): Callback function to schedule request execution.
     """
 
     def __init__(
         self,
         config: RateLimitConfig,
         retry_config: RequestRetryConfig,
-        schedule: Callable[[PRequest], Awaitable[Any]],
+        schedule: Callable[[Attempt], Awaitable[Any]],
         error_collector: ErrorCollector | None = None,
     ):
         self._schedule = schedule
@@ -442,9 +442,9 @@ class RateLimitManager:
         "Check if any request groups have pending requests."
         return any(group.active for group in self._groups.values())
 
-    async def __call__(self, pr: PRequest):
+    async def __call__(self, attempt: Attempt):
         "Process a request through the rate limiter."
-        await self._handle(pr)
+        await self._handle(attempt)
 
     async def __aenter__(self) -> Self:
         return self
@@ -464,7 +464,7 @@ class RateLimitManager:
                     ",".join(str(group.key) for group in groups),
                 )
                 for group in groups:
-                    await group.put(PRequest(priority=sys.maxsize, request=Request(url="stub")))
+                    await group.put(Attempt(priority=sys.maxsize, request=Request(url="stub")))
 
             self._stopped = True
             return True
@@ -500,8 +500,8 @@ class RateLimitManager:
         if new_interval != group.interval:
             group.set_intervals(interval=new_interval, cleanup_timeout=max(self._cleanup_timeout, new_interval * 2))
 
-    async def _handle_with_group(self, pr: PRequest):
-        group_key, interval = self._group_by(pr.request)
+    async def _handle_with_group(self, attempt: Attempt):
+        group_key, interval = self._group_by(attempt.request)
 
         # Ensure minimum interval to prevent busy-waiting. Custom group_by functions
         # may return zero or negative intervals, which we adjust to a safe minimum.
@@ -520,10 +520,10 @@ class RateLimitManager:
         else:
             logger.debug("Queueing request to existing group %r (interval=%0.3fs)", group_key, group.interval)
 
-        await group.put(pr)
+        await group.put(attempt)
 
-    async def _handle_without_group(self, pr: PRequest):
-        await self._schedule(pr)
+    async def _handle_without_group(self, attempt: Attempt):
+        await self._schedule(attempt)
         await asyncio.sleep(self._default_interval)
 
     def _create_group(self, key: Hashable, interval: float) -> RequestGroup:

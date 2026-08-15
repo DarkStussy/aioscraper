@@ -7,8 +7,7 @@ from typing import Any, AsyncGenerator, Callable, Mapping, Self
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import Config, load_config
 from aioscraper.holders import MiddlewareHolder, PipelineHolder
-from aioscraper.middlewares import RetryMiddleware
-from aioscraper.types import Scraper, SendRequest
+from aioscraper.types import Scraper
 
 from .errors import ErrorCollector, RunResult, ScraperError
 from .executor import ScraperExecutor
@@ -128,7 +127,6 @@ class AIOScraper:
 
     async def _run(self):
         """Initialize and run the scraper with the configured settings."""
-        self._install_builtin_middlewares(self.config)
         executor = ScraperExecutor(
             config=self.config,
             scrapers=self.scrapers,
@@ -205,13 +203,3 @@ class AIOScraper:
         self._task.cancel()
         with suppress(asyncio.CancelledError):
             await self._task
-
-    def _install_builtin_middlewares(self, config: Config):
-        retry_config = config.session.retry
-        if not retry_config.enabled:
-            return
-
-        def retry_factory(send_request: SendRequest) -> RetryMiddleware:
-            return RetryMiddleware(retry_config, send_request)
-
-        self._middleware_holder.add(retry_factory)

@@ -21,7 +21,7 @@ from aioscraper.core.runner import _run_scraper
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import Request, Response
 from tests.mocks import MockAIOScraper, MockResponse
-from tests.test_request_manager import FakeSession, FixedStatusSession
+from tests.test_request_manager import FakeSession, FixedStatusSession, attempt
 
 
 def _manager(collector: ErrorCollector, session_factory) -> RequestManager:
@@ -44,7 +44,7 @@ async def test_request_without_errback_is_recorded():
     collector = ErrorCollector()
     manager = _manager(collector, lambda: FixedStatusSession(status=500, body="server error"))
 
-    await manager._send_request(Request(url="https://api.test.com/boom"))
+    await manager._send_request(attempt(Request(url="https://api.test.com/boom")))
 
     assert len(collector) == 1
     assert collector.errors[0].context == "request"
@@ -63,7 +63,7 @@ async def test_handled_request_failure_is_not_recorded():
 
     manager = _manager(collector, lambda: FixedStatusSession(status=500, body="server error"))
 
-    await manager._send_request(Request(url="https://api.test.com/boom", errback=errback))
+    await manager._send_request(attempt(Request(url="https://api.test.com/boom", errback=errback)))
 
     assert len(handled) == 1
     assert not collector
@@ -104,7 +104,7 @@ async def test_successful_request_records_nothing():
 
     manager = _manager(collector, FakeSession)
 
-    await manager._send_request(Request(url="https://api.test.com/ok", callback=callback))
+    await manager._send_request(attempt(Request(url="https://api.test.com/ok", callback=callback)))
 
     assert seen
     assert not collector

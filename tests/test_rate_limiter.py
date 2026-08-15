@@ -6,7 +6,7 @@ import pytest
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import RateLimitManager, RequestGroup, default_group_by_factory
-from aioscraper.types.session import PRequest, Request
+from aioscraper.types.session import Attempt, Request
 
 
 @pytest.fixture
@@ -38,9 +38,9 @@ class TestRequestGroup:
         call_times = []
         on_finished = on_group_finished_factory()
 
-        async def schedule_with_timing(pr: PRequest):
+        async def schedule_with_timing(attempt: Attempt):
             call_times.append(asyncio.get_event_loop().time())
-            await mock_schedule(pr)
+            await mock_schedule(attempt)
 
         group = RequestGroup(
             key="test-group",
@@ -51,13 +51,13 @@ class TestRequestGroup:
         )
         group.start_listening()
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
-        pr3 = PRequest(priority=3, request=Request(url="https://example.com/3"))
+        attempt1 = Attempt(priority=1, request=Request(url="https://example.com/1"))
+        attempt2 = Attempt(priority=2, request=Request(url="https://example.com/2"))
+        attempt3 = Attempt(priority=3, request=Request(url="https://example.com/3"))
 
-        await group.put(pr1)
-        await group.put(pr2)
-        await group.put(pr3)
+        await group.put(attempt1)
+        await group.put(attempt2)
+        await group.put(attempt3)
 
         # Wait for all requests to be processed
         await asyncio.sleep(interval * 3 + 0.2)
@@ -90,8 +90,8 @@ class TestRequestGroup:
         )
         group.start_listening()
 
-        pr = PRequest(priority=1, request=Request(url="https://example.com/idle"))
-        await group.put(pr)
+        attempt = Attempt(priority=1, request=Request(url="https://example.com/idle"))
+        await group.put(attempt)
 
         await asyncio.sleep(0.05)
         assert mock_schedule.call_count == 1
@@ -129,8 +129,8 @@ class TestRequestGroup:
         """Test that RequestGroup handles errors from schedule callback."""
         errors_logged = []
 
-        async def failing_schedule(pr: PRequest):
-            error = RuntimeError(f"Failed to schedule {pr.request.url}")
+        async def failing_schedule(attempt: Attempt):
+            error = RuntimeError(f"Failed to schedule {attempt.request.url}")
             errors_logged.append(error)
             raise error
 
@@ -146,8 +146,8 @@ class TestRequestGroup:
         )
         group.start_listening()
 
-        pr = PRequest(priority=1, request=Request(url="https://example.com/fail"))
-        await group.put(pr)
+        attempt = Attempt(priority=1, request=Request(url="https://example.com/fail"))
+        await group.put(attempt)
 
         await asyncio.sleep(0.05)
 
@@ -173,8 +173,8 @@ class TestRequestGroup:
 
         assert not group.active
 
-        pr = PRequest(priority=1, request=Request(url="https://example.com/active"))
-        await group.put(pr)
+        attempt = Attempt(priority=1, request=Request(url="https://example.com/active"))
+        await group.put(attempt)
 
         assert group.active
 
@@ -214,13 +214,13 @@ class TestRateLimitManager:
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
-            pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
-            pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
-            pr3 = PRequest(priority=3, request=Request(url="https://other.com/page1"))
+            attempt1 = Attempt(priority=1, request=Request(url="https://example.com/page1"))
+            attempt2 = Attempt(priority=2, request=Request(url="https://example.com/page2"))
+            attempt3 = Attempt(priority=3, request=Request(url="https://other.com/page1"))
 
-            await manager(pr1)
-            await manager(pr2)
-            await manager(pr3)
+            await manager(attempt1)
+            await manager(attempt2)
+            await manager(attempt3)
 
             assert len(manager._groups) == 2
             assert "example.com" in manager._groups
@@ -234,20 +234,20 @@ class TestRateLimitManager:
         call_times = []
         default_interval = 0.05
 
-        async def schedule_with_timing(pr: PRequest):
+        async def schedule_with_timing(attempt: Attempt):
             call_times.append(asyncio.get_event_loop().time())
-            await mock_schedule(pr)
+            await mock_schedule(attempt)
 
         async with RateLimitManager(
             config=RateLimitConfig(enabled=False, default_interval=default_interval),
             retry_config=RequestRetryConfig(),
             schedule=schedule_with_timing,
         ) as manager:
-            pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
-            pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
+            attempt1 = Attempt(priority=1, request=Request(url="https://example.com/1"))
+            attempt2 = Attempt(priority=2, request=Request(url="https://example.com/2"))
 
-            await manager(pr1)
-            await manager(pr2)
+            await manager(attempt1)
+            await manager(attempt2)
 
             assert len(manager._groups) == 0
 
@@ -272,13 +272,13 @@ class TestRateLimitManager:
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
-            pr1 = PRequest(priority=1, request=Request(url="https://example.com/fast/page"))
-            pr2 = PRequest(priority=2, request=Request(url="https://example.com/slow/page"))
-            pr3 = PRequest(priority=3, request=Request(url="https://other.com/fast/page"))
+            attempt1 = Attempt(priority=1, request=Request(url="https://example.com/fast/page"))
+            attempt2 = Attempt(priority=2, request=Request(url="https://example.com/slow/page"))
+            attempt3 = Attempt(priority=3, request=Request(url="https://other.com/fast/page"))
 
-            await manager(pr1)
-            await manager(pr2)
-            await manager(pr3)
+            await manager(attempt1)
+            await manager(attempt2)
+            await manager(attempt3)
 
             # Should have 2 groups: fast and slow
             assert len(manager._groups) == 2
@@ -292,10 +292,10 @@ class TestRateLimitManager:
         """Test that different groups can have different intervals."""
         call_times_by_group = {"fast": [], "slow": []}
 
-        async def schedule_with_timing(pr: PRequest):
-            group = "fast" if "fast" in pr.request.url else "slow"
+        async def schedule_with_timing(attempt: Attempt):
+            group = "fast" if "fast" in attempt.request.url else "slow"
             call_times_by_group[group].append(asyncio.get_event_loop().time())
-            await mock_schedule(pr)
+            await mock_schedule(attempt)
 
         def custom_group_by(request: Request) -> tuple[Hashable, float]:
             if "fast" in request.url:
@@ -309,8 +309,8 @@ class TestRateLimitManager:
             schedule=schedule_with_timing,
         ) as manager:
             for i in range(3):
-                await manager(PRequest(priority=i, request=Request(url=f"https://example.com/fast/{i}")))
-                await manager(PRequest(priority=i, request=Request(url=f"https://example.com/slow/{i}")))
+                await manager(Attempt(priority=i, request=Request(url=f"https://example.com/fast/{i}")))
+                await manager(Attempt(priority=i, request=Request(url=f"https://example.com/slow/{i}")))
 
             await asyncio.sleep(0.5)
 
@@ -337,8 +337,8 @@ class TestRateLimitManager:
         """Test that idle groups are automatically cleaned up."""
         config = RateLimitConfig(enabled=True, default_interval=0.01, cleanup_timeout=0.1)
         async with RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule) as manager:
-            pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
-            await manager(pr)
+            attempt = Attempt(priority=1, request=Request(url="https://example.com/page"))
+            await manager(attempt)
 
             assert "example.com" in manager._groups
 
@@ -356,11 +356,11 @@ class TestRateLimitManager:
         ) as manager:
             assert not manager.active
 
-            pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
-            pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
+            attempt1 = Attempt(priority=1, request=Request(url="https://example.com/1"))
+            attempt2 = Attempt(priority=2, request=Request(url="https://example.com/2"))
 
-            await manager(pr1)
-            await manager(pr2)
+            await manager(attempt1)
+            await manager(attempt2)
 
             assert manager.active
 
@@ -376,9 +376,9 @@ class TestRateLimitManager:
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
-            await manager(PRequest(priority=1, request=Request(url="https://example.com/1")))
-            await manager(PRequest(priority=2, request=Request(url="https://other.com/1")))
-            await manager(PRequest(priority=3, request=Request(url="https://third.com/1")))
+            await manager(Attempt(priority=1, request=Request(url="https://example.com/1")))
+            await manager(Attempt(priority=2, request=Request(url="https://other.com/1")))
+            await manager(Attempt(priority=3, request=Request(url="https://third.com/1")))
 
             assert len(manager._groups) == 3
 
@@ -396,8 +396,8 @@ class TestRateLimitManager:
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
-            pr = PRequest(priority=1, request=Request(url="https://example.com/page"))
-            await manager(pr)
+            attempt = Attempt(priority=1, request=Request(url="https://example.com/page"))
+            await manager(attempt)
             # Group should be created with minimum interval
             assert "zero" in manager._groups
             group = manager._groups["zero"]
@@ -412,8 +412,8 @@ class TestRateLimitManager:
             schedule=mock_schedule,
         ) as manager:
             # Request with relative URL (no host)
-            pr = PRequest(priority=1, request=Request(url="/relative/path"))
-            await manager(pr)
+            attempt = Attempt(priority=1, request=Request(url="/relative/path"))
+            await manager(attempt)
 
             # Should create group with "unknown" key
             assert "unknown" in manager._groups
@@ -428,17 +428,17 @@ class TestRateLimitManager:
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
-            pr1 = PRequest(priority=1, request=Request(url="https://example.com/page1"))
-            pr2 = PRequest(priority=2, request=Request(url="https://example.com/page2"))
-            pr3 = PRequest(priority=3, request=Request(url="https://example.com/page3"))
+            attempt1 = Attempt(priority=1, request=Request(url="https://example.com/page1"))
+            attempt2 = Attempt(priority=2, request=Request(url="https://example.com/page2"))
+            attempt3 = Attempt(priority=3, request=Request(url="https://example.com/page3"))
 
-            await manager(pr1)
+            await manager(attempt1)
             first_group = manager._groups["example.com"]
 
-            await manager(pr2)
+            await manager(attempt2)
             second_group = manager._groups["example.com"]
 
-            await manager(pr3)
+            await manager(attempt3)
             third_group = manager._groups["example.com"]
 
             assert first_group is second_group

@@ -7,7 +7,6 @@ from aioscraper.config import BackoffStrategy, RateLimitConfig, RequestRetryConf
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseSession
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.middlewares import RetryMiddleware
 from aioscraper.types import Request, SendRequest
 from tests.test_request_manager import FakeSession, FixedStatusSession
 
@@ -103,17 +102,9 @@ async def test_retry_storm_does_not_deadlock():
         backoff=BackoffStrategy.CONSTANT,
         base_delay=0.01,
     )
-    middleware_holder = MiddlewareHolder()
-
-    def retry_factory(send_request: SendRequest) -> RetryMiddleware:
-        return RetryMiddleware(retry_config, send_request)
-
-    middleware_holder.add(retry_factory)
-
     manager = _manager(
         max_pending=2,
         session_factory=lambda: FixedStatusSession(status=503, body="unavailable"),
-        middleware_holder=middleware_holder,
         retry_config=retry_config,
     )
     manager.start_listening()
@@ -158,19 +149,11 @@ async def test_retry_does_not_deadlock_with_a_single_worker():
         backoff=BackoffStrategy.CONSTANT,
         base_delay=0.01,
     )
-    middleware_holder = MiddlewareHolder()
-
-    def retry_factory(send_request: SendRequest) -> RetryMiddleware:
-        return RetryMiddleware(retry_config, send_request)
-
-    middleware_holder.add(retry_factory)
-
     manager = _manager(
         max_pending=1,
         concurrent_requests=1,
         pending_requests=1,
         session_factory=lambda: FixedStatusSession(status=503, body="unavailable"),
-        middleware_holder=middleware_holder,
         retry_config=retry_config,
     )
     manager.start_listening()

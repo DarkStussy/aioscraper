@@ -14,7 +14,7 @@ from aioscraper.core.rate_limiter import (
 )
 from aioscraper.exceptions import HTTPException
 from aioscraper.types import Response, SendRequest
-from aioscraper.types.session import PRequest, Request
+from aioscraper.types.session import Attempt, Request
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -229,7 +229,7 @@ class TestAdaptiveRateLimiterIntegration:
         call_intervals = []
         last_call_time = None
 
-        async def mock_schedule(pr: PRequest):
+        async def mock_schedule(attempt: Attempt):
             nonlocal last_call_time
             start = monotonic()
             current_time = asyncio.get_event_loop().time()
@@ -240,7 +240,7 @@ class TestAdaptiveRateLimiterIntegration:
             # Simulate server error on first two requests
             if len(call_intervals) < 2:
                 exc = HTTPException(
-                    url=pr.request.url,
+                    url=attempt.request.url,
                     method="GET",
                     headers={},
                     status_code=503,
@@ -272,8 +272,8 @@ class TestAdaptiveRateLimiterIntegration:
         manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         for i in range(4):
-            pr = PRequest(priority=i, request=Request(url=f"https://example.com/{i}"))
-            await manager(pr)
+            attempt = Attempt(priority=i, request=Request(url=f"https://example.com/{i}"))
+            await manager(attempt)
 
         await asyncio.sleep(1.0)
 
@@ -293,13 +293,13 @@ class TestAdaptiveRateLimiterIntegration:
 
         call_times = []
 
-        async def mock_schedule(pr: PRequest):
+        async def mock_schedule(attempt: Attempt):
             start = monotonic()
             call_times.append(asyncio.get_event_loop().time())
 
             if len(call_times) == 1:
                 exc = HTTPException(
-                    url=pr.request.url,
+                    url=attempt.request.url,
                     method="GET",
                     headers={"Retry-After": "0.2"},
                     status_code=429,
@@ -325,11 +325,11 @@ class TestAdaptiveRateLimiterIntegration:
 
         manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
-        pr1 = PRequest(priority=1, request=Request(url="https://example.com/1"))
-        pr2 = PRequest(priority=2, request=Request(url="https://example.com/2"))
+        attempt1 = Attempt(priority=1, request=Request(url="https://example.com/1"))
+        attempt2 = Attempt(priority=2, request=Request(url="https://example.com/2"))
 
-        await manager(pr1)
-        await manager(pr2)
+        await manager(attempt1)
+        await manager(attempt2)
 
         await asyncio.sleep(0.5)
 
@@ -370,7 +370,7 @@ class TestAdaptiveRateLimiterIntegration:
         """Test that non-adaptive mode works as before."""
         call_times = []
 
-        async def mock_schedule(pr: PRequest):
+        async def mock_schedule(attempt: Attempt):
             call_times.append(asyncio.get_event_loop().time())
 
         config = RateLimitConfig(enabled=True, default_interval=0.05)
@@ -378,8 +378,8 @@ class TestAdaptiveRateLimiterIntegration:
         manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
         for i in range(3):
-            pr = PRequest(priority=i, request=Request(url=f"https://example.com/{i}"))
-            await manager(pr)
+            attempt = Attempt(priority=i, request=Request(url=f"https://example.com/{i}"))
+            await manager(attempt)
 
         await asyncio.sleep(0.3)
 
