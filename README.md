@@ -14,6 +14,10 @@
 
 ### High-performance asynchronous Python framework for large-scale API data collection.
 
+**API-first.** aioscraper orchestrates thousands of concurrent JSON/REST calls with adaptive rate
+limiting, retries, priority queues and item pipelines. Selectors and a crawling engine are not part
+of the core - plug in your own parser if you need one (see [examples/quotes.py](examples/quotes.py)).
+
 > **Beta notice:** APIs and behavior may change; expect sharp edges while things settle.
 
 ## Table of Contents
