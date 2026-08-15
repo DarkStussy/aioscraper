@@ -400,9 +400,11 @@ class RequestManager:
         ):
             await self._pop_due_delayed()
 
-            timeout = self._next_timeout()
+            # Not wait_for: on Python <= 3.11 it cancels through a wrapper task and loses a
+            # close() cancellation landing in the same iteration as the timeout.
             try:
-                pr = await asyncio.wait_for(self._ready_queue.get(), timeout)
+                async with asyncio.timeout(self._next_timeout()):
+                    pr = await self._ready_queue.get()
             except asyncio.TimeoutError:
                 continue
 

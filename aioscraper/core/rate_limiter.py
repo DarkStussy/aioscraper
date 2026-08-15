@@ -306,9 +306,10 @@ class RequestGroup:
     async def _listen_queue(self):
         while True:
             try:
-                # Wait for next request with timeout. If no requests arrive within
-                # cleanup_timeout, the group is considered idle and will be cleaned up.
-                pr = await asyncio.wait_for(self._queue.get(), timeout=self._cleanup_timeout)
+                # An idle group is cleaned up after cleanup_timeout. Not wait_for: on
+                # Python <= 3.11 it can swallow a close() cancellation arriving at the same time.
+                async with asyncio.timeout(self._cleanup_timeout):
+                    pr = await self._queue.get()
             except asyncio.TimeoutError:
                 # Race condition: item may have been added while timeout was firing
                 if not self._queue.empty():

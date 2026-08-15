@@ -51,6 +51,7 @@ jobs:
         shell: bash
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -80,6 +81,7 @@ jobs:
   minimum-dependencies:
     name: Minimum dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -105,6 +107,7 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -129,6 +132,7 @@ jobs:
   package:
     name: Package
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout

@@ -16,13 +16,14 @@
 - Lowered the `aiohttp` and `aiohttp-speedups` extras floor to `>=3.12.0` (was `>=3.13.2`).
 - Locked `aiohttp` bumped to 3.14.3, clearing 14 advisories against 3.13.5.
 - `docs/changelog.rst` includes `CHANGELOG.md` via `myst-parser` instead of duplicating it.
-- Tests run with `filterwarnings = ["error"]`; docs build with `fail_on_warning`.
+- Tests run with `filterwarnings = ["error"]` and a 60s per-test timeout; docs build with `fail_on_warning`.
 - CI also runs the docs build, a coverage gate, `pip-audit`, a wheel install smoke test, and the suite against the lowest supported dependencies.
 - Publishing to PyPI requires the tag to match `project.version`, a matching `CHANGELOG.md` section, and green test and docs workflows.
 
 ### Fixed
 - On SIGINT/SIGTERM in-flight work gets `execution.shutdown_timeout` to finish instead of being cancelled immediately.
 - `execution.shutdown_check_interval` is applied as the queue poll timeout instead of a hard-coded `0.05s`.
+- On Python 3.11 closing a scraper could hang forever: the queue listeners polled with `asyncio.wait_for`, which cancels through a wrapper task and lost the cancellation when it arrived in the same iteration as the poll timeout. They now use `asyncio.timeout`.
 - Request outcomes are recorded at the transport level: a `429`/`503` re-queued by `RetryMiddleware` reaches the adaptive rate limiter as a failure instead of a success.
 - Callback errors no longer count as transport failures for the adaptive rate limiter.
 - `SCHEDULER_READY_QUEUE_MAX_SIZE` is read by `load_config()`; it was documented but ignored.
