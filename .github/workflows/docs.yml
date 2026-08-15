@@ -8,7 +8,9 @@ on:
       - ".github/workflows/docs.yml"
       - "aioscraper/**"
       - "docs/**"
+      - "README.md"
       - "CHANGELOG.md"
+      - "tests/test_docs.py"
       - "pyproject.toml"
       - ".readthedocs.yaml"
   pull_request:
@@ -18,7 +20,9 @@ on:
       - ".github/workflows/docs.yml"
       - "aioscraper/**"
       - "docs/**"
+      - "README.md"
       - "CHANGELOG.md"
+      - "tests/test_docs.py"
       - "pyproject.toml"
       - ".readthedocs.yaml"
   workflow_call:
@@ -27,6 +31,7 @@ jobs:
   build:
     name: Build documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -45,3 +50,10 @@ jobs:
           --with-requirements docs/requirements.txt
           --extra aiohttp --extra httpx
           sphinx-build -W -b html docs docs/_build/html
+
+      # Compiles every snippet in README.md and docs/*.rst. Run on the oldest supported
+      # Python, where a snippet using newer syntax fails.
+      - name: Check documentation snippets
+        run: >-
+          uv run --python 3.11 --extra aiohttp --extra httpx
+          pytest -q tests/test_docs.py
