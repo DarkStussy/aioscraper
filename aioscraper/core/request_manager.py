@@ -1,6 +1,7 @@
 import asyncio
 import heapq
 from contextlib import AsyncExitStack
+from functools import partial
 from logging import getLogger
 from time import monotonic
 from typing import Any
@@ -16,6 +17,7 @@ from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import RequestHandler, RequestMiddleware, Response
 from aioscraper.types.session import PRequest, Request, SendRequest
 
+from .errors import ErrorCollector
 from .rate_limiter import RateLimitManager, RequestOutcome
 from .session import SessionMaker
 
@@ -84,7 +86,9 @@ class RequestManager:
         sessionmaker: SessionMaker,
         dependencies: dict[str, Any],
         middleware_holder: MiddlewareHolder,
+        error_collector: ErrorCollector | None = None,
     ):
+        self._error_collector = ErrorCollector() if error_collector is None else error_collector
         logger.info(
             "Creating scheduler: concurrent_requests=%s, pending_requests=%s, close_timeout=%s",
             scheduler_config.concurrent_requests,
@@ -106,7 +110,12 @@ class RequestManager:
         self._rate_limiter_manager = RateLimitManager(
             rate_limit_config,
             retry_config=retry_config,
-            schedule=lambda pr: self._scheduler.spawn(execute_coroutine(self._send_request(pr.request))),
+            schedule=lambda pr: self._scheduler.spawn(
+                execute_coroutine(
+                    self._send_request(pr.request), on_error=partial(self._error_collector.record, "request")
+                ),
+            ),
+            error_collector=self._error_collector,
         )
         self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
         self._initialized = False
@@ -116,6 +125,10 @@ class RequestManager:
     @property
     def sender(self) -> SendRequest:
         return self._request_sender
+
+    @property
+    def error_collector(self) -> ErrorCollector:
+        return self._error_collector
 
     def _instantiate_middlewares(self) -> list[RequestMiddleware]:
         "Instantiate registered middleware factories once, injecting dependencies."
@@ -290,6 +303,7 @@ class RequestManager:
                 raise ExceptionGroup("Errback failed", [exc, errback_exc]) from None
         else:
             logger.error("%s: %s: %s", request.method, request.url, exc, exc_info=exc)
+            self._error_collector.record("request", exc)
 
     async def wait(self):
         logger.debug("Request manager waiting for completion")
@@ -359,5 +373,10 @@ class RequestManager:
 
     async def close(self):
         """Close the underlying session."""
-        await execute_coroutines(self._rate_limiter_manager.close(), self._scheduler.close(), self._session.close())
+        await execute_coroutines(
+            self._rate_limiter_manager.close(),
+            self._scheduler.close(),
+            self._session.close(),
+            on_error=partial(self._error_collector.record, "close"),
+        )
         logger.debug("Request manager closed successfully")

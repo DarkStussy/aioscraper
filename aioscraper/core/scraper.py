@@ -2,7 +2,7 @@ import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from logging import getLogger
 from types import TracebackType
-from typing import Any, AsyncGenerator, Callable, Self
+from typing import Any, AsyncGenerator, Callable, Mapping, Self
 
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import Config, load_config
@@ -10,6 +10,7 @@ from aioscraper.holders import MiddlewareHolder, PipelineHolder
 from aioscraper.middlewares import RetryMiddleware
 from aioscraper.types import Scraper, SendRequest
 
+from .errors import ErrorCollector, ScraperError
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
 from .session import SessionMakerFactory, get_sessionmaker
@@ -43,6 +44,7 @@ class AIOScraper:
         self.scrapers = [*scrapers]
         self.config = config or load_config()
         self.dependencies: dict[str, Any] = {}
+        self._error_collector = ErrorCollector()
 
         self._sessionmaker_factory = sessionmaker_factory or get_sessionmaker
 
@@ -72,6 +74,26 @@ class AIOScraper:
         "Attach a lifespan callback to run before/after scraping."
         self._lifespan = asynccontextmanager(lifespan)
         return lifespan
+
+    @property
+    def errors(self) -> tuple[ScraperError, ...]:
+        """Errors that were logged and swallowed during the run.
+
+        Capped at the collector's retention limit; use :attr:`error_counts` for exact totals.
+
+        Returns:
+            tuple[ScraperError, ...]: The most recent unhandled request and resource-close failures.
+        """
+        return self._error_collector.errors
+
+    @property
+    def error_counts(self) -> Mapping[str, int]:
+        """Exact number of swallowed errors per context.
+
+        Returns:
+            Mapping[str, int]: Error count keyed by context, e.g. ``{"request": 12}``.
+        """
+        return self._error_collector.counts
 
     @property
     def middleware(self) -> MiddlewareHolder:
@@ -117,8 +139,10 @@ class AIOScraper:
                 pipelines=self._pipeline_holder.pipelines,
                 global_middleware_factories=self._pipeline_holder.global_middleware_factories,
                 dependencies=self.dependencies,
+                error_collector=self._error_collector,
             ),
             sessionmaker=self._sessionmaker_factory(self.config.session),
+            error_collector=self._error_collector,
         )
         try:
             logger.debug("Starting executor")

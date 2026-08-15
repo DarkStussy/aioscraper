@@ -4,6 +4,7 @@ from typing import Any, Mapping
 from aioscraper._helpers.func import get_func_kwargs
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import PipelineConfig
+from aioscraper.core.errors import ErrorCollector
 from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
 from aioscraper.types.pipeline import (
     GlobalPipelineMiddleware,
@@ -25,11 +26,13 @@ class PipelineDispatcher:
         pipelines: Mapping[Any, PipelineContainer],
         global_middleware_factories: list[GlobalPipelineMiddlewareFactory[Any]] | None = None,
         dependencies: Mapping[str, Any] | None = None,
+        error_collector: ErrorCollector | None = None,
     ):
         self._config = config
         self._pipelines = pipelines
         self._global_middleware_factories = global_middleware_factories or []
         self._dependencies: Mapping[str, Any] = dependencies or {}
+        self._error_collector = ErrorCollector() if error_collector is None else error_collector
         logger.info(
             "Pipeline dispatcher created: pipelines=%d, global_middleware_factories=%d, strict=%s",
             len(pipelines),
@@ -125,5 +128,6 @@ class PipelineDispatcher:
             for pipeline in pipe_container.pipelines:
                 try:
                     await pipeline.close()
-                except Exception:
+                except Exception as exc:
                     logger.exception("Error closing pipeline for type %s", get_log_name(item_type))
+                    self._error_collector.record("close", exc)

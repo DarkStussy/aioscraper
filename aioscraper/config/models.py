@@ -171,6 +171,19 @@ class SchedulerConfig:
     ready_queue_max_size: int = field(default=0, validator=RangeValidator(min_value=0))
 
 
+class ErrorPolicy(StrEnum):
+    """
+    What an unhandled error means for the outcome of a run.
+
+    Attributes:
+        LOG: Log it and finish successfully.
+        FAIL: Log it and finish with a non-zero exit code.
+    """
+
+    LOG = auto()
+    FAIL = auto()
+
+
 @dataclass(slots=True, frozen=True)
 @validate
 class ExecutionConfig:
@@ -180,6 +193,7 @@ class ExecutionConfig:
     Args:
         timeout (float | None): Overall execution timeout in seconds
         shutdown_timeout (float): Timeout for graceful shutdown in seconds
+        on_error (ErrorPolicy): Whether unhandled errors make the run fail
         log_level (int): Log level for timeout events (e.g., logging.ERROR, logging.WARNING).
             Defaults to logging.ERROR.
     """
@@ -187,6 +201,7 @@ class ExecutionConfig:
     timeout: float | None = field(default=None, validator=RangeValidator(min_value=0.01))
     shutdown_timeout: float = field(default=0.1, validator=RangeValidator(min_value=0.001))
     shutdown_check_interval: float = field(default=0.1, validator=RangeValidator(min_value=0.01))
+    on_error: ErrorPolicy = ErrorPolicy.LOG
     log_level: int = logging.ERROR
 
 

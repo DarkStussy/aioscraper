@@ -19,6 +19,7 @@ Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>`
         SessionConfig,
         SchedulerConfig,
         ExecutionConfig,
+        ErrorPolicy,
         PipelineConfig,
         RateLimitConfig,
     )
@@ -40,6 +41,7 @@ Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>`
             timeout=60,
             shutdown_timeout=0.5,
             shutdown_check_interval=0.1,
+            on_error=ErrorPolicy.FAIL,
             log_level=logging.WARNING,
         ),
         pipeline=PipelineConfig(strict=False),
@@ -58,7 +60,31 @@ Graceful shutdown
 - ``execution.shutdown_check_interval`` - pause between drain checks while waiting for the scheduler/queue to empty.
 - Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
 
-These settings are honored by both the CLI and :func:`run_scraper <aioscraper.core.runner.run_scraper>`, giving consistent stop behavior in code or from the terminal.
+Unhandled errors
+----------------
+
+A request that fails without an ``errback``, a failing ``errback``, and a resource that will not close are
+logged and then dropped so the rest of the run continues. A failure handled by your own ``errback`` is
+not recorded: handling it is the point of the callback.
+
+They are also recorded on the scraper:
+
+- :attr:`AIOScraper.error_counts <aioscraper.core.scraper.AIOScraper.error_counts>` - exact totals per context.
+- :attr:`AIOScraper.errors <aioscraper.core.scraper.AIOScraper.errors>` - the most recent exceptions, capped so
+  a run failing millions of requests does not keep every traceback alive.
+
+``execution.on_error`` is applied by the **CLI only**, as an exit code:
+
+- ``ErrorPolicy.LOG`` (default) - exit ``0`` regardless.
+- ``ErrorPolicy.FAIL`` - exit ``1`` when anything was recorded.
+
+Stopping the CLI with SIGINT/SIGTERM exits with ``130``, which takes precedence over both.
+
+:func:`run_scraper <aioscraper.core.runner.run_scraper>` does not act on the policy: it returns ``True`` when a
+signal stopped the run, and leaves the decision to you. Read ``error_counts`` after it returns.
+
+The shutdown settings above are honored by both the CLI and ``run_scraper``, giving consistent stop behavior in
+code or from the terminal.
 
 
 .. _proxy-config:

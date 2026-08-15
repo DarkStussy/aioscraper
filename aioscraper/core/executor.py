@@ -1,4 +1,5 @@
 import asyncio
+from functools import partial
 from logging import getLogger
 from typing import Any
 
@@ -8,6 +9,7 @@ from aioscraper.config import Config
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import Scraper
 
+from .errors import ErrorCollector
 from .pipeline import PipelineDispatcher
 from .request_manager import RequestManager
 from .session import SessionMaker
@@ -31,7 +33,9 @@ class ScraperExecutor:
         middleware_holder: MiddlewareHolder,
         pipeline_dispatcher: PipelineDispatcher,
         sessionmaker: SessionMaker,
+        error_collector: ErrorCollector | None = None,
     ):
+        self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._config = config
         self._scrapers = scrapers
         self._dependencies = {"config": config, "pipeline": pipeline_dispatcher.put_item, **dependencies}
@@ -44,6 +48,7 @@ class ScraperExecutor:
             sessionmaker=sessionmaker,
             dependencies=self._dependencies,
             middleware_holder=middleware_holder,
+            error_collector=self._error_collector,
         )
 
     async def run(self):
@@ -71,5 +76,9 @@ class ScraperExecutor:
 
     async def close(self):
         "Close all resources and cleanup."
-        await execute_coroutines(self._request_manager.close(), self._pipeline_dispatcher.close())
+        await execute_coroutines(
+            self._request_manager.close(),
+            self._pipeline_dispatcher.close(),
+            on_error=partial(self._error_collector.record, "close"),
+        )
         logger.debug("Executor closed successfully")

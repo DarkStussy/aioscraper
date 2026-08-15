@@ -150,6 +150,7 @@ Execution and shutdown behavior.
 - ``EXECUTION_TIMEOUT`` → ``timeout``
 - ``EXECUTION_SHUTDOWN_TIMEOUT`` → ``shutdown_timeout``
 - ``EXECUTION_SHUTDOWN_CHECK_INTERVAL`` → ``shutdown_check_interval``
+- ``EXECUTION_ON_ERROR`` → ``on_error`` (``fail`` or ``log``)
 - ``EXECUTION_LOG_LEVEL`` → ``log_level``
 
 :class:`PipelineConfig <aioscraper.config.models.PipelineConfig>`

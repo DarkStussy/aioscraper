@@ -3,6 +3,7 @@ import inspect
 import logging
 from typing import Sequence
 
+from aioscraper.config import ErrorPolicy
 from aioscraper.core import AIOScraper, run_scraper
 from aioscraper.exceptions import CLIError
 
@@ -25,7 +26,7 @@ def _apply_uvloop_policy():
         raise CLIError("Failed to apply uvloop event loop policy") from exc
 
 
-async def _run(entrypoint: str, concurrent_requests: int | None = None, pending_requests: int | None = None):
+async def _run(entrypoint: str, concurrent_requests: int | None = None, pending_requests: int | None = None) -> int:
     logger.debug("Resolving entrypoint: %s", entrypoint)
     init = resolve_entrypoint_factory(entrypoint)
     scraper: AIOScraper = await init() if inspect.iscoroutinefunction(init) else init()
@@ -42,10 +43,28 @@ async def _run(entrypoint: str, concurrent_requests: int | None = None, pending_
             object.__setattr__(scraper.config.scheduler, "pending_requests", pending_requests)
 
     logger.info("Starting scraper from entrypoint: %s", entrypoint)
-    await run_scraper(scraper)
+    interrupted = await run_scraper(scraper)
+
+    fail_on_error = scraper.config.execution.on_error is ErrorPolicy.FAIL
+    counts = scraper.error_counts
+    if counts:
+        # Summary only: each error was already logged with its traceback where it happened.
+        summary = ", ".join(f"{context}={count}" for context, count in sorted(counts.items()))
+        logger.log(
+            logging.ERROR if fail_on_error else logging.WARNING,
+            "Finished with %d unhandled error(s): %s",
+            sum(counts.values()),
+            summary,
+        )
+
+    if interrupted:
+        logger.info("Stopped by signal")
+        return 130
+
+    return 1 if counts and fail_on_error else 0
 
 
-def main(argv: Sequence[str] | None = None):
+def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
 
     try:
@@ -56,7 +75,7 @@ def main(argv: Sequence[str] | None = None):
         if args.uvloop:
             _apply_uvloop_policy()
 
-        asyncio.run(
+        return asyncio.run(
             _run(
                 args.entrypoint,
                 concurrent_requests=args.concurrent_requests,
@@ -65,6 +84,7 @@ def main(argv: Sequence[str] | None = None):
         )
     except KeyboardInterrupt:
         logger.info("Interrupted, shutting down...")
+        return 130
 
 
 if __name__ == "__main__":

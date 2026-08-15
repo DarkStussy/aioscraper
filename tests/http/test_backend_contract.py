@@ -35,7 +35,7 @@ async def test_httpx_rejects_unsupported_options(httpx_session: HttpxSession, kw
 
     assert excinfo.value.option == option
     assert excinfo.value.backend == "httpx"
-    # The message has to say what to do instead, not just what failed.
+    # The message must say what to do instead, not only what failed.
     assert excinfo.value.hint
 
     await httpx_session.close()
@@ -58,7 +58,7 @@ async def _stub_request(**kwargs: Any) -> AsyncGenerator[_StubResponse, None]:
 
 
 # aiohttp>=3.14 deprecates BasicAuth, which the backend still builds for auth/proxy_auth.
-# Scoped to this test so the warning stays visible everywhere else.
+# Scoped here so the warning still fails the suite anywhere else.
 @pytest.mark.filterwarnings("ignore:BasicAuth is deprecated:DeprecationWarning")
 @pytest.mark.parametrize(("kwargs", "option"), UNSUPPORTED_BY_HTTPX)
 async def test_aiohttp_forwards_the_same_options(kwargs: dict, option: str):

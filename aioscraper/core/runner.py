@@ -81,7 +81,7 @@ async def _run_scraper(
     shutdown_event: asyncio.Event | None = None,
     force_exit_event: asyncio.Event | None = None,
     install_signal_handlers: bool = True,
-):
+) -> bool:
     "Main runner: wires signal handlers, listens for force-exit, delegates shutdown-aware execution."
     loop = asyncio.get_running_loop()
     shutdown = shutdown_event or asyncio.Event()
@@ -96,12 +96,19 @@ async def _run_scraper(
 
     if force_exit_task in done:
         await _cancel(scraper_task)
-        return
+        return True
 
     await _cancel(force_exit_task)
     await scraper_task
+    # The handlers turn SIGINT/SIGTERM into an event, so KeyboardInterrupt never reaches
+    # the caller: without this flag a signalled run is indistinguishable from a clean one.
+    return shutdown.is_set()
 
 
-async def run_scraper(scraper: AIOScraper):
-    "Public entrypoint to run scraper with signal handling."
-    await _run_scraper(scraper)
+async def run_scraper(scraper: AIOScraper) -> bool:
+    """Run the scraper with signal handling.
+
+    Returns:
+        bool: ``True`` when SIGINT/SIGTERM stopped the run, ``False`` on normal completion.
+    """
+    return await _run_scraper(scraper)

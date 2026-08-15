@@ -11,6 +11,8 @@ from yarl import URL
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.types.session import PRequest, Request
 
+from .errors import ErrorCollector
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,12 +246,14 @@ class RequestGroup:
         cleanup_timeout: float,
         schedule: Callable[[PRequest], Awaitable[None]],
         on_finished: Callable[[Hashable, "RequestGroup"], None],
+        error_collector: ErrorCollector | None = None,
     ):
         self._key = key
         self._interval = interval
         self._cleanup_timeout = max(cleanup_timeout, self._interval * 2)
         self._schedule = schedule
         self._on_finished = on_finished
+        self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._queue: asyncio.PriorityQueue[PRequest] = asyncio.PriorityQueue()
         self._task: asyncio.Task[None] | None = None
 
@@ -319,8 +323,9 @@ class RequestGroup:
 
             try:
                 await asyncio.shield(self._schedule(pr))
-            except Exception:
+            except Exception as exc:
                 logger.exception("Rate limiter scheduler failed for %r", self._key)
+                self._error_collector.record("rate_limiter", exc)
 
             await asyncio.sleep(self._interval)
 
@@ -335,6 +340,7 @@ class RequestGroup:
 
             if exc is not None:
                 logger.error("Rate limiter group %r crashed: %s", self._key, exc, exc_info=exc)
+                self._error_collector.record("rate_limiter", exc)
 
             self._on_finished(self._key, self)
 
@@ -359,8 +365,10 @@ class RateLimitManager:
         config: RateLimitConfig,
         retry_config: RequestRetryConfig,
         schedule: Callable[[PRequest], Awaitable[Any]],
+        error_collector: ErrorCollector | None = None,
     ):
         self._schedule = schedule
+        self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._group_by = config.group_by or default_group_by_factory(config.default_interval)
         self._default_interval = config.default_interval
         self._cleanup_timeout = config.cleanup_timeout
@@ -524,6 +532,7 @@ class RateLimitManager:
             cleanup_timeout=self._cleanup_timeout,
             schedule=self._schedule,
             on_finished=self._on_group_finished,
+            error_collector=self._error_collector,
         )
         group.start_listening()
         return group
