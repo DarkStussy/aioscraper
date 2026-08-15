@@ -8,10 +8,13 @@ on:
       - ".github/workflows/tests.yml"
       - "aioscraper/**"
       - "tests/**"
+      - "docs/**"
+      - "README.md"
       - "pyproject.toml"
       - "uv.lock"
       - ".pytest.toml"
       - ".ruff.toml"
+      - ".coveragerc"
       - "pyrightconfig.json"
   pull_request:
     branches:
@@ -20,10 +23,13 @@ on:
       - ".github/workflows/tests.yml"
       - "aioscraper/**"
       - "tests/**"
+      - "docs/**"
+      - "README.md"
       - "pyproject.toml"
       - "uv.lock"
       - ".pytest.toml"
       - ".ruff.toml"
+      - ".coveragerc"
       - "pyrightconfig.json"
 
 jobs:
@@ -49,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -71,3 +77,84 @@ jobs:
 
       - name: Run tests
         run: uv run --python ${{ matrix.python-version }} pytest -v
+
+  minimum-dependencies:
+    name: Minimum dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      # Resolves every direct dependency to its declared floor, so the lower bounds
+      # in pyproject.toml stay honest. The lockfile rewrite is local to the runner.
+      - name: Install lowest supported dependencies
+        run: uv sync --python 3.11 --resolution lowest-direct --extra aiohttp --extra httpx
+
+      - name: Report resolved versions
+        run: uv run --python 3.11 --no-sync python -c "import aiohttp, httpx; print('aiohttp', aiohttp.__version__, '| httpx', httpx.__version__)"
+
+      - name: Run tests
+        run: uv run --python 3.11 --no-sync pytest -q
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --python 3.12 --extra aiohttp --extra httpx
+
+      # Threshold lives in .coveragerc so local runs fail the same way.
+      - name: Run tests with coverage
+        run: uv run --python 3.12 pytest --cov --cov-report=term-missing
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Check distribution metadata
+        run: uv run --with twine --isolated twine check dist/*
+
+      - name: Install the built wheel into a clean environment
+        run: |
+          uv venv "${RUNNER_TEMP}/wheel-env"
+          uv pip install --python "${RUNNER_TEMP}/wheel-env/bin/python" "$(ls dist/*.whl)[aiohttp,httpx]"
+
+      - name: Import both backends and smoke-test the CLI
+        run: |
+          "${RUNNER_TEMP}/wheel-env/bin/python" -c "
+          import aioscraper
+          from aioscraper.core.session.aiohttp import AiohttpSession
+          from aioscraper.core.session.httpx import HttpxSession
+          print(aioscraper.__all__)
+          "
+          "${RUNNER_TEMP}/wheel-env/bin/aioscraper" --help

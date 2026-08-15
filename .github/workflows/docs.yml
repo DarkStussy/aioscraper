@@ -1,0 +1,46 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs.yml"
+      - "aioscraper/**"
+      - "docs/**"
+      - "CHANGELOG.md"
+      - "pyproject.toml"
+      - ".readthedocs.yaml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docs.yml"
+      - "aioscraper/**"
+      - "docs/**"
+      - "CHANGELOG.md"
+      - "pyproject.toml"
+      - ".readthedocs.yaml"
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      # Mirrors .readthedocs.yaml: same Python, same extras, warnings as errors.
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Build with warnings as errors
+        run: >-
+          uv run --python 3.12 --isolated
+          --with-requirements docs/requirements.txt
+          --extra aiohttp --extra httpx
+          sphinx-build -W -b html docs docs/_build/html
