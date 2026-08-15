@@ -21,6 +21,7 @@ on:
       - "CHANGELOG.md"
       - "pyproject.toml"
       - ".readthedocs.yaml"
+  workflow_call:
 
 jobs:
   build:

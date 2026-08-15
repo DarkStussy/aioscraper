@@ -31,6 +31,7 @@ on:
       - ".ruff.toml"
       - ".coveragerc"
       - "pyrightconfig.json"
+  workflow_call:
 
 jobs:
   tests:
