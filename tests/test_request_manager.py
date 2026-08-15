@@ -622,6 +622,22 @@ async def test_next_timeout_uses_shutdown_check_interval(base_manager_factory):
 
 
 @pytest.mark.asyncio
+async def test_shutdown_is_not_delayed_by_a_parked_request(base_manager_factory):
+    """A long delay must not become the poll timeout: the listener would keep waiting on a
+    deadline that no longer has an entry behind it."""
+    manager = base_manager_factory(session_factory=FakeSession)
+
+    await manager.sender(Request(url="https://api.test.com/1", delay=30.0))
+    # Let the listener reach the wait while the entry is still in the heap.
+    await asyncio.sleep(0.05)
+
+    manager._delayed_heap.clear()
+    await asyncio.wait_for(manager.shutdown(), timeout=2.0)
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
 async def test_close_stops_queue_processing():
     """Test that close stops queue processing."""
     calls = []

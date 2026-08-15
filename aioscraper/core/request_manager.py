@@ -425,17 +425,13 @@ class RequestManager:
             pr.request.delay = None
             await self._ready_queue.put(pr)
 
-    def _next_timeout(self) -> float | None:
+    def _next_timeout(self) -> float:
+        "Capped at the shutdown check interval: the heap can change while the listener waits."
         if not self._delayed_heap:
             return self._shutdown_check_interval
 
-        pr = self._delayed_heap[0]
-        timeout = pr.priority - monotonic()
-
-        if timeout <= 0:
-            return 0.0
-
-        return timeout
+        timeout = self._delayed_heap[0].priority - monotonic()
+        return max(0.0, min(timeout, self._shutdown_check_interval))
 
     async def close(self):
         """Stop the queue listener and close the underlying resources."""

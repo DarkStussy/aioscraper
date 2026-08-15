@@ -22,8 +22,7 @@
 
 ### Fixed
 - On SIGINT/SIGTERM in-flight work gets `execution.shutdown_timeout` to finish instead of being cancelled immediately.
-- `execution.shutdown_check_interval` is applied as the queue poll timeout instead of a hard-coded `0.05s`.
-- On Python 3.11 closing a scraper could hang forever: the queue listeners polled with `asyncio.wait_for`, which cancels through a wrapper task and lost the cancellation when it arrived in the same iteration as the poll timeout. They now use `asyncio.timeout`.
+- `execution.shutdown_check_interval` is applied as the queue poll timeout instead of a hard-coded `0.05s`, and now caps it: a retry parked for 60s used to delay shutdown by 60s.
 - Request outcomes are recorded at the transport level: a `429`/`503` re-queued by `RetryMiddleware` reaches the adaptive rate limiter as a failure instead of a success.
 - Callback errors no longer count as transport failures for the adaptive rate limiter.
 - `SCHEDULER_READY_QUEUE_MAX_SIZE` is read by `load_config()`; it was documented but ignored.
