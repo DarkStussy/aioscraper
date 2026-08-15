@@ -50,17 +50,20 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
         await send_request(Request(url="https://example.com"))
 
 
-    async def main():
+    async def main() -> int:
         scraper = AIOScraper(scrape, config=load_config())
-        await run_scraper(scraper)
+        interrupted = await run_scraper(scraper)
+        return 130 if interrupted else 0
 
 
     if __name__ == "__main__":
-        asyncio.run(main())
+        raise SystemExit(asyncio.run(main()))
 
 
 This gives you the same signal handling and graceful shutdown behavior as the CLI.
 ``run_scraper`` expects ``scraper.config`` to be set ahead of time, which is why the example passes ``config=load_config()`` to the constructor.
+
+The handlers turn SIGINT/SIGTERM into an event, so ``KeyboardInterrupt`` never reaches the caller: ``run_scraper`` returns ``True`` instead. Acting on that, and on :class:`ExecutionConfig.on_error <aioscraper.config.models.ExecutionConfig>` through :attr:`error_counts <aioscraper.core.scraper.AIOScraper.error_counts>`, is left to the caller — the CLI turns them into exit codes ``130`` and ``1``.
 
 .. _cli-configuration:
 
