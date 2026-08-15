@@ -26,6 +26,20 @@ _RequestQueue = asyncio.PriorityQueue[PRequest]
 _RequestHead = list[PRequest]
 
 
+async def _raise_for_status(request: Request, response: Response):
+    "Raise :class:`HTTPException` when the response carries a non-ok status."
+    if response.ok:
+        return
+
+    raise HTTPException(
+        url=str(parse_url(request.url, request.params)),
+        method=response.method,
+        headers=response.headers,
+        status_code=response.status,
+        message=await response.text(errors="replace"),
+    )
+
+
 def _get_request_sender(queue: _RequestQueue, heap: _RequestHead) -> SendRequest:
     "Creates a request sender function that adds requests to the priority queue."
 
@@ -120,18 +134,34 @@ class RequestManager:
         "Compose the middleware chain around the innermost dispatch."
 
         async def dispatch(request: Request) -> Response | None:
-            response = await stack.enter_async_context(self._session.make_request(request))
+            start_time = monotonic()
+            status_code = exception_type = retry_after = None
 
-            if not response.ok:
-                raise HTTPException(
-                    url=str(parse_url(request.url, request.params)),
-                    method=response.method,
-                    headers=response.headers,
-                    status_code=response.status,
-                    message=await response.text(errors="replace"),
+            try:
+                response = await stack.enter_async_context(self._session.make_request(request))
+                status_code = response.status
+                await _raise_for_status(request, response)
+            except Exception as exc:
+                exception_type = type(exc)
+
+                if isinstance(exc, HTTPException):
+                    status_code = exc.status_code
+                    if self._rate_limiter_manager.adaptive_strategy:
+                        retry_after = parse_retry_after(exc)
+
+                raise
+            else:
+                return response
+            finally:
+                # Recorded here, not in _send_request: a middleware that swallows the
+                # failure (RetryMiddleware returns None on 429/503) would hide it otherwise.
+                self._record_outcome(
+                    request,
+                    latency=monotonic() - start_time,
+                    status_code=status_code,
+                    exception_type=exception_type,
+                    retry_after=retry_after,
                 )
-
-            return response
 
         handler: RequestHandler = dispatch
         for middleware in reversed(self._middlewares):
@@ -148,9 +178,31 @@ class RequestManager:
 
         return handler
 
+    def _record_outcome(
+        self,
+        request: Request,
+        *,
+        latency: float,
+        status_code: int | None,
+        exception_type: type[BaseException] | None,
+        retry_after: float | None,
+    ):
+        "Feed a transport-level request outcome to the adaptive rate limiter."
+        if not self._rate_limiter_manager.adaptive_strategy:
+            return
+
+        self._rate_limiter_manager.on_request_outcome(
+            RequestOutcome(
+                group_key=self._rate_limiter_manager.get_group_key(request),
+                latency=latency,
+                retry_after=retry_after,
+                status_code=status_code,
+                exception_type=exception_type,
+            ),
+        )
+
     async def _send_request(self, request: Request):
         start_time = monotonic()
-        latency = status_code = exception_type = retry_after = None
         url = parse_url(request.url, request.params)
 
         try:
@@ -168,42 +220,18 @@ class RequestManager:
                     )
                     return
 
-                latency = monotonic() - start_time
-                status_code = response.status
                 logger.debug(
                     "Response received: %s %s - status=%d, latency=%.3fs",
                     request.method,
                     url,
                     response.status,
-                    latency,
+                    monotonic() - start_time,
                 )
 
                 await self._callback(request, response)
         except Exception as exc:
-            latency = monotonic() - start_time
-            exception_type = type(exc)
-
-            if isinstance(exc, HTTPException):
-                status_code = exc.status_code
-                if self._rate_limiter_manager.adaptive_strategy:
-                    retry_after = parse_retry_after(exc)
-
             logger.debug("Request exception: %s %s - %s: %s", request.method, url, type(exc).__name__, exc)
             await self._handle_exception(request, exc)
-        finally:
-            if self._rate_limiter_manager.adaptive_strategy:
-                if latency is None:
-                    latency = monotonic() - start_time
-
-                self._rate_limiter_manager.on_request_outcome(
-                    RequestOutcome(
-                        group_key=self._rate_limiter_manager.get_group_key(request),
-                        latency=latency,
-                        retry_after=retry_after,
-                        status_code=status_code,
-                        exception_type=exception_type,
-                    ),
-                )
 
     async def _callback(self, request: Request, response: Response):
         if request.callback is None:
@@ -315,7 +343,7 @@ class RequestManager:
 
     def _next_timeout(self) -> float | None:
         if not self._delayed_heap:
-            return 0.05
+            return self._shutdown_check_interval
 
         pr = self._delayed_heap[0]
         timeout = pr.priority - monotonic()

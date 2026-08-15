@@ -65,6 +65,29 @@ async def test_shutdown_event_cancels_scraper():
 
 
 @pytest.mark.asyncio
+async def test_shutdown_grants_grace_period_to_in_flight_work():
+    """In-flight work that finishes inside shutdown_timeout must not be cancelled."""
+    scraper = make_scraper_mock()
+    scraper.config = Config(execution=ExecutionConfig(timeout=None, shutdown_timeout=0.5))
+    shutdown = asyncio.Event()
+
+    async def trigger_shutdown():
+        await asyncio.sleep(0.01)
+        shutdown.set()
+        # 150ms of work after the signal, well inside the 500ms grace period.
+        await asyncio.sleep(0.15)
+        scraper.stop()
+
+    trigger = asyncio.create_task(trigger_shutdown())
+    await _run_scraper_without_force_exit(scraper, shutdown)
+    await trigger
+
+    assert scraper.started is True
+    assert scraper.exited is True
+    assert scraper.cancelled is False
+
+
+@pytest.mark.asyncio
 async def test_execution_timeout_cancels_scraper():
     scraper = make_scraper_mock()
     scraper.config = Config(execution=ExecutionConfig(timeout=0.02, shutdown_timeout=0.01))

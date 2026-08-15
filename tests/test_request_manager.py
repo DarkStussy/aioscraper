@@ -4,12 +4,20 @@ from typing import Any
 
 import pytest
 
-from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
+from aioscraper.config import (
+    AdaptiveRateLimitConfig,
+    BackoffStrategy,
+    RateLimitConfig,
+    RequestRetryConfig,
+    SchedulerConfig,
+)
+from aioscraper.core.rate_limiter import RequestOutcome
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.exceptions import HTTPException, InvalidRequestData
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import File, Request, RequestHandler, Response
+from aioscraper.middlewares import RetryMiddleware
+from aioscraper.types import File, Request, RequestHandler, Response, SendRequest
 
 
 async def _read() -> bytes:
@@ -420,6 +428,158 @@ async def test_url_with_params_is_parsed():
 
     # URL should contain query params
     assert "url" in captured
+
+    await manager.close()
+
+
+def _adaptive_rate_limit_config() -> RateLimitConfig:
+    return RateLimitConfig(
+        enabled=True,
+        default_interval=0.05,
+        adaptive=AdaptiveRateLimitConfig(min_interval=0.001, max_interval=1.0, increase_factor=2.0),
+    )
+
+
+def _spy_on_outcomes(manager: RequestManager) -> list[RequestOutcome]:
+    outcomes: list[RequestOutcome] = []
+    on_request_outcome = manager._rate_limiter_manager.on_request_outcome
+
+    def spy(outcome: RequestOutcome):
+        outcomes.append(outcome)
+        on_request_outcome(outcome)
+
+    manager._rate_limiter_manager.on_request_outcome = spy  # type: ignore[reportAttributeAccessIssue]
+    return outcomes
+
+
+@pytest.mark.asyncio
+async def test_retried_request_is_reported_to_adaptive_limiter():
+    """A 503 swallowed by the retry middleware must still be seen as a failure."""
+    retried = asyncio.Event()
+    retry_config = RequestRetryConfig(
+        enabled=True,
+        attempts=3,
+        backoff=BackoffStrategy.CONSTANT,
+        base_delay=10.0,
+    )
+    middleware_holder = MiddlewareHolder()
+
+    def retry_factory(send_request: SendRequest) -> RetryMiddleware:
+        # Fires when the retry is re-queued; the outcome is recorded before that.
+        async def tracking_sender(request: Request) -> Request:
+            result = await send_request(request)
+            retried.set()
+            return result
+
+        return RetryMiddleware(retry_config, tracking_sender)
+
+    middleware_holder.add(retry_factory)
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=_adaptive_rate_limit_config(),
+        retry_config=retry_config,
+        shutdown_check_interval=0.01,
+        sessionmaker=lambda: FixedStatusSession(status=503, body="unavailable"),
+        dependencies={},
+        middleware_holder=middleware_holder,
+    )
+    manager.start_listening()
+    outcomes = _spy_on_outcomes(manager)
+
+    try:
+        # base_delay=10s keeps the retry parked in the heap: exactly one attempt runs.
+        await manager.sender(Request(url="https://api.test.com/flaky"))
+        await asyncio.wait_for(retried.wait(), timeout=5.0)
+
+        assert len(outcomes) == 1
+        assert outcomes[0].status_code == 503
+        assert outcomes[0].exception_type is HTTPException
+
+        # default_interval * increase_factor
+        group = manager._rate_limiter_manager._groups["api.test.com"]
+        assert group.interval == pytest.approx(0.1)
+    finally:
+        # Drop the parked retry so the listener drains instead of waiting 10s.
+        manager._delayed_heap.clear()
+        await asyncio.wait_for(manager.shutdown(), timeout=5.0)
+        await manager.close()
+
+    assert manager._completed.is_set()
+    assert not manager._delayed_heap
+
+
+@pytest.mark.asyncio
+async def test_callback_failure_is_not_reported_as_transport_failure():
+    """Callback errors must not reach the adaptive limiter as request outcomes."""
+
+    async def callback(response: Response):
+        raise TimeoutError("callback boom")
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=_adaptive_rate_limit_config(),
+        retry_config=RequestRetryConfig(),
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+    )
+    outcomes = _spy_on_outcomes(manager)
+
+    assert manager._rate_limiter_manager.adaptive_strategy is not None
+    assert TimeoutError in manager._rate_limiter_manager.adaptive_strategy.trigger_exceptions
+
+    await manager._send_request(Request(url="https://api.test.com/ok", callback=callback))
+
+    assert len(outcomes) == 1
+    assert outcomes[0].status_code == 200
+    assert outcomes[0].exception_type is None
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_errback_failure_is_not_reported_as_transport_failure():
+    """A failing errback must not reach the adaptive limiter either."""
+
+    async def callback(response: Response):
+        raise TimeoutError("callback boom")
+
+    async def errback(exc: Exception):
+        raise ValueError("errback boom")
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=_adaptive_rate_limit_config(),
+        retry_config=RequestRetryConfig(),
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+    )
+    outcomes = _spy_on_outcomes(manager)
+
+    with pytest.raises(ExceptionGroup) as excinfo:
+        await manager._send_request(Request(url="https://api.test.com/ok", callback=callback, errback=errback))
+
+    assert isinstance(excinfo.value.exceptions[0], TimeoutError)
+    assert isinstance(excinfo.value.exceptions[1], ValueError)
+
+    assert len(outcomes) == 1
+    assert outcomes[0].status_code == 200
+    assert outcomes[0].exception_type is None
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_next_timeout_uses_shutdown_check_interval(base_manager_factory):
+    """The queue poll timeout comes from shutdown_check_interval, not a constant."""
+    manager = base_manager_factory(session_factory=FakeSession)
+
+    assert not manager._delayed_heap
+    assert manager._next_timeout() == 0.01
 
     await manager.close()
 

@@ -3,6 +3,7 @@ import logging
 import signal
 from contextlib import suppress
 from functools import partial
+from typing import Any
 
 from .scraper import AIOScraper
 
@@ -35,6 +36,13 @@ def _setup_signal_handlers(loop: asyncio.AbstractEventLoop, shutdown: asyncio.Ev
                 logger.debug("Signal handler for %s was not installed", sig_name)
 
 
+async def _cancel(task: asyncio.Task[Any]):
+    "Cancel a task and wait for it to settle."
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+
+
 async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: asyncio.Event):
     "Run scraper with shutdown handling, ignoring force-exit logic."
     shutdown_task = asyncio.create_task(shutdown_event.wait())
@@ -46,22 +54,22 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: a
         done, _ = await asyncio.wait(wait_set, return_when=asyncio.FIRST_COMPLETED)
 
         if scraper_task in done:
-            shutdown_task.cancel()
-
-            with suppress(asyncio.CancelledError):
-                await shutdown_task
-
+            await _cancel(shutdown_task)
             return await scraper_task
 
-        logger.warning("Shutdown requested, cancelling tasks")
+        shutdown_timeout = scraper.config.execution.shutdown_timeout
+        logger.warning("Shutdown requested, waiting for scraper to finish (timeout=%0.10gs)", shutdown_timeout)
 
-        scraper_task.cancel()
+        # wait_for cancels the shield wrapper on timeout, not scraper_task itself,
+        # so the cancellation below happens only after the grace period.
         try:
-            await asyncio.wait_for(scraper_task, timeout=scraper.config.execution.shutdown_timeout)
+            return await asyncio.wait_for(asyncio.shield(scraper_task), timeout=shutdown_timeout)
         except asyncio.TimeoutError:
-            logger.exception("Shutdown timeout expired")
+            logger.warning("Shutdown timeout expired, cancelling tasks")
+            await _cancel(scraper_task)
         except asyncio.CancelledError:
-            pass
+            await _cancel(scraper_task)
+            raise
         finally:
             with suppress(asyncio.CancelledError):
                 await shutdown_task
@@ -87,12 +95,10 @@ async def _run_scraper(
     done, _ = await asyncio.wait([force_exit_task, scraper_task], return_when=asyncio.FIRST_COMPLETED)
 
     if force_exit_task in done:
-        scraper_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await scraper_task
-
+        await _cancel(scraper_task)
         return
 
+    await _cancel(force_exit_task)
     await scraper_task
 
 
