@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from enum import Enum, auto
+from functools import partial
 from logging import getLogger
 from types import TracebackType
 from typing import Any, AsyncGenerator, Callable, Mapping, Self
@@ -13,7 +14,7 @@ from aioscraper.types import Scraper
 from .errors import ErrorCollector, RunResult, ScraperError
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
-from .session import SessionMakerFactory, get_sessionmaker
+from .session import HttpClient, SessionMakerFactory, get_sessionmaker
 
 logger = getLogger(__name__)
 
@@ -51,9 +52,16 @@ class AIOScraper:
             built with :func:`load_config`.
         lifespan (Lifespan | None): Optional async context manager factory
             that wraps the scraper's lifecycle (setup/teardown).
+        http_client (ClientSession | AsyncClient | None): Send through this
+            ``aiohttp``/``httpx`` client instead of creating one. It selects the
+            backend, is used as configured, and stays open when the run ends.
         sessionmaker_factory (SessionMakerFactory | None): Override the
             function that builds HTTP sessions (defaults to
             :func:`aioscraper.core.session.factory.get_sessionmaker`).
+            Mutually exclusive with ``http_client``.
+
+    Raises:
+        ValueError: Both ``http_client`` and ``sessionmaker_factory`` are given.
     """
 
     def __init__(
@@ -61,14 +69,18 @@ class AIOScraper:
         *scrapers: Scraper,
         config: Config | None = None,
         lifespan: Lifespan | None = None,
+        http_client: HttpClient | None = None,
         sessionmaker_factory: SessionMakerFactory | None = None,
     ):
+        if http_client is not None and sessionmaker_factory is not None:
+            raise ValueError("http_client and sessionmaker_factory are mutually exclusive")
+
         self.scrapers = [*scrapers]
         self.config = config or load_config()
         self.dependencies: dict[str, Any] = {}
         self._error_collector = ErrorCollector()
 
-        self._sessionmaker_factory = sessionmaker_factory or get_sessionmaker
+        self._sessionmaker_factory = sessionmaker_factory or partial(get_sessionmaker, client=http_client)
 
         @asynccontextmanager
         async def default_lifespan(_: Self):
@@ -237,7 +249,7 @@ class AIOScraper:
         finally:
             await self.close()
 
-    async def wait(self, timeout: float | None = None) -> RunResult:  # noqa: ASYNC109
+    async def wait(self, timeout: float | None = None) -> RunResult:
         """Wait for the scraper to finish.
 
         On a closing or closed scraper the call waits for teardown instead, so the result covers

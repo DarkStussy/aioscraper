@@ -39,7 +39,7 @@ class FakeSession(BaseSession):
     def make_request(self, request: Request) -> FakeRequestContextManager:
         return FakeRequestContextManager(request)
 
-    async def close(self):
+    async def _close_client(self):
         self.closed = True
 
 
@@ -65,14 +65,14 @@ class FixedStatusSession(BaseSession):
     def make_request(self, request: Request) -> BaseRequestContextManager:
         return FixedStatusRequestContextManager(request, status=self._status, body=self._body)
 
-    async def close(self): ...
+    async def _close_client(self): ...
 
 
 class NoopSession(BaseSession):
     def make_request(self, request: Request) -> BaseRequestContextManager:
         raise AssertionError("should not be called when validation fails")
 
-    async def close(self): ...
+    async def _close_client(self): ...
 
 
 @pytest.fixture

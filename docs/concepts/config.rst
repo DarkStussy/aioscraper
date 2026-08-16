@@ -104,6 +104,34 @@ The shutdown settings above are honored by both the CLI and ``run_scraper``, giv
 code or from the terminal.
 
 
+.. _own-http-client:
+
+Bringing your own HTTP client
+-----------------------------
+
+Pass an ``aiohttp.ClientSession`` or an ``httpx.AsyncClient`` as ``AIOScraper(http_client=...)`` to send through a client your service already owns, with its connection pool, default headers, cookies, auth and transports:
+
+.. code-block:: python
+
+    from aiohttp import ClientSession
+    from aioscraper import AIOScraper
+
+
+    async def main(http_client: ClientSession):
+        scraper = AIOScraper(http_client=http_client)
+        ...
+
+The client picks the backend, so ``session.http_backend`` only has to agree with it; a mismatch raises :class:`AIOScraperException <aioscraper.exceptions.AIOScraperException>`.
+
+The contract for a client passed this way:
+
+- It is used as configured. ``session.timeout``, ``ssl`` and ``proxy`` build a client `aioscraper` creates, so they no longer apply - set the equivalents on the client itself. The same goes for httpx's redirect limit, which `aioscraper` otherwise pins to ``Request.max_redirects``.
+- It stays open. The scraper never closes a client it did not create, so one client can outlive many runs.
+- What the framework enforces itself is unaffected: :ref:`body limits <body-limits>`, :ref:`retries <retry-config>`, :ref:`rate limiting <rate-limit-config>`, and per-request fields such as ``Request.timeout`` or ``Request.headers``, which the client merges with its own defaults.
+- The connection pool stays the client's. ``scheduler.concurrent_requests`` bounds requests in flight, but the pool serving them is sized on the client.
+
+:func:`get_sessionmaker <aioscraper.core.session.factory.get_sessionmaker>` takes the same ``client`` argument, and :class:`AiohttpSession <aioscraper.core.session.aiohttp.AiohttpSession>`/:class:`HttpxSession <aioscraper.core.session.httpx.HttpxSession>` accept ``client=`` with ``owns_client=`` to hand ownership over explicitly. ``http_client`` and ``sessionmaker_factory`` are mutually exclusive: a custom factory decides on its own client.
+
 .. _body-limits:
 
 Body limits

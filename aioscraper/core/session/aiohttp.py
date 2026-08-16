@@ -3,7 +3,7 @@ from aiohttp.helpers import BasicAuth
 
 from aioscraper.types import Request, Response
 
-from .base import BaseRequestContextManager, BaseSession
+from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
 
 
 class AiohttpRequestContextManager(BaseRequestContextManager):
@@ -80,23 +80,43 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
 
 
 class AiohttpSession(BaseSession):
-    """HTTP session implementation that reuses a shared :class:`ClientSession`."""
+    """HTTP session implementation that reuses a shared :class:`ClientSession`.
+
+    Args:
+        timeout (ClientTimeout | None): Client-wide timeout; ``None`` leaves the aiohttp default.
+        connector (TCPConnector | None): Connector carrying the SSL settings and connection pool.
+        proxy (str | None): Proxy applied to every request.
+        max_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap.
+        client (ClientSession | None): Send through this client instead of creating one. Its own
+            configuration is used as it is, which makes ``timeout``, ``connector`` and ``proxy``
+            inapplicable.
+        owns_client (bool | None): Close ``client`` on :meth:`close`. Defaults to ``False`` for a
+            provided client and ``True`` for one created here.
+
+    Raises:
+        ValueError: ``owns_client`` is ``False`` without a ``client``.
+    """
 
     def __init__(
         self,
-        timeout: ClientTimeout,
-        connector: TCPConnector | None,
-        proxy: str | None,
+        *,
+        timeout: ClientTimeout | None = None,
+        connector: TCPConnector | None = None,
+        proxy: str | None = None,
         max_body_size: int | None = None,
+        client: ClientSession | None = None,
+        owns_client: bool | None = None,
     ):
-        self._timeout = timeout
+        super().__init__(owns_client=resolve_client_ownership(client, owns_client))
         self._max_body_size = max_body_size
-        self._session = ClientSession(timeout=timeout, connector=connector, proxy=proxy)
+        self._session = (
+            client if client is not None else ClientSession(timeout=timeout, connector=connector, proxy=proxy)
+        )
 
     def make_request(self, request: Request) -> AiohttpRequestContextManager:
         """Create an aiohttp request context manager bound to the shared client."""
         return AiohttpRequestContextManager(request, self._session, self._max_body_size)
 
-    async def close(self):
+    async def _close_client(self):
         """Close the underlying ``ClientSession`` and release network resources."""
         await self._session.close()

@@ -1,5 +1,8 @@
+from dataclasses import replace
+
 from aioscraper.config import Config
 from aioscraper.core import AIOScraper
+from aioscraper.core.errors import RunResult
 from aioscraper.types import Scraper
 
 from .server import MockServer
@@ -15,6 +18,7 @@ class MockAIOScraper(AIOScraper):
     def server(self) -> MockServer:
         return self._server
 
-    async def wait(self):
-        object.__setattr__(self.config.session, "http_backend", self._http_backend)
-        await super().wait()
+    async def wait(self, timeout: float | None = None) -> RunResult:
+        # rebuilt rather than mutated: SessionConfig() is the shared default of every Config()
+        self.config = replace(self.config, session=replace(self.config.session, http_backend=self._http_backend))
+        return await super().wait(timeout)

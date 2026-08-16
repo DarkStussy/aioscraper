@@ -29,6 +29,7 @@ select = [
 ignore = [
     "ARG",
     "ANN",
+    "ASYNC109",
     "BLE001",
     "COM812",
     "D",

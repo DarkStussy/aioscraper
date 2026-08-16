@@ -7,7 +7,7 @@ from aioscraper.exceptions import UnsupportedRequestOption
 from aioscraper.types import Request, Response
 from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
 
-from .base import BaseRequestContextManager, BaseSession
+from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
 
 _BACKEND = "httpx"
 
@@ -91,17 +91,40 @@ class HttpxRequestContextManager(BaseRequestContextManager):
 
 
 class HttpxSession(BaseSession):
-    """HTTP session implementation that wraps an :class:`httpx.AsyncClient`."""
+    """HTTP session implementation that wraps an :class:`httpx.AsyncClient`.
+
+    Args:
+        timeout (float | None): Client-wide timeout in seconds.
+        verify (SSLContext | bool): SSL handling passed to the client.
+        proxy (str | dict[str, str | None] | None): Proxy URL, or a per-scheme mapping mounted on
+            separate transports.
+        max_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap.
+        client (AsyncClient | None): Send through this client instead of creating one. Its own
+            configuration is used as it is, which makes ``timeout``, ``verify``, ``proxy`` and the
+            redirect limit inapplicable.
+        owns_client (bool | None): Close ``client`` on :meth:`close`. Defaults to ``False`` for a
+            provided client and ``True`` for one created here.
+
+    Raises:
+        ValueError: ``owns_client`` is ``False`` without a ``client``.
+    """
 
     def __init__(
         self,
-        timeout: float | None,
-        verify: SSLContext | bool,
-        proxy: str | dict[str, str | None] | None,
+        *,
+        timeout: float | None = None,
+        verify: SSLContext | bool = True,
+        proxy: str | dict[str, str | None] | None = None,
         max_body_size: int | None = None,
+        client: AsyncClient | None = None,
+        owns_client: bool | None = None,
     ):
-        """Instantiate an ``AsyncClient`` honoring timeout/SSL/proxy configuration."""
+        super().__init__(owns_client=resolve_client_ownership(client, owns_client))
         self._max_body_size = max_body_size
+        if client is not None:
+            self._client = client
+            return
+
         if isinstance(proxy, dict):
             mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items() if proxy} or None
             proxy = None
@@ -130,6 +153,6 @@ class HttpxSession(BaseSession):
         _check_supported(request)
         return HttpxRequestContextManager(request, self._client, self._max_body_size)
 
-    async def close(self):
+    async def _close_client(self):
         """Close the ``AsyncClient`` to free connectors and sockets."""
         await self._client.aclose()
