@@ -105,8 +105,8 @@ async def test_lifespan_execution_order():
     scraper = AIOScraper(lifespan=lifespan)
 
     # Mock the start method to verify it runs after startup
-    original_start = scraper.start
-    scraper.start = lambda: events.append("start") or original_start()
+    original_start = scraper._start
+    scraper._start = lambda: events.append("start") or original_start()
     scraper._run = AsyncMock()
 
     async with scraper:

@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
+from enum import Enum, auto
 from logging import getLogger
 from types import TracebackType
 from typing import Any, AsyncGenerator, Callable, Mapping, Self
@@ -19,13 +20,35 @@ logger = getLogger(__name__)
 Lifespan = Callable[["AIOScraper"], AsyncGenerator[None, None]]
 
 
+class _State(Enum):
+    """Lifecycle position of an :class:`AIOScraper`.
+
+    Attributes:
+        CREATED: Configured, never started.
+        STARTING: ``__aenter__`` reserved the instance and is setting the lifespan up.
+        RUNNING: The background task exists; it may still be running or already finished.
+        CLOSING: Teardown is in progress.
+        CLOSED: Teardown finished, terminal.
+    """
+
+    CREATED = auto()
+    STARTING = auto()
+    RUNNING = auto()
+    CLOSING = auto()
+    CLOSED = auto()
+
+
 class AIOScraper:
     """Core entrypoint that wires scrapers, middlewares, and pipelines.
 
+    An instance is single-use: :meth:`start` and ``async with`` raise ``RuntimeError`` on a second
+    run, because closing it closes the executor and its sessions and neither is rebuilt. A finished
+    run stays readable through :attr:`errors`; scraping again takes a new instance.
+
     Args:
         *scrapers (Scraper): Callable scrapers queued on startup.
-        config (Config | None): Pre-built configuration; when ``None`` the
-            scraper loads one lazily via :func:`load_config` on ``start``.
+        config (Config | None): Pre-built configuration; when ``None`` one is
+            built with :func:`load_config`.
         lifespan (Lifespan | None): Optional async context manager factory
             that wraps the scraper's lifecycle (setup/teardown).
         sessionmaker_factory (SessionMakerFactory | None): Override the
@@ -58,6 +81,10 @@ class AIOScraper:
         self._pipeline_holder = PipelineHolder()
 
         self._task: asyncio.Task[None] | None = None
+        self._state = _State.CREATED
+        self._timed_out = False
+        self._closed = asyncio.Event()
+        self._lifecycle = asyncio.Lock()
 
     def __call__(self, scraper: Scraper) -> Scraper:
         "Add a scraper callable and return it for decorator use."
@@ -105,8 +132,21 @@ class AIOScraper:
         return self._pipeline_holder
 
     async def __aenter__(self) -> Self:
-        await self._lifespan_exit_stack.enter_async_context(self._lifespan(self))
-        self.start()
+        # reserved before the first await, so two concurrent entries cannot both set the lifespan up
+        self._reject_rerun()
+        self._state = _State.STARTING
+        # the lock is for close() alone: STARTING already rejects start() and another entry, but
+        # close() would otherwise finish the instance while the lifespan is still setting it up
+        async with self._lifecycle:
+            try:
+                await self._lifespan_exit_stack.enter_async_context(self._lifespan(self))
+                self._start()
+            except BaseException:
+                # nothing is left running, so the failed entry does not consume the single use
+                self._state = _State.CREATED
+                await self._lifespan_exit_stack.aclose()
+                raise
+
         return self
 
     async def __aexit__(
@@ -120,10 +160,38 @@ class AIOScraper:
         finally:
             await self._lifespan_exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
-    def start(self):
-        "Start the scraper and run it in the background."
+    def _reject_rerun(self):
+        if self._state is not _State.CREATED:
+            raise RuntimeError(f"AIOScraper is single-use and is already {self._state.name.lower()}; create a new one")
+
+    def _require_started(self) -> asyncio.Task[None]:
         if self._task is None:
-            self._task = asyncio.create_task(self._run())
+            raise RuntimeError("AIOScraper was not started: call start() or use it as an async context manager")
+
+        return self._task
+
+    def start(self):
+        """Start the scraper and run it in the background.
+
+        Raises:
+            RuntimeError: The instance was already started or closed, or there is no running
+                event loop. The latter leaves it startable.
+        """
+        self._reject_rerun()
+        self._start()
+
+    def _start(self):
+        # the state moves only once the task exists: a create_task that raises leaves the instance
+        # startable, with the coroutine it never took closed
+        run = self._run()
+        try:
+            task = asyncio.create_task(run)
+        except BaseException:
+            run.close()
+            raise
+
+        self._task = task
+        self._state = _State.RUNNING
 
     async def _run(self):
         """Initialize and run the scraper with the configured settings."""
@@ -155,10 +223,13 @@ class AIOScraper:
 
         Returns:
             RunResult: What the run recorded before it was shut down.
+
+        Raises:
+            RuntimeError: The scraper was never started.
         """
-        if self._task is None:
-            logger.debug("Shutdown called but scraper is not running")
-            return self._result()
+        self._require_started()
+        if self._state is not _State.RUNNING:
+            return await self._closed_result()
 
         logger.debug("Initiating graceful shutdown (timeout=%0.10gs)", self.config.execution.shutdown_timeout)
         try:
@@ -169,37 +240,74 @@ class AIOScraper:
     async def wait(self, timeout: float | None = None) -> RunResult:  # noqa: ASYNC109
         """Wait for the scraper to finish.
 
+        On a closing or closed scraper the call waits for teardown instead, so the result covers
+        the errors it recorded. A ``close()`` landing mid-wait is reported the same way rather
+        than cancelling the caller.
+
         Args:
-            timeout (float | None): Overrides ``execution.timeout`` for this call.
+            timeout (float | None): Overrides ``execution.timeout`` for this call. It bounds the
+                run, not teardown.
 
         Returns:
             RunResult: What the run recorded, including whether the timeout expired.
+
+        Raises:
+            RuntimeError: The scraper was never started.
         """
-        if self._task is None:
-            logger.debug("Wait called but scraper is not running")
-            return self._result()
+        task = self._require_started()
+        if self._state is not _State.RUNNING:
+            return await self._closed_result()
 
         log_level = self.config.execution.log_level
         timeout = timeout or self.config.execution.timeout
 
         logger.debug("Waiting for scraper to finish (timeout=%ss)", timeout)
-        try:
-            await asyncio.wait_for(self._task, timeout=timeout)
-        except asyncio.TimeoutError:
+        # watching the task rather than awaiting it: a close() that cancels the run must not
+        # cancel this call too
+        done, _ = await asyncio.wait((task,), timeout=timeout)
+        if not done:
             logger.log(log_level, "wait timeout exceeded (%ss) - forcing shutdown", timeout)
-            return self._result(timed_out=True)
+            self._timed_out = True
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        elif not task.cancelled():
+            # asyncio.wait does not surface the task's exception, so raise what the run failed with
+            task.result()
+
+        if self._state is not _State.RUNNING:
+            return await self._closed_result()
 
         return self._result()
 
-    def _result(self, *, timed_out: bool = False) -> RunResult:
-        return RunResult(errors=self.errors, error_counts=self.error_counts, timed_out=timed_out)
+    def _result(self) -> RunResult:
+        # the timeout is a property of the run, not of the call: every later result keeps it
+        return RunResult(errors=self.errors, error_counts=self.error_counts, timed_out=self._timed_out)
+
+    async def _closed_result(self) -> RunResult:
+        "Report the run once teardown is over: closing the executor records errors of its own."
+        await self._closed.wait()
+        return self._result()
 
     async def close(self):
-        "Close the scraper and its associated resources."
-        if self._task is None:
-            logger.debug("Close called but scraper is not running")
+        """Close the scraper and its associated resources; the instance cannot run again.
+
+        Concurrent calls wait for the teardown started by the first one, and a call landing while
+        the scraper is starting waits for the startup to settle before tearing it down.
+        """
+        if self._state is _State.CLOSED:
             return
 
-        self._task.cancel()
-        with suppress(asyncio.CancelledError):
-            await self._task
+        async with self._lifecycle:
+            if self._state is _State.CLOSED:
+                return
+
+            self._state = _State.CLOSING
+            try:
+                if self._task is not None:
+                    self._task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await self._task
+            finally:
+                self._state = _State.CLOSED
+                self._closed.set()

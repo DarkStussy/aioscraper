@@ -49,3 +49,29 @@ What it does
             yield
         finally:
             await db_client.close()
+
+Instance lifecycle
+------------------
+
+An :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` instance runs once. It goes from created to running on :meth:`start() <aioscraper.core.scraper.AIOScraper.start>` (or on entering ``async with``), and to closed on :meth:`close() <aioscraper.core.scraper.AIOScraper.close>` (or on leaving it). Starting a running or closed instance raises ``RuntimeError``: closing it closes the executor and its sessions, and neither is rebuilt, so scraping again takes a new instance:
+
+.. code-block:: python
+
+    from aioscraper import AIOScraper, run_scraper
+
+
+    def build() -> AIOScraper:
+        scraper = AIOScraper()
+        ...
+        return scraper
+
+
+    async def main():
+        for _ in range(3):
+            await run_scraper(build())
+
+A failed start is not a run: if the lifespan raises, it is unwound and the instance can still be started.
+
+:meth:`wait() <aioscraper.core.scraper.AIOScraper.wait>` and :meth:`shutdown() <aioscraper.core.scraper.AIOScraper.shutdown>` stay usable once the run is over: they return the recorded :class:`RunResult <aioscraper.core.errors.RunResult>` when the scraper is closed, and raise ``RuntimeError`` when it was never started — closing an unstarted scraper does not make them report a clean run. The result describes the run rather than the call: ``timed_out`` stays set on every later result, and both wait for teardown before reporting, so the errors recorded while the executor closed are included. A ``close()`` landing while ``wait()`` is in flight is reported that way too, instead of cancelling it.
+
+:meth:`close() <aioscraper.core.scraper.AIOScraper.close>` can be called any number of times and from several tasks at once. The later calls wait for the teardown the first one started, and a call landing while the scraper is still starting waits for the startup to settle instead of closing an instance whose resources are half set up.
