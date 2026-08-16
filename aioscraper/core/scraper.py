@@ -15,6 +15,7 @@ from .errors import ErrorCollector, RunResult, ScraperError
 from .executor import ScraperExecutor
 from .pipeline import PipelineDispatcher
 from .session import HttpClient, SessionMakerFactory, get_sessionmaker
+from .stats import RunStats
 
 logger = getLogger(__name__)
 
@@ -79,6 +80,7 @@ class AIOScraper:
         self.config = config or load_config()
         self.dependencies: dict[str, Any] = {}
         self._error_collector = ErrorCollector()
+        self._stats = RunStats()
 
         self._sessionmaker_factory = sessionmaker_factory or partial(get_sessionmaker, client=http_client)
 
@@ -218,9 +220,11 @@ class AIOScraper:
                 global_middleware_factories=self._pipeline_holder.global_middleware_factories,
                 dependencies=self.dependencies,
                 error_collector=self._error_collector,
+                stats=self._stats,
             ),
             sessionmaker=self._sessionmaker_factory(self.config.session),
             error_collector=self._error_collector,
+            stats=self._stats,
         )
         try:
             logger.debug("Starting executor")
@@ -292,9 +296,26 @@ class AIOScraper:
 
         return self._result()
 
+    @property
+    def result(self) -> RunResult:
+        """The outcome as it stands.
+
+        Returns:
+            RunResult: Errors and counters recorded so far. ``interrupted`` is set by the runner.
+        """
+        return self._result()
+
     def _result(self) -> RunResult:
         # the timeout is a property of the run, not of the call: every later result keeps it
-        return RunResult(errors=self.errors, error_counts=self.error_counts, timed_out=self._timed_out)
+        return RunResult(
+            errors=self.errors,
+            error_counts=self.error_counts,
+            timed_out=self._timed_out,
+            requests_started=self._stats.requests_started,
+            requests_succeeded=self._stats.requests_succeeded,
+            requests_failed=self._stats.requests_failed,
+            items_processed=self._stats.items_processed,
+        )
 
     async def _closed_result(self) -> RunResult:
         "Report the run once teardown is over: closing the executor records errors of its own."

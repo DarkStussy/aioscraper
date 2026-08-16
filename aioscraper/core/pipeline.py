@@ -5,6 +5,7 @@ from aioscraper._helpers.func import get_func_kwargs
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import PipelineConfig
 from aioscraper.core.errors import ErrorCollector
+from aioscraper.core.stats import RunStats
 from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
 from aioscraper.types.pipeline import (
     GlobalPipelineMiddleware,
@@ -27,12 +28,14 @@ class PipelineDispatcher:
         global_middleware_factories: list[GlobalPipelineMiddlewareFactory[Any]] | None = None,
         dependencies: Mapping[str, Any] | None = None,
         error_collector: ErrorCollector | None = None,
+        stats: RunStats | None = None,
     ):
         self._config = config
         self._pipelines = pipelines
         self._global_middleware_factories = global_middleware_factories or []
         self._dependencies: Mapping[str, Any] = dependencies or {}
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
+        self._stats = RunStats() if stats is None else stats
         logger.info(
             "Pipeline dispatcher created: pipelines=%d, global_middleware_factories=%d, strict=%s",
             len(pipelines),
@@ -110,10 +113,13 @@ class PipelineDispatcher:
     async def put_item(self, item: PipelineItemType) -> PipelineItemType:
         "Dispatches an item through the pipeline."
         try:
-            return await self._handler(item)
+            item = await self._handler(item)
         except StopItemProcessing:
             logger.debug("StopItemProcessing in pipeline handler: aborting item processing")
-            return item
+
+        # an item stopped by a middleware was still handled; one that raised was not
+        self._stats.item_processed()
+        return item
 
     async def close(self):
         """

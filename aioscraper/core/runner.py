@@ -2,6 +2,7 @@ import asyncio
 import logging
 import signal
 from contextlib import suppress
+from dataclasses import replace
 from functools import partial
 from typing import Any
 
@@ -97,20 +98,16 @@ async def _run_scraper(
 
     if force_exit_task in done:
         await _cancel(scraper_task)
-        return RunResult(errors=scraper.errors, error_counts=scraper.error_counts, interrupted=True)
+        return replace(scraper.result, interrupted=True)
 
     await _cancel(force_exit_task)
-    result = await scraper_task
-    # Counts are re-read here rather than taken from the scraper's own result: teardown runs
-    # after wait() returns and can record errors of its own.
-    return RunResult(
-        errors=scraper.errors,
-        error_counts=scraper.error_counts,
-        # The handlers turn SIGINT/SIGTERM into an event, so KeyboardInterrupt never reaches
-        # the caller: without this flag a signalled run is indistinguishable from a clean one.
-        interrupted=shutdown.is_set(),
-        timed_out=result is not None and result.timed_out,
-    )
+    await scraper_task
+    # Read after the task rather than taken from what it returned: teardown runs once wait() is
+    # done and records errors of its own.
+    #
+    # The handlers turn SIGINT/SIGTERM into an event, so KeyboardInterrupt never reaches the
+    # caller: without this flag a signalled run is indistinguishable from a clean one.
+    return replace(scraper.result, interrupted=shutdown.is_set())
 
 
 async def run_scraper(scraper: AIOScraper) -> RunResult:

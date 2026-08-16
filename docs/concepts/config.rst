@@ -79,8 +79,13 @@ not recorded: handling it is the point of the callback.
   traceback alive.
 - ``interrupted`` / ``timed_out`` - whether a signal or ``execution.timeout`` ended the run.
 - ``ok`` - true only when the run finished on its own with nothing recorded.
+- ``requests_started`` / ``requests_succeeded`` / ``requests_failed`` - attempts rather than requests: a
+  retry starts another one, and only the attempt that ends a request counts as succeeded or failed.
+  ``requests_failed`` covers failures an ``errback`` handled, which ``error_counts`` deliberately leaves out.
+- ``items_processed`` - items the pipeline dispatcher handled without raising.
 
 The same data stays available on the scraper through
+:attr:`AIOScraper.result <aioscraper.core.scraper.AIOScraper.result>`, and the errors alone through
 :attr:`AIOScraper.error_counts <aioscraper.core.scraper.AIOScraper.error_counts>` and
 :attr:`AIOScraper.errors <aioscraper.core.scraper.AIOScraper.errors>`.
 

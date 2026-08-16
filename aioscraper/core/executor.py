@@ -13,6 +13,7 @@ from .errors import ErrorCollector
 from .pipeline import PipelineDispatcher
 from .request_manager import RequestManager
 from .session import SessionMaker
+from .stats import RunStats
 
 logger = getLogger(__name__)
 
@@ -34,6 +35,7 @@ class ScraperExecutor:
         pipeline_dispatcher: PipelineDispatcher,
         sessionmaker: SessionMaker,
         error_collector: ErrorCollector | None = None,
+        stats: RunStats | None = None,
     ):
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._config = config
@@ -50,6 +52,7 @@ class ScraperExecutor:
             dependencies=self._dependencies,
             middleware_holder=middleware_holder,
             error_collector=self._error_collector,
+            stats=stats,
         )
 
     async def run(self):

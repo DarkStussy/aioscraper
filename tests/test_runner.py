@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from aioscraper.config import Config, ExecutionConfig
+from aioscraper.core.errors import RunResult
 from aioscraper.core.runner import _run_scraper, _run_scraper_without_force_exit
 
 
@@ -16,6 +17,7 @@ def make_scraper_mock() -> AsyncMock:
     scraper.cancelled = False
     scraper.cancelled_by_timeout = False
     scraper._stop = asyncio.Event()
+    scraper.result = RunResult()
 
     async def aenter():
         scraper.entered = True

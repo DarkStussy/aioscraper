@@ -21,6 +21,7 @@ from .errors import ErrorCollector
 from .rate_limiter import RateLimitManager, RequestOutcome
 from .retry import RetryPolicy
 from .session import SessionMaker
+from .stats import RunStats
 
 logger = getLogger(__name__)
 
@@ -143,10 +144,12 @@ class RequestManager:
         rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
         retry_config (RequestRetryConfig): Configuration for request retries.
         shutdown_check_interval (float): Interval between shutdown checks in seconds
-        max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
         sessionmaker (SessionMaker): A factory for creating session objects.
         dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
         middleware_holder (MiddlewareHolder): A container for middleware collections.
+        error_collector (ErrorCollector | None): Records errors that are logged and dropped.
+        max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
+        stats (RunStats | None): Counts attempts for the run's outcome.
     """
 
     def __init__(
@@ -160,8 +163,10 @@ class RequestManager:
         middleware_holder: MiddlewareHolder,
         error_collector: ErrorCollector | None = None,
         max_error_body_size: int = DEFAULT_MAX_ERROR_BODY_SIZE,
+        stats: RunStats | None = None,
     ):
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
+        self._stats = RunStats() if stats is None else stats
         self._max_error_body_size = max_error_body_size
         logger.info(
             "Creating scheduler: concurrent_requests=%s, pending_requests=%s, close_timeout=%s",
@@ -341,6 +346,7 @@ class RequestManager:
         request = attempt.request
         start_time = monotonic()
         url = parse_url(request.url, request.params)
+        self._stats.request_started()
 
         try:
             async with AsyncExitStack() as stack:
@@ -375,7 +381,9 @@ class RequestManager:
                 )
 
                 await self._callback(request, response)
+                self._stats.request_succeeded()
         except Exception as exc:
+            self._stats.request_failed()
             logger.debug("Request exception: %s %s - %s: %s", request.method, url, type(exc).__name__, exc)
             await self._handle_exception(request, exc)
 

@@ -25,17 +25,32 @@ class ScraperError:
 class RunResult:
     """The outcome of a finished run.
 
+    Requests are counted per attempt, and only the attempt that ends a request counts as succeeded
+    or failed: ``requests_succeeded`` and ``requests_failed`` therefore add up to
+    ``requests_started`` minus the attempts that were retried, that a middleware handled on its own,
+    and that a shutdown cut short.
+
     Attributes:
         errors (tuple[ScraperError, ...]): The most recent unhandled errors, capped by the collector.
         error_counts (Mapping[str, int]): Exact number of unhandled errors per context.
         interrupted (bool): SIGINT/SIGTERM stopped the run.
         timed_out (bool): ``execution.timeout`` expired before the run finished.
+        requests_started (int): Attempts handed to the middleware chain.
+        requests_succeeded (int): Attempts whose response was returned by the chain and processed
+            by the callback.
+        requests_failed (int): Attempts that ended in an exception and were not retried. Counted
+            whether or not an ``errback`` handled it, unlike ``error_counts``.
+        items_processed (int): Items the pipeline dispatcher handled without raising.
     """
 
     errors: tuple[ScraperError, ...] = ()
     error_counts: Mapping[str, int] = field(default_factory=dict)
     interrupted: bool = False
     timed_out: bool = False
+    requests_started: int = 0
+    requests_succeeded: int = 0
+    requests_failed: int = 0
+    items_processed: int = 0
 
     @property
     def total_errors(self) -> int:
