@@ -17,6 +17,13 @@ def pytest_configure(config: pytest.Config):
     if _OWNED_LOOP is not None:
         asyncio.set_event_loop(_OWNED_LOOP)
 
+    if sys.platform == "win32":
+        # Closing a proactor transport whose body was left unread cancels a pending IOCP read
+        # first, so the socket is closed a loop iteration later - one the test no longer has,
+        # which leaves __del__ to report it. Selector loops close it before the loop is gone.
+        for message in ("unclosed transport", "unclosed <socket"):
+            config.addinivalue_line("filterwarnings", f"ignore:{message}:ResourceWarning")
+
 
 def pytest_unconfigure(config: pytest.Config):
     if _OWNED_LOOP is not None:
