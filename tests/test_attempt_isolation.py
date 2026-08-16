@@ -123,7 +123,9 @@ async def test_user_delay_applies_to_every_send():
         await manager.sender(request)
         assert len(manager._delayed_heap) == 1
 
-        await asyncio.sleep(0.01)
+        # comfortably past the ~15.6ms granularity of monotonic() on Windows, where a 10ms sleep
+        # can leave the clock, and with it the entry's due time, where it was
+        await asyncio.sleep(0.1)
         await manager._pop_due_delayed()
         assert not manager._delayed_heap
         assert request.delay == 0.001
