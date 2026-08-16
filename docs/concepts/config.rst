@@ -201,6 +201,8 @@ Set :class:`SessionConfig.rate_limit <aioscraper.config.models.RateLimitConfig>`
 
 Rate limiting groups requests by a key (by default, the URL hostname) and enforces a minimum interval between requests within each group. This helps avoid overwhelming target servers and getting blocked.
 
+A group paces its requests; it does not get a share of the concurrency. ``scheduler.concurrent_requests`` is a single global limit, so requests waiting on a slow host hold slots that every other group would otherwise use. Size the limit for the slowest target, or run a scraper per target, to keep them apart.
+
 .. code-block:: python
 
    from aioscraper.config import RateLimitConfig

@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `AIOScraper(http_client=...)`, taking an existing `aiohttp.ClientSession` or `httpx.AsyncClient`. It selects the backend, is used as configured, and is left open when the run ends. `get_sessionmaker()` takes the same `client` argument. Mutually exclusive with `sessionmaker_factory`.
+- `BaseSession.owns_client` and the `client`/`owns_client` arguments of `AiohttpSession` and `HttpxSession`, which say who closes the underlying client. `owns_client=False` without a `client` raises `ValueError`.
+- `RequestRetryConfig.methods` (`SESSION_RETRY_METHODS`), the HTTP methods a retry may replay. Defaults to `GET`, `HEAD`, `OPTIONS`, `TRACE`; matching is case-insensitive.
+- `Request.retryable`, a per-request override of that method check: `True` retries, `False` never does, `None` defers to `methods`.
+- `Response.iter_bytes()`, a backend-neutral body stream. Breaking out early is supported; the connection is released when the request context closes.
+- `Response.read(limit=...)` for a bounded read, itself capped by `max_response_body_size`, and `StreamConsumed`, raised when a body is read after its stream was consumed.
+- `SessionConfig.max_response_body_size` (`SESSION_MAX_RESPONSE_BODY_SIZE`), enforced by `read()` and `iter_bytes()` at the chunk that crosses it. Defaults to `None` (unlimited); crossing it raises `ResponseTooLarge`.
+- `SessionConfig.max_error_body_size` (`SESSION_MAX_ERROR_BODY_SIZE`), default 64 KiB. A failed response is read only up to that many bytes for the `HTTPException` message, which ends with `[truncated]` when the body was longer.
+- `RunResult`, returned by `run_scraper()`, `AIOScraper.wait()` and `AIOScraper.shutdown()`: `errors`, `error_counts`, `total_errors`, `interrupted`, `timed_out` and `ok`.
+- `RunResult.requests_started`, `requests_succeeded`, `requests_failed` and `items_processed`, counted per attempt. `requests_failed` covers failures an `errback` handled, unlike `error_counts`.
+- `AIOScraper.result`, the `RunResult` as it stands.
+- `--allow-partial-success`, which makes the CLI exit `0` despite recorded errors, overriding `EXECUTION_ON_ERROR`.
+- `RequestRetryConfig.should_retry(request, exc, retries)`, deciding failures the `statuses`/`exceptions` match cannot express. `None` falls back to that match; the method check still applies first.
+
+### Changed
+- **BREAKING:** a request is retried only when its method is listed in `methods`. A `POST`/`PATCH` that reached the server before the connection dropped was replayed, duplicating the effect. Opt back in via `methods` or `Request.retryable=True`; sending an idempotency key stays the application's job.
+- **BREAKING:** `BaseSession.close()` is no longer abstract: it closes the client only when the session owns it, and backends implement `_close_client()` instead. Custom backends must rename their `close()`. The session constructors are keyword-only.
+- **BREAKING:** `Response` takes `aiter_bytes` (a chunk iterator factory) and `max_body_size` instead of `read`. Custom `BaseSession` backends must be updated.
+- **BREAKING:** `execution.on_error` defaults to `ErrorPolicy.FAIL`. A CLI run that lost data used to exit `0`. Partial success is now opt-in through `EXECUTION_ON_ERROR=log` or `--allow-partial-success`.
+- **BREAKING:** `run_scraper()` returns a `RunResult` instead of the `interrupted` flag; the flag is `result.interrupted`. `AIOScraper.wait()` and `shutdown()` return one too, where they returned `None`.
+- **BREAKING:** the CLI exits `124` when `execution.timeout` expires; it exited `0` unless errors were recorded. Neither `ErrorPolicy.LOG` nor `--allow-partial-success` waives it: they cover recorded errors, not work the run never attempted.
+- **BREAKING:** retries are applied by the dispatcher around the whole middleware chain instead of by a middleware inside it. `RetryMiddleware` and the `aioscraper.middlewares` package are removed; use `SessionConfig.retry` and `should_retry`. A failure now reaches the middlewares above it on every attempt instead of being swallowed below them, and one raised by a middleware — including on a `200` — goes through the retry policy too. Callback failures are still never retried.
+- **BREAKING:** `PRequest` is now `Attempt` and carries the retry count; the framework no longer writes to `Request`. A request sent twice used to share one retry counter through `Request.state`, so concurrent sends split a single retry budget and a reused object inherited the previous run's count.
+- **BREAKING:** an `AIOScraper` instance is single-use. `start()` and `async with` raise `RuntimeError` on a second run instead of silently doing nothing, and `wait()`/`shutdown()` raise it when the scraper was never started instead of reporting a clean result. A closed scraper returns its recorded `RunResult` from both, `timed_out` included.
+- Concurrent lifecycle calls no longer step on each other: concurrent entries no longer set the lifespan up twice, a failed start leaves the instance startable, concurrent `close()` calls wait for the first teardown, a `close()` during startup waits for it to settle, and a `wait()` in flight when `close()` cancels the run reports that run instead of raising `CancelledError`.
+- `Request.delay` applies to every send. The delayed heap used to clear it on the request object, so sending the same object again after its first delay skipped the delay entirely.
+- The httpx backend sends with `stream=True` and closes the response through the request context; httpx buffered the whole body inside `send()` before any limit could apply.
+
+### Fixed
+- An error response is no longer buffered whole to build the `HTTPException` message.
+
 ## 0.12.0 (2026-08-15)
 
 ### Added
