@@ -35,3 +35,22 @@ async def test_query_params_passed(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.assert_all_routes_handled()
 
     assert scraper.seen == {"static": "1", "q": "test", "page": "2"}
+
+
+@pytest.mark.asyncio
+async def test_params_extend_a_query_the_url_already_has(mock_aioscraper: MockAIOScraper):
+    """Both backends append, so a key present in the URL is not replaced."""
+    seen: list[list[tuple[str, str]]] = []
+    mock_aioscraper.server.add(
+        "https://api.test.com/params",
+        handler=lambda r: seen.append(list(r.query.items())) or {},
+    )
+
+    @mock_aioscraper
+    async def scraper(send_request: SendRequest):
+        await send_request(Request(url="https://api.test.com/params?tag=old", params={"tag": "new"}))
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert seen == [[("tag", "old"), ("tag", "new")]]

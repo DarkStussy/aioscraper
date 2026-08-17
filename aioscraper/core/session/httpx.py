@@ -1,3 +1,4 @@
+import codecs
 from ssl import SSLContext
 
 from httpx import USE_CLIENT_DEFAULT, AsyncClient, AsyncHTTPTransport, BasicAuth
@@ -20,11 +21,20 @@ _UNSUPPORTED_HINTS = {
 }
 
 
-def _check_supported(request: Request):
+def _is_utf8(encoding: str) -> bool:
+    "Whether the name means UTF-8, the encoding httpx sends. An unknown codec does not."
+    try:
+        return codecs.lookup(encoding).name == "utf-8"
+    except LookupError:
+        return False
+
+
+def _check_supported(request: Request, max_redirects: int):
     """Reject request options httpx cannot honor, instead of dropping them silently.
 
     Args:
         request (Request): The request about to be sent.
+        max_redirects (int): The client's redirect limit, reported when a request asks for another.
 
     Raises:
         UnsupportedRequestOption: One of the options is set and cannot be applied.
@@ -33,11 +43,22 @@ def _check_supported(request: Request):
         if getattr(request, option) is not None:
             raise UnsupportedRequestOption(_BACKEND, option, hint)
 
+    # against the Request default, not the client's limit: a provided client picks its own, and
+    # every request would fail against a number the caller never chose
     if request.allow_redirects and request.max_redirects != DEFAULT_MAX_REDIRECTS:
         raise UnsupportedRequestOption(
             _BACKEND,
             "max_redirects",
-            f"The limit is fixed at {DEFAULT_MAX_REDIRECTS}. Use the aiohttp backend for a per-request value.",
+            f"The limit belongs to the client, and is {max_redirects} here. "
+            f"Use the aiohttp backend for a per-request value.",
+        )
+
+    if request.auth is not None and (encoding := request.auth.get("encoding")) is not None and not _is_utf8(encoding):
+        # httpx has nowhere to put another encoding
+        raise UnsupportedRequestOption(
+            _BACKEND,
+            "auth.encoding",
+            "Credentials are sent as UTF-8. Use the aiohttp backend for another encoding.",
         )
 
 
@@ -150,7 +171,7 @@ class HttpxSession(BaseSession):
         Raises:
             UnsupportedRequestOption: The request sets an option httpx cannot honor per request.
         """
-        _check_supported(request)
+        _check_supported(request, self._client.max_redirects)
         return HttpxRequestContextManager(request, self._client, self._max_body_size)
 
     async def _close_client(self):

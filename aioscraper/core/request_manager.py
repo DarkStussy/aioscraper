@@ -1,4 +1,5 @@
 import asyncio
+import codecs
 import heapq
 from contextlib import AsyncExitStack, suppress
 from functools import partial
@@ -113,6 +114,26 @@ async def _admit(
         )
 
 
+def _validate(request: Request):
+    """Reject a request no backend could send, whoever built it."""
+    if request.json_data is not None and request.data is not None:
+        raise InvalidRequestData("Cannot send both data and json_data")
+
+    if request.json_data is not None and request.files is not None:
+        raise InvalidRequestData("Cannot send both files and json_data")
+
+    # a codec that does not exist is a broken request, not a backend limitation
+    for field in ("auth", "proxy_auth"):
+        credentials = getattr(request, field)
+        if credentials is None or (encoding := credentials.get("encoding")) is None:
+            continue
+
+        try:
+            codecs.lookup(encoding)
+        except LookupError:
+            raise InvalidRequestData(f"Unknown {field} encoding: {encoding}") from None
+
+
 def _get_request_sender(
     queue: _RequestQueue,
     heap: _RequestHead,
@@ -123,12 +144,7 @@ def _get_request_sender(
     "Creates a request sender. Only the entrypoint variant waits for a free slot."
 
     async def sender(request: Request) -> Request:
-        if request.json_data is not None and request.data is not None:
-            raise InvalidRequestData("Cannot send both data and json_data")
-
-        if request.json_data is not None and request.files is not None:
-            raise InvalidRequestData("Cannot send both files and json_data")
-
+        _validate(request)
         await _admit(queue, heap, slots, request, delay=request.delay, wait_for_slot=wait_for_slot)
         return request
 
@@ -249,8 +265,9 @@ class RequestManager:
         "Compose the middleware chain around the innermost dispatch."
 
         async def dispatch(request: Request) -> Response | None:
-            # Built before the try: a backend rejecting the request outright is a contract
-            # error, not a transport outcome, and must not reach the adaptive rate limiter.
+            # Revalidated: a middleware can change the request after it was queued. Outside the
+            # try, like the build: a rejection is a contract error, not a transport outcome.
+            _validate(request)
             request_ctx = self._session.make_request(request)
 
             start_time = monotonic()

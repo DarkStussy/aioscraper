@@ -5,10 +5,17 @@ import pytest
 from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
 
 
-def test_parse_url_updates_query_params():
+def test_parse_url_adds_query_params():
     url = parse_url("https://example.com/path?q0=1", {"q1": "2"})
 
     assert str(url) == "https://example.com/path?q0=1&q1=2"
+
+
+def test_parse_url_keeps_a_param_the_url_already_has():
+    """aiohttp extends the query with the params it is given; the httpx path must match."""
+    url = parse_url("https://example.com/path?tag=old", {"tag": "new"})
+
+    assert str(url) == "https://example.com/path?tag=old&tag=new"
 
 
 def test_parse_url_without_params_keeps_original():

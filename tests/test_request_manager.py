@@ -222,6 +222,67 @@ async def test_sender_raises_on_files_and_json(base_manager_factory):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["auth", "proxy_auth"])
+async def test_sender_raises_on_an_unknown_credentials_encoding(base_manager_factory, field: str):
+    """A codec that does not exist is a broken request, not a backend limitation."""
+    manager = base_manager_factory(session_factory=NoopSession)
+
+    request = Request(url="https://api.test.com/bad")
+    setattr(request, field, {"username": "user", "encoding": "not-a-real-codec"})
+
+    with pytest.raises(InvalidRequestData, match=f"Unknown {field} encoding: not-a-real-codec"):
+        await manager.sender(request)
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_sender_accepts_a_known_credentials_encoding(base_manager_factory):
+    manager = base_manager_factory(session_factory=NoopSession)
+
+    await manager.sender(Request(url="https://api.test.com/ok", auth={"username": "user", "encoding": "latin1"}))
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_rejects_what_a_middleware_broke():
+    """A middleware owns the request until dispatch, so validation cannot stop at send time."""
+
+    def factory():
+        async def middleware(call_next: RequestHandler, request: Request):
+            request.auth = {"username": "user", "encoding": "not-a-real-codec"}
+            return await call_next(request)
+
+        return middleware
+
+    middleware_holder = MiddlewareHolder()
+    middleware_holder.add(factory)
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=RateLimitConfig(),
+        retry_config=RequestRetryConfig(),
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=middleware_holder,
+    )
+    manager.start_listening()
+    errors: list[Exception] = []
+
+    async def errback(exc: Exception):
+        errors.append(exc)
+
+    await manager._send_request(attempt(Request(url="https://api.test.com/test", errback=errback)))
+
+    assert [type(error) for error in errors] == [InvalidRequestData]
+    assert "not-a-real-codec" in str(errors[0])
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
 async def test_callback_receives_cb_kwargs(base_manager_factory):
     """Test that callback receives cb_kwargs."""
     captured = {}

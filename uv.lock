@@ -169,6 +169,7 @@ version = "0.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiojobs" },
+    { name = "multidict" },
     { name = "yarl" },
 ]
 
@@ -202,6 +203,7 @@ requires-dist = [
     { name = "aiohttp", extras = ["speedups"], marker = "extra == 'aiohttp-speedups'", specifier = ">=3.12.0,<4.0.0" },
     { name = "aiojobs", specifier = ">=1.4.0,<2.0.0" },
     { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.28.1,<1.0.0" },
+    { name = "multidict", specifier = ">=6.0.0,<7.0.0" },
     { name = "uvloop", marker = "extra == 'uvloop'", specifier = ">=0.22.1,<1.0.0" },
     { name = "yarl", specifier = ">=1.23.0,<2.0.0" },
 ]

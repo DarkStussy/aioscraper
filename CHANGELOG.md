@@ -14,10 +14,13 @@
 - `RunResult`, returned by `run_scraper()`, `AIOScraper.wait()` and `AIOScraper.shutdown()`: `errors`, `error_counts`, `total_errors`, `interrupted`, `timed_out` and `ok`.
 - `RunResult.requests_started`, `requests_succeeded`, `requests_failed` and `items_processed`, counted per attempt. `requests_failed` covers failures an `errback` handled, unlike `error_counts`.
 - `AIOScraper.result`, the `RunResult` as it stands.
+- An `auth`/`proxy_auth` `encoding` that names no codec raises `InvalidRequestData` instead of failing later inside the client.
 - `--allow-partial-success`, which makes the CLI exit `0` despite recorded errors, overriding `EXECUTION_ON_ERROR`.
 - `RequestRetryConfig.should_retry(request, exc, retries)`, deciding failures the `statuses`/`exceptions` match cannot express. `None` falls back to that match; the method check still applies first.
+- Documentation of what the two HTTP backends do differently, and of the compatibility policy: what counts as public API, and how long a deprecated one is kept.
 
 ### Changed
+- **BREAKING:** the httpx backend rejects a `BasicAuth.encoding` that is not UTF-8 with `UnsupportedRequestOption` instead of ignoring it: it sends credentials as UTF-8, where aiohttp applies the field and defaults to Latin-1.
 - **BREAKING:** a request is retried only when its method is listed in `methods`. A `POST`/`PATCH` that reached the server before the connection dropped was replayed, duplicating the effect. Opt back in via `methods` or `Request.retryable=True`; sending an idempotency key stays the application's job.
 - **BREAKING:** `BaseSession.close()` is no longer abstract: it closes the client only when the session owns it, and backends implement `_close_client()` instead. Custom backends must rename their `close()`. The session constructors are keyword-only.
 - **BREAKING:** `Response` takes `aiter_bytes` (a chunk iterator factory) and `max_body_size` instead of `read`. Custom `BaseSession` backends must be updated.
@@ -33,6 +36,9 @@
 
 ### Fixed
 - An error response is no longer buffered whole to build the `HTTPException` message.
+- Client exceptions keep their message in `args`, and survive pickling and `copy.deepcopy` with their headers and notes; both used to fail.
+- On the httpx backend `Request.params` extend the query the URL already carries, as they do on aiohttp; a key present in both used to be replaced.
+- The `UnsupportedRequestOption` for `Request.max_redirects` names the limit of the client in use, which is not `10` for a provided one.
 
 ## 0.12.0 (2026-08-15)
 

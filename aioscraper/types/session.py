@@ -36,6 +36,18 @@ class File(NamedTuple):
 
 
 class BasicAuth(TypedDict):
+    """Credentials for basic authentication.
+
+    Args:
+        username (str): User name.
+        password (str): Password; empty when omitted.
+        encoding (str): How to encode the credentials, Latin-1 by default. ``aiohttp`` only: the
+            ``httpx`` backend always sends UTF-8, and raises
+            :class:`~aioscraper.exceptions.UnsupportedRequestOption` for anything else. A name no
+            codec answers to is rejected before the request is dispatched, as
+            :class:`~aioscraper.exceptions.InvalidRequestData`.
+    """
+
     username: str
     password: NotRequired[str]
     encoding: NotRequired[str]
@@ -55,7 +67,8 @@ class Request:
         json_data (Any): JSON data to be sent in the request body
         cookies (RequestCookies | None): Request cookies
         headers (RequestHeaders | None): Request headers
-        auth (BasicAuth | None): Basic authentication credentials
+        auth (BasicAuth | None): Basic authentication credentials. ``httpx`` sends them as UTF-8
+            and rejects any other ``encoding``
         proxy (str | None): Proxy URL. ``aiohttp`` only; the ``httpx`` backend raises
             :class:`~aioscraper.exceptions.UnsupportedRequestOption`
         proxy_auth (BasicAuth | None): Proxy authentication credentials. ``aiohttp`` only
@@ -63,7 +76,8 @@ class Request:
         timeout (float | None): Request timeout in seconds
         allow_redirects (bool): Whether to follow HTTP redirects
         max_redirects (int): Maximum number of redirects to follow. Only ``aiohttp`` accepts a
-            per-request value; on ``httpx`` the limit is fixed at ``DEFAULT_MAX_REDIRECTS``
+            per-request value; on ``httpx`` the limit is the client's, so any value other than the
+            default here is rejected
 
         delay (float | None): Delay before sending the request
         retryable (bool | None): Overrides the retry policy's method check; ``None`` defers to

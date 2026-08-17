@@ -17,6 +17,9 @@ Core
 
 .. autofunction:: aioscraper.compiled
 
+.. autodata:: aioscraper.core.scraper.Lifespan
+.. autodata:: aioscraper.types.scraper.Scraper
+
 
 Configuration
 -------------
@@ -31,6 +34,7 @@ Configuration
 .. autoclass:: aioscraper.config.models.BackoffStrategy
 .. autoclass:: aioscraper.config.models.RateLimitConfig
 .. autoclass:: aioscraper.config.models.AdaptiveRateLimitConfig
+.. autoclass:: aioscraper.config.models.ErrorPolicy
 .. autofunction:: aioscraper.config.loader.load_config
 
 
@@ -51,6 +55,11 @@ Session
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
 .. autoclass:: aioscraper.types.session.File
+.. autodata:: aioscraper.types.session.SendRequest
+.. autodata:: aioscraper.types.session.QueryParams
+.. autodata:: aioscraper.types.session.RequestCookies
+.. autodata:: aioscraper.types.session.RequestHeaders
+.. autodata:: aioscraper.types.session.RequestFiles
 
 Pipeline
 --------
@@ -63,6 +72,9 @@ Pipeline
    :special-members: __call__
 .. autoclass:: aioscraper.types.pipeline.GlobalPipelineMiddleware
    :special-members: __call__
+.. autodata:: aioscraper.types.pipeline.ItemHandler
+.. autodata:: aioscraper.types.pipeline.PipelineMiddlewareStage
+.. autodata:: aioscraper.types.pipeline.GlobalPipelineMiddlewareFactory
 
 Execution
 ---------
@@ -74,6 +86,15 @@ Execution
 .. autoclass:: aioscraper.core.rate_limiter.AdaptiveStrategy
 .. autoclass:: aioscraper.core.rate_limiter.RequestOutcome
 .. autoclass:: aioscraper.core.rate_limiter.AdaptiveMetrics
+
+Middleware
+----------
+
+.. autoclass:: aioscraper.types.middleware.RequestHandler
+   :special-members: __call__
+.. autoclass:: aioscraper.types.middleware.RequestMiddleware
+   :special-members: __call__
+.. autodata:: aioscraper.types.middleware.RequestMiddlewareFactory
 
 Holders
 -------
@@ -92,9 +113,12 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.AIOScraperException
 .. autoclass:: aioscraper.exceptions.ClientException
 .. autoclass:: aioscraper.exceptions.HTTPException
+.. autoclass:: aioscraper.exceptions.ResponseTooLarge
+.. autoclass:: aioscraper.exceptions.StreamConsumed
 .. autoclass:: aioscraper.exceptions.UnsupportedRequestOption
 .. autoclass:: aioscraper.exceptions.PipelineException
 .. autoclass:: aioscraper.exceptions.StopItemProcessing
 .. autoclass:: aioscraper.exceptions.StopMiddlewareProcessing
 .. autoclass:: aioscraper.exceptions.InvalidRequestData
 .. autoclass:: aioscraper.exceptions.CLIError
+.. autoclass:: aioscraper.exceptions.ConfigValidationError

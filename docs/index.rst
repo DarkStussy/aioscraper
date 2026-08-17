@@ -43,6 +43,7 @@ Key Features
 
    installation
    quickstart
+   backends
    benchmarks
    cli
 
@@ -62,6 +63,7 @@ Key Features
    :caption: Reference:
 
    api
+   compatibility
    changelog
    Contributing <contributing>
 

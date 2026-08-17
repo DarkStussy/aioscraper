@@ -1,4 +1,6 @@
-from typing import Mapping
+from typing import Any, Mapping
+
+from multidict import CIMultiDict, MultiMapping
 
 
 class AIOScraperException(Exception):
@@ -27,9 +29,20 @@ class HTTPException(ClientException):
         self.status_code = status_code
         self.headers = headers
         self.message = message
+        super().__init__(str(self))
 
     def __str__(self) -> str:
         return f"{self.method} {self.url}: {self.status_code}: {self.message}"
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # aiohttp's CIMultiDictProxy does not pickle; its CIMultiDict does, and keeps the
+        # duplicates and the case-insensitive lookup a plain dict would drop
+        headers = CIMultiDict(self.headers.items()) if isinstance(self.headers, MultiMapping) else self.headers
+        return (
+            type(self),
+            (self.url, self.method, self.status_code, headers, self.message),
+            {**self.__dict__, "headers": headers},
+        )
 
 
 class ResponseTooLarge(ClientException):
@@ -48,6 +61,9 @@ class ResponseTooLarge(ClientException):
         self.limit = limit
         super().__init__(f"{method} {url}: response body exceeds {limit} bytes")
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        return type(self), (self.url, self.method, self.limit), self.__dict__
+
 
 class StreamConsumed(ClientException):
     """
@@ -62,6 +78,9 @@ class StreamConsumed(ClientException):
         self.url = url
         self.method = method
         super().__init__(f"{method} {url}: response body has already been consumed")
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return type(self), (self.url, self.method), self.__dict__
 
 
 class UnsupportedRequestOption(ClientException):
@@ -80,6 +99,9 @@ class UnsupportedRequestOption(ClientException):
         self.hint = hint
         super().__init__(f"The {backend} backend does not support Request.{option}. {hint}")
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        return type(self), (self.backend, self.option, self.hint), self.__dict__
+
 
 class PipelineException(AIOScraperException):
     "Base exception class for all pipeline-related errors."
@@ -94,7 +116,7 @@ class StopItemProcessing(AIOScraperException):
 
 
 class InvalidRequestData(AIOScraperException):
-    "Raised when request payload fields conflict."
+    "Raised when request fields conflict, or carry a value no backend could send."
 
 
 class CLIError(AIOScraperException):
