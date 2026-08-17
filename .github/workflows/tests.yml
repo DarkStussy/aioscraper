@@ -63,7 +63,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --python ${{ matrix.python-version }} --extra aiohttp --extra httpx
+        run: uv sync --python ${{ matrix.python-version }} --extra aiohttp --extra httpx --extra httpx2
 
       - name: Lint code
         run: |
@@ -92,10 +92,10 @@ jobs:
       # Resolves every direct dependency to its declared floor, so the lower bounds
       # in pyproject.toml stay honest. The lockfile rewrite is local to the runner.
       - name: Install lowest supported dependencies
-        run: uv sync --python 3.11 --resolution lowest-direct --extra aiohttp --extra httpx
+        run: uv sync --python 3.11 --resolution lowest-direct --extra aiohttp --extra httpx --extra httpx2
 
       - name: Report resolved versions
-        run: uv run --python 3.11 --no-sync python -c "import aiohttp, httpx; print('aiohttp', aiohttp.__version__, '| httpx', httpx.__version__)"
+        run: uv run --python 3.11 --no-sync python -c "import aiohttp, httpx, httpx2; print('aiohttp', aiohttp.__version__, '| httpx', httpx.__version__, '| httpx2', httpx2.__version__)"
 
       - name: Run tests
         run: uv run --python 3.11 --no-sync pytest -q
@@ -119,7 +119,7 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync --python 3.12 --extra aiohttp --extra httpx
+        run: uv sync --python 3.12 --extra aiohttp --extra httpx --extra httpx2
 
       # Threshold lives in pyproject.toml so local runs fail the same way.
       - name: Run tests with coverage
@@ -152,17 +152,18 @@ jobs:
       - name: Install the built wheel into a clean environment
         run: |
           uv venv "${RUNNER_TEMP}/wheel-env"
-          uv pip install --python "${RUNNER_TEMP}/wheel-env/bin/python" "$(ls dist/*.whl)[aiohttp,httpx]"
+          uv pip install --python "${RUNNER_TEMP}/wheel-env/bin/python" "$(ls dist/*.whl)[aiohttp,httpx,httpx2]"
 
       # -I keeps the repository checkout off sys.path, so this imports the installed
       # wheel and not the source tree it was built from.
-      - name: Import both backends and smoke-test the CLI
+      - name: Import every backend and smoke-test the CLI
         run: |
           "${RUNNER_TEMP}/wheel-env/bin/python" -I -c "
           import pathlib
           import aioscraper
           from aioscraper.core.session.aiohttp import AiohttpSession
           from aioscraper.core.session.httpx import HttpxSession
+          from aioscraper.core.session.httpx2 import Httpx2Session
           assert (pathlib.Path(aioscraper.__file__).parent / 'py.typed').is_file(), 'py.typed missing'
           print(aioscraper.__all__)
           "

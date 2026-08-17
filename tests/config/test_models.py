@@ -79,6 +79,10 @@ class TestSessionConfig:
         config = SessionConfig(http_backend="httpx")  # type: ignore[reportArgumentType]
         assert config.http_backend == HttpBackend.HTTPX
 
+    def test_accepts_the_httpx2_backend(self):
+        config = SessionConfig(http_backend="httpx2")  # type: ignore[reportArgumentType]
+        assert config.http_backend == HttpBackend.HTTPX2
+
 
 class TestRequestRetryConfig:
     def test_creates_with_defaults(self):

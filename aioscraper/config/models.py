@@ -143,6 +143,7 @@ class RequestRetryConfig:
 class HttpBackend(StrEnum):
     AIOHTTP = "aiohttp"
     HTTPX = "httpx"
+    HTTPX2 = "httpx2"
 
 
 @dataclass(slots=True, frozen=True)
@@ -154,7 +155,7 @@ class SessionConfig:
         timeout (float): Request timeout in seconds
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
-        http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``; ``None`` lets the factory auto-detect
+        http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``/``httpx2``; ``None`` lets the factory auto-detect
         max_response_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
         retry (RequestRetryConfig): Controls built-in retry behavior

@@ -19,7 +19,10 @@ class AiohttpClient(Protocol):
 
 
 class HttpxClient(Protocol):
-    "Structural stand-in for :class:`httpx.AsyncClient`, for the same reason as :class:`AiohttpClient`."
+    """Structural stand-in for :class:`httpx.AsyncClient`, for the same reason as :class:`AiohttpClient`.
+
+    An :class:`httpx2.AsyncClient` matches it as well: the fork carries the members named here.
+    """
 
     build_request: Callable[..., Any]
     send: Callable[..., Any]
@@ -71,8 +74,40 @@ def _sessionmaker_for_client(config: SessionConfig, client: HttpClient) -> Sessi
             logger.info("Using the provided httpx client: %s", _IGNORED_FOR_PROVIDED_CLIENT)
             return lambda: HttpxSession(client=client, max_body_size=config.max_response_body_size)
 
+    try:
+        from httpx2 import AsyncClient as AsyncClient2
+    except ModuleNotFoundError:  # pragma: no cover
+        pass
+    else:
+        if isinstance(client, AsyncClient2):
+            from .httpx2 import Httpx2Session
+
+            _reject_backend_mismatch(config, HttpBackend.HTTPX2)
+            logger.info("Using the provided httpx2 client: %s", _IGNORED_FOR_PROVIDED_CLIENT)
+            return lambda: Httpx2Session(client=client, max_body_size=config.max_response_body_size)
+
     raise AIOScraperException(
-        f"Unsupported HTTP client {type(client).__name__}: expected aiohttp.ClientSession or httpx.AsyncClient"
+        f"Unsupported HTTP client {type(client).__name__}: expected aiohttp.ClientSession, "
+        f"httpx.AsyncClient or httpx2.AsyncClient"
+    )
+
+
+def _log_session(backend: HttpBackend, config: SessionConfig):
+    logger.info(
+        "Using %s session: timeout=%.10gs, ssl=%s",
+        backend,
+        config.timeout,
+        "configured" if config.ssl is not None else "default",
+    )
+
+
+def _httpx_sessionmaker(config: SessionConfig, session_cls: Callable[..., BaseSession]) -> SessionMaker:
+    "Build the maker of an httpx-compatible session, whose constructors take the same arguments."
+    return lambda: session_cls(
+        timeout=config.timeout,
+        verify=config.ssl,
+        proxy=config.proxy,
+        max_body_size=config.max_response_body_size,
     )
 
 
@@ -81,8 +116,9 @@ def get_sessionmaker(config: SessionConfig, client: HttpClient | None = None) ->
 
     Args:
         config (SessionConfig): Settings for the client and the limits the framework enforces.
-        client (ClientSession | AsyncClient | None): Send through this client instead of creating
-            one. It selects the backend, is used as configured, and stays open when the run ends.
+        client (ClientSession | AsyncClient | None): An ``aiohttp``, ``httpx`` or ``httpx2`` client
+            to send through instead of creating one. It selects the backend, is used as configured,
+            and stays open when the run ends.
 
     Raises:
         AIOScraperException: No backend is installed, or ``client`` is of an unsupported type or
@@ -91,15 +127,11 @@ def get_sessionmaker(config: SessionConfig, client: HttpClient | None = None) ->
     if client is not None:
         return _sessionmaker_for_client(config, client)
 
-    if config.http_backend != HttpBackend.HTTPX:
+    if config.http_backend in (None, HttpBackend.AIOHTTP):
         try:
             from .aiohttp import AiohttpSession, ClientTimeout, TCPConnector
 
-            logger.info(
-                "Using aiohttp session: timeout=%.10gs, ssl=%s",
-                config.timeout,
-                "configured" if config.ssl is not None else "default",
-            )
+            _log_session(HttpBackend.AIOHTTP, config)
             return lambda: AiohttpSession(
                 timeout=ClientTimeout(total=config.timeout),
                 connector=TCPConnector(ssl=ssl) if (ssl := config.ssl) is not None else None,
@@ -109,23 +141,23 @@ def get_sessionmaker(config: SessionConfig, client: HttpClient | None = None) ->
         except ModuleNotFoundError:  # pragma: no cover
             logger.debug("aiohttp not available, trying httpx")
 
-    if config.http_backend != HttpBackend.AIOHTTP:
+    if config.http_backend in (None, HttpBackend.HTTPX):
         try:
             from .httpx import HttpxSession
 
-            logger.info(
-                "Using httpx session: timeout=%.10gs, ssl=%s",
-                config.timeout,
-                "configured" if config.ssl is not None else "default",
-            )
-            return lambda: HttpxSession(
-                timeout=config.timeout,
-                verify=config.ssl,
-                proxy=config.proxy,
-                max_body_size=config.max_response_body_size,
-            )
+            _log_session(HttpBackend.HTTPX, config)
+            return _httpx_sessionmaker(config, HttpxSession)
         except ModuleNotFoundError:  # pragma: no cover
-            logger.debug("httpx not available")
+            logger.debug("httpx not available, trying httpx2")
 
-    logger.error("No HTTP backend available: aiohttp and httpx are not installed")
-    raise AIOScraperException("aiohttp or httpx is not installed")
+    if config.http_backend in (None, HttpBackend.HTTPX2):
+        try:
+            from .httpx2 import Httpx2Session
+
+            _log_session(HttpBackend.HTTPX2, config)
+            return _httpx_sessionmaker(config, Httpx2Session)
+        except ModuleNotFoundError:  # pragma: no cover
+            logger.debug("httpx2 not available")
+
+    logger.error("No HTTP backend available: aiohttp, httpx and httpx2 are not installed")
+    raise AIOScraperException("aiohttp, httpx or httpx2 is not installed")

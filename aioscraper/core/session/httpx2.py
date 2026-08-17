@@ -1,0 +1,24 @@
+from httpx2 import USE_CLIENT_DEFAULT, AsyncClient, AsyncHTTPTransport, BasicAuth
+
+from ._httpx import BaseHttpxRequestContextManager, BaseHttpxSession, HttpxBinding
+
+_BINDING = HttpxBinding(
+    backend="httpx2",
+    async_client=AsyncClient,
+    async_http_transport=AsyncHTTPTransport,
+    basic_auth=BasicAuth,
+    use_client_default=USE_CLIENT_DEFAULT,
+)
+
+
+class Httpx2RequestContextManager(BaseHttpxRequestContextManager):
+    """httpx2-backed context manager that executes a prepared HTTP request."""
+
+    _binding = _BINDING
+
+
+class Httpx2Session(BaseHttpxSession):
+    "HTTP session implementation that wraps an :class:`httpx2.AsyncClient`."
+
+    _binding = _BINDING
+    _context_manager = Httpx2RequestContextManager

@@ -48,12 +48,12 @@ jobs:
         run: >-
           uv run --python 3.12 --isolated
           --with-requirements docs/requirements.txt
-          --extra aiohttp --extra httpx
+          --extra aiohttp --extra httpx --extra httpx2
           sphinx-build -W -b html docs docs/_build/html
 
       # Compiles every snippet in README.md and docs/*.rst. Run on the oldest supported
       # Python, where a snippet using newer syntax fails.
       - name: Check documentation snippets
         run: >-
-          uv run --python 3.11 --extra aiohttp --extra httpx
+          uv run --python 3.11 --extra aiohttp --extra httpx --extra httpx2
           pytest -q tests/test_docs.py

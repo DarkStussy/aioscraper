@@ -6,8 +6,8 @@ Configuration
 You can build a :class:`Config <aioscraper.config.models.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`.
 The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
 
-The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, otherwise ``httpx``. Install one of the extras from :doc:`/installation` so requests can be executed.
-Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when both are available.
+The HTTP client is chosen at runtime: ``aiohttp`` is used when installed, then ``httpx``, then ``httpx2``. Install one of the extras from :doc:`/installation` so requests can be executed.
+Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>` (or ``SESSION_HTTP_BACKEND``) to a value from :class:`HttpBackend <aioscraper.config.models.HttpBackend>` if you want to force one client even when several are available.
 
 
 .. code-block:: python
@@ -114,7 +114,7 @@ code or from the terminal.
 Bringing your own HTTP client
 -----------------------------
 
-Pass an ``aiohttp.ClientSession`` or an ``httpx.AsyncClient`` as ``AIOScraper(http_client=...)`` to send through a client your service already owns, with its connection pool, default headers, cookies, auth and transports:
+Pass an ``aiohttp.ClientSession``, an ``httpx.AsyncClient`` or an ``httpx2.AsyncClient`` as ``AIOScraper(http_client=...)`` to send through a client your service already owns, with its connection pool, default headers, cookies, auth and transports:
 
 .. code-block:: python
 

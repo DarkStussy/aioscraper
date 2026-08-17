@@ -4,7 +4,7 @@ Installation Guide
 Requirements
 ------------
 - Python 3.11+
-- One HTTP backend: ``aiohttp`` (recommended) or ``httpx``
+- One HTTP backend: ``aiohttp`` (recommended), ``httpx`` or ``httpx2``
 - POSIX for optional ``uvloop`` (not available on Windows)
 
 Install with an HTTP backend
@@ -22,18 +22,22 @@ Install with an HTTP backend
    # Option 3: Use httpx (if you prefer httpx ecosystem)
    pip install "aioscraper[httpx]"
 
-   # Option 4: Install both backends for flexibility
+   # Option 4: Use httpx2, the Pydantic-maintained fork of httpx
+   pip install "aioscraper[httpx2]"
+
+   # Option 5: Install several backends for flexibility
    pip install "aioscraper[aiohttp-speedups,httpx]"
 
-At runtime ``aioscraper`` will use ``aiohttp`` when available, otherwise it falls back to ``httpx``.
+At runtime ``aioscraper`` will use ``aiohttp`` when available, then ``httpx``, then ``httpx2``.
 
-You can explicitly set the backend by setting the ``SESSION_HTTP_BACKEND`` environment variable to ``aiohttp`` or ``httpx``.
+You can explicitly set the backend by setting the ``SESSION_HTTP_BACKEND`` environment variable to ``aiohttp``, ``httpx`` or ``httpx2``.
 
 Backend differences
 -------------------
 
 httpx resolves proxies per transport and redirect limits per client, so these
-:class:`~aioscraper.types.Request` fields cannot vary per request on that backend and raise
+:class:`~aioscraper.types.Request` fields cannot vary per request on that backend - or on
+``httpx2``, which keeps its API - and raise
 :class:`~aioscraper.exceptions.UnsupportedRequestOption`:
 
 - ``proxy`` - set ``SessionConfig.proxy`` instead
@@ -41,7 +45,7 @@ httpx resolves proxies per transport and redirect limits per client, so these
 - ``proxy_headers`` - no equivalent
 - ``max_redirects`` - fixed at the ``Request`` default for the whole session
 
-Choose ``aiohttp`` if you need any of them per request.
+Choose ``aiohttp`` if you need any of them per request. :doc:`backends` compares the three in full.
 
 Optional: install with ``uvloop`` (POSIX)
 -----------------------------------------

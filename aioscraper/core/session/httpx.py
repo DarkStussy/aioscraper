@@ -1,179 +1,24 @@
-import codecs
-from ssl import SSLContext
-
 from httpx import USE_CLIENT_DEFAULT, AsyncClient, AsyncHTTPTransport, BasicAuth
 
-from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
-from aioscraper.exceptions import UnsupportedRequestOption
-from aioscraper.types import Request, Response
-from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
+from ._httpx import BaseHttpxRequestContextManager, BaseHttpxSession, HttpxBinding
 
-from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
-
-_BACKEND = "httpx"
-
-# httpx resolves proxies per transport and redirect limits per client, so none of these
-# can vary per request without building a client for every request.
-_UNSUPPORTED_HINTS = {
-    "proxy": "Set SessionConfig.proxy, or use the aiohttp backend.",
-    "proxy_auth": "Embed the credentials in the SessionConfig.proxy URL, or use the aiohttp backend.",
-    "proxy_headers": "Use the aiohttp backend.",
-}
+_BINDING = HttpxBinding(
+    backend="httpx",
+    async_client=AsyncClient,
+    async_http_transport=AsyncHTTPTransport,
+    basic_auth=BasicAuth,
+    use_client_default=USE_CLIENT_DEFAULT,
+)
 
 
-def _is_utf8(encoding: str) -> bool:
-    "Whether the name means UTF-8, the encoding httpx sends. An unknown codec does not."
-    try:
-        return codecs.lookup(encoding).name == "utf-8"
-    except LookupError:
-        return False
-
-
-def _check_supported(request: Request, max_redirects: int):
-    """Reject request options httpx cannot honor, instead of dropping them silently.
-
-    Args:
-        request (Request): The request about to be sent.
-        max_redirects (int): The client's redirect limit, reported when a request asks for another.
-
-    Raises:
-        UnsupportedRequestOption: One of the options is set and cannot be applied.
-    """
-    for option, hint in _UNSUPPORTED_HINTS.items():
-        if getattr(request, option) is not None:
-            raise UnsupportedRequestOption(_BACKEND, option, hint)
-
-    # against the Request default, not the client's limit: a provided client picks its own, and
-    # every request would fail against a number the caller never chose
-    if request.allow_redirects and request.max_redirects != DEFAULT_MAX_REDIRECTS:
-        raise UnsupportedRequestOption(
-            _BACKEND,
-            "max_redirects",
-            f"The limit belongs to the client, and is {max_redirects} here. "
-            f"Use the aiohttp backend for a per-request value.",
-        )
-
-    if request.auth is not None and (encoding := request.auth.get("encoding")) is not None and not _is_utf8(encoding):
-        # httpx has nowhere to put another encoding
-        raise UnsupportedRequestOption(
-            _BACKEND,
-            "auth.encoding",
-            "Credentials are sent as UTF-8. Use the aiohttp backend for another encoding.",
-        )
-
-
-class HttpxRequestContextManager(BaseRequestContextManager):
+class HttpxRequestContextManager(BaseHttpxRequestContextManager):
     """httpx-backed context manager that executes a prepared HTTP request."""
 
-    def __init__(self, request: Request, client: AsyncClient, max_body_size: int | None = None):
-        super().__init__(request)
-        self._client = client
-        self._max_body_size = max_body_size
-
-    async def __aenter__(self) -> Response:
-        """Send the request with httpx and convert the response to internal ``Response``."""
-        if isinstance(self._request.data, dict):
-            content, data = None, self._request.data
-        else:
-            content, data = self._request.data, None
-
-        request = self._client.build_request(
-            url=str(parse_url(self._request.url, self._request.params)),
-            method=self._request.method,
-            content=content,
-            data=data,
-            files=self._request.files,
-            json=self._request.json_data,
-            cookies=parse_cookies(self._request.cookies) if self._request.cookies is not None else None,
-            headers=self._request.headers,
-            timeout=self._request.timeout or USE_CLIENT_DEFAULT,
-        )
-        # without stream=True httpx buffers the whole body inside send(), before any limit applies
-        response = await self._client.send(
-            request,
-            auth=(
-                BasicAuth(username=self._request.auth["username"], password=self._request.auth.get("password", ""))
-                if self._request.auth is not None
-                else USE_CLIENT_DEFAULT
-            ),
-            follow_redirects=self._request.allow_redirects,
-            stream=True,
-        )
-        self._exit_stack.push_async_callback(response.aclose)
-        return Response(
-            url=str(response.url),
-            method=response.request.method,
-            status=response.status_code,
-            headers=response.headers,
-            cookies=to_simple_cookie(response.cookies),
-            aiter_bytes=response.aiter_bytes,
-            max_body_size=self._max_body_size,
-        )
+    _binding = _BINDING
 
 
-class HttpxSession(BaseSession):
-    """HTTP session implementation that wraps an :class:`httpx.AsyncClient`.
+class HttpxSession(BaseHttpxSession):
+    "HTTP session implementation that wraps an :class:`httpx.AsyncClient`."
 
-    Args:
-        timeout (float | None): Client-wide timeout in seconds.
-        verify (SSLContext | bool): SSL handling passed to the client.
-        proxy (str | dict[str, str | None] | None): Proxy URL, or a per-scheme mapping mounted on
-            separate transports.
-        max_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap.
-        client (AsyncClient | None): Send through this client instead of creating one. Its own
-            configuration is used as it is, which makes ``timeout``, ``verify``, ``proxy`` and the
-            redirect limit inapplicable.
-        owns_client (bool | None): Close ``client`` on :meth:`close`. Defaults to ``False`` for a
-            provided client and ``True`` for one created here.
-
-    Raises:
-        ValueError: ``owns_client`` is ``False`` without a ``client``.
-    """
-
-    def __init__(
-        self,
-        *,
-        timeout: float | None = None,
-        verify: SSLContext | bool = True,
-        proxy: str | dict[str, str | None] | None = None,
-        max_body_size: int | None = None,
-        client: AsyncClient | None = None,
-        owns_client: bool | None = None,
-    ):
-        super().__init__(owns_client=resolve_client_ownership(client, owns_client))
-        self._max_body_size = max_body_size
-        if client is not None:
-            self._client = client
-            return
-
-        if isinstance(proxy, dict):
-            mounts = {scheme: AsyncHTTPTransport(proxy=proxy) for scheme, proxy in proxy.items() if proxy} or None
-            proxy = None
-        else:
-            mounts = None
-
-        # Pinned to the Request default so both backends follow the same number of
-        # redirects; httpx would otherwise use its own default of 20.
-        self._client = AsyncClient(
-            timeout=timeout,
-            verify=verify,
-            proxy=proxy,
-            mounts=mounts,
-            max_redirects=DEFAULT_MAX_REDIRECTS,
-        )
-
-    def make_request(self, request: Request) -> HttpxRequestContextManager:
-        """Create a request context manager coupled with the shared client.
-
-        Args:
-            request (Request): The request to execute.
-
-        Raises:
-            UnsupportedRequestOption: The request sets an option httpx cannot honor per request.
-        """
-        _check_supported(request, self._client.max_redirects)
-        return HttpxRequestContextManager(request, self._client, self._max_body_size)
-
-    async def _close_client(self):
-        """Close the ``AsyncClient`` to free connectors and sockets."""
-        await self._client.aclose()
+    _binding = _BINDING
+    _context_manager = HttpxRequestContextManager

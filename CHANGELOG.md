@@ -17,7 +17,8 @@
 - An `auth`/`proxy_auth` `encoding` that names no codec raises `InvalidRequestData` instead of failing later inside the client.
 - `--allow-partial-success`, which makes the CLI exit `0` despite recorded errors, overriding `EXECUTION_ON_ERROR`.
 - `RequestRetryConfig.should_retry(request, exc, retries)`, deciding failures the `statuses`/`exceptions` match cannot express. `None` falls back to that match; the method check still applies first.
-- Documentation of what the two HTTP backends do differently, and of the compatibility policy: what counts as public API, and how long a deprecated one is kept.
+- Documentation of what the HTTP backends do differently, and of the compatibility policy: what counts as public API, and how long a deprecated one is kept.
+- An `httpx2` backend for the Pydantic fork of httpx, behind the `aioscraper[httpx2]` extra. Selected with `SESSION_HTTP_BACKEND=httpx2` or by passing an `httpx2.AsyncClient` as `http_client`. Requests behave as they do on the httpx backend, the options it rejects included; `ssl=True` verifies against the trust store of the operating system, where httpx uses `certifi`.
 
 ### Changed
 - **BREAKING:** the httpx backend rejects a `BasicAuth.encoding` that is not UTF-8 with `UnsupportedRequestOption` instead of ignoring it: it sends credentials as UTF-8, where aiohttp applies the field and defaults to Latin-1.

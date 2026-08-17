@@ -6,7 +6,7 @@ import pytest
 
 from tests.mocks import MockAIOScraper, MockServer, client
 
-HTTP_BACKENDS = ("aiohttp", "httpx")
+HTTP_BACKENDS = ("aiohttp", "httpx", "httpx2")
 
 # pytest-asyncio saves the current loop with asyncio.get_event_loop(), which before 3.14
 # creates one that nobody closes. Owning it here keeps that ResourceWarning out of the session.
@@ -41,6 +41,10 @@ def _keep_current_event_loop() -> Iterator[None]:
 
 @pytest.fixture(params=HTTP_BACKENDS, ids=HTTP_BACKENDS)
 async def mock_aioscraper(request: pytest.FixtureRequest) -> AsyncIterator[MockAIOScraper]:
-    patch_client = client.patch_httpx if request.param == "httpx" else client.patch_aiohttp
+    patch_client = {
+        "aiohttp": client.patch_aiohttp,
+        "httpx": client.patch_httpx,
+        "httpx2": client.patch_httpx2,
+    }[request.param]
     async with MockServer(patch_client) as server:
         yield MockAIOScraper(server=server, http_backend=request.param)

@@ -50,6 +50,9 @@ Session
 .. autoclass:: aioscraper.core.session.httpx.HttpxSession
 .. autoclass:: aioscraper.core.session.httpx.HttpxRequestContextManager
    :special-members: __aenter__, __aexit__
+.. autoclass:: aioscraper.core.session.httpx2.Httpx2Session
+.. autoclass:: aioscraper.core.session.httpx2.Httpx2RequestContextManager
+   :special-members: __aenter__, __aexit__
 .. autofunction:: aioscraper.core.session.factory.get_sessionmaker
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response

@@ -7,4 +7,4 @@ The project is pre-1.0, so a ``0.x`` release may change or remove public API wit
 
 From 1.0 the versioning is `SemVer <https://semver.org/>`_, and a public API scheduled for removal is deprecated first: it keeps working and emits a ``DeprecationWarning`` naming its replacement for at least two minor releases, and is removed no earlier than the next major.
 
-Supported Python versions are the ones in ``project.requires-python``; one is dropped no earlier than its `end of life <https://devguide.python.org/versions/>`_. The ``aiohttp`` and ``httpx`` floors in the extras may be raised in a minor release, including to clear a vulnerability in the client.
+Supported Python versions are the ones in ``project.requires-python``; one is dropped no earlier than its `end of life <https://devguide.python.org/versions/>`_. The ``aiohttp``, ``httpx`` and ``httpx2`` floors in the extras may be raised in a minor release, including to clear a vulnerability in the client.

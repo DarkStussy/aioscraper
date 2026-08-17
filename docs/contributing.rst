@@ -25,7 +25,7 @@ How to setup
 
   .. code-block:: bash
 
-     uv sync --extra aiohttp-speedups --extra httpx --extra uvloop
+     uv sync --extra aiohttp-speedups --extra httpx --extra httpx2 --extra uvloop
 
 - Enable git hooks (we recommend ``prek``, a Rust alternative to ``pre-commit``; using ``pre-commit`` is fine if you prefer):
 
@@ -43,7 +43,7 @@ Running tests
 
      uv run pytest
 
-- Some HTTP integration tests spin up local aiohttp/httpx clients and may require network/socket permissions in your environment.
+- Some HTTP integration tests spin up local aiohttp/httpx/httpx2 clients and may require network/socket permissions in your environment.
 
 Style, linting, typing
 ----------------------

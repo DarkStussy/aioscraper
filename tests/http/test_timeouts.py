@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 from httpx import TimeoutException
+from httpx2 import TimeoutException as TimeoutException2
 
 from aioscraper.config import Config, SessionConfig
 from aioscraper.types import Request, Response, SendRequest
@@ -46,7 +47,7 @@ async def test_request_timeout_triggers_errback(mock_aioscraper: MockAIOScraper)
     async with mock_aioscraper:
         await mock_aioscraper.wait()
 
-    assert isinstance(scraper.error, (TimeoutException, TimeoutError))
+    assert isinstance(scraper.error, (TimeoutException, TimeoutException2, TimeoutError))
     assert scraper.result is None
 
 
@@ -81,4 +82,4 @@ async def test_global_timeout_from_config(mock_aioscraper: MockAIOScraper):
         await mock_aioscraper.wait()
 
     assert scraper.result is None
-    assert isinstance(scraper.error, (TimeoutException, asyncio.TimeoutError))
+    assert isinstance(scraper.error, (TimeoutException, TimeoutException2, asyncio.TimeoutError))

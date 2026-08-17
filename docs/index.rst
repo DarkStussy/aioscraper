@@ -30,7 +30,7 @@ aioscraper is an async Python framework designed for **mass data collection from
 Key Features
 ------------
 
-- **Async-first** core with pluggable HTTP backends (``aiohttp``/``httpx``) and ``aiojobs`` scheduling
+- **Async-first** core with pluggable HTTP backends (``aiohttp``/``httpx``/``httpx2``) and ``aiojobs`` scheduling
 - **Declarative flow**: requests → callbacks → pipelines, with middleware hooks at each stage
 - **Priority queueing** with backpressure, a global concurrency limit and per-group rate limits
 - **Adaptive rate limiting** with EWMA + AIMD algorithm - automatically backs off on server overload

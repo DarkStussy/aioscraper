@@ -1,8 +1,17 @@
+import pytest
+
+from aioscraper.core.session._httpx import BaseHttpxSession
 from aioscraper.core.session.httpx import HttpxSession
+from aioscraper.core.session.httpx2 import Httpx2Session
 from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
 
 
-def test_httpx_session_uses_proxy_string(monkeypatch):
+@pytest.fixture(params=[HttpxSession, Httpx2Session], ids=["httpx", "httpx2"])
+def session_cls(request: pytest.FixtureRequest) -> type[BaseHttpxSession]:
+    return request.param
+
+
+def test_httpx_session_uses_proxy_string(monkeypatch, session_cls: type[BaseHttpxSession]):
     captured: dict[str, object] = {}
 
     class DummyClient:
@@ -13,9 +22,9 @@ def test_httpx_session_uses_proxy_string(monkeypatch):
             captured["mounts"] = mounts
             captured["max_redirects"] = max_redirects
 
-    monkeypatch.setattr("aioscraper.core.session.httpx.AsyncClient", DummyClient)
+    monkeypatch.setattr(session_cls, "_binding", session_cls._binding._replace(async_client=DummyClient))
 
-    HttpxSession(timeout=5, verify=True, proxy="http://proxy:8080")
+    session_cls(timeout=5, verify=True, proxy="http://proxy:8080")
 
     assert captured["proxy"] == "http://proxy:8080"
     assert captured["mounts"] is None
@@ -25,7 +34,7 @@ def test_httpx_session_uses_proxy_string(monkeypatch):
     assert captured["max_redirects"] == DEFAULT_MAX_REDIRECTS
 
 
-def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch):
+def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch, session_cls: type[BaseHttpxSession]):
     captured: dict[str, object] = {}
     transports: list[str] = []
 
@@ -38,12 +47,15 @@ def test_httpx_session_builds_mounts_for_proxy_dict(monkeypatch):
             captured["proxy"] = proxy
             captured["mounts"] = mounts
 
-    monkeypatch.setattr("aioscraper.core.session.httpx.AsyncHTTPTransport", DummyTransport)
-    monkeypatch.setattr("aioscraper.core.session.httpx.AsyncClient", DummyClient)
+    monkeypatch.setattr(
+        session_cls,
+        "_binding",
+        session_cls._binding._replace(async_client=DummyClient, async_http_transport=DummyTransport),
+    )
 
     proxy_map: dict[str, str | None] = {"http://": "http://proxy:8080", "https://": "http://proxy:8443"}
 
-    HttpxSession(timeout=None, verify=False, proxy=proxy_map)
+    session_cls(timeout=None, verify=False, proxy=proxy_map)
 
     assert captured["proxy"] is None  # moved into mounts
     assert isinstance(captured["mounts"], dict)

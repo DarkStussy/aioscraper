@@ -10,6 +10,7 @@ python:
       extra_requirements:
         - aiohttp
         - httpx
+        - httpx2
     - requirements: docs/requirements.txt
 
 sphinx:

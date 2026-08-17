@@ -41,6 +41,9 @@ aiohttp-speedups = [
 httpx = [
     "httpx>=0.28.1,<1.0.0",
 ]
+httpx2 = [
+    "httpx2>=2.0.0,<3.0.0",
+]
 
 [project.scripts]
 aioscraper = "aioscraper.cli:main"
