@@ -1,6 +1,6 @@
 [project]
 name = "aioscraper"
-version = "0.12.0"
+version = "0.13.0"
 authors = [{ name = "darkstussy" }, ]
 description = "Async Python framework for large-scale API data collection: JSON/REST fan-out with adaptive rate limiting, retries, priority queues and pipelines."
 readme = "README.md"

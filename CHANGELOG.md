@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 (2026-08-17)
 
 ### Added
 - `AIOScraper(http_client=...)`, taking an existing `aiohttp.ClientSession` or `httpx.AsyncClient`. It selects the backend, is used as configured, and is left open when the run ends. `get_sessionmaker()` takes the same `client` argument. Mutually exclusive with `sessionmaker_factory`.

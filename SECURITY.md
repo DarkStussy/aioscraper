@@ -43,6 +43,6 @@ security issues include, for example:
 
 Bugs without a security impact should be reported through the public issue tracker.
 
-Vulnerabilities entirely within `aiohttp` or `httpx` should normally be reported
+Vulnerabilities entirely within `aiohttp`, `httpx` or `httpx2` should normally be reported
 upstream. If an upstream behavior makes aioscraper unsafe or requires mitigation in
 aioscraper itself, please report it to us as well.
