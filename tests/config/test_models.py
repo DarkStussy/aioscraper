@@ -300,10 +300,15 @@ class TestExecutionConfig:
         assert config.shutdown_timeout == 0.1
         assert config.shutdown_check_interval == 0.1
         assert config.log_level == logging.ERROR
+        assert config.max_retained_errors == 100
 
     def test_validates_timeout_min(self):
         with pytest.raises(ConfigValidationError, match=r"timeout.*minimum is 0.01"):
             ExecutionConfig(timeout=0.001)
+
+    def test_validates_max_retained_errors(self):
+        with pytest.raises(ConfigValidationError, match=r"max_retained_errors.*minimum is 0"):
+            ExecutionConfig(max_retained_errors=-1)
 
     def test_validates_shutdown_timeout_min(self):
         with pytest.raises(ConfigValidationError, match=r"shutdown_timeout.*minimum is 0.001"):

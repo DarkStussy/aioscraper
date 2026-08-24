@@ -41,6 +41,11 @@ security issues include, for example:
 - configured proxy or other security-sensitive request settings being bypassed;
 - excessive CPU or memory use triggered by a remote response.
 
+A failed response is read into the `HTTPException` message, up to
+`session.max_error_body_size` (64 KiB by default), and that message reaches your logs.
+Where an endpoint echoes credentials or personal data in an error body, set the limit
+to `0` to skip reading it. This is a documented trade-off, not a vulnerability.
+
 Bugs without a security impact should be reported through the public issue tracker.
 
 Vulnerabilities entirely within `aiohttp`, `httpx` or `httpx2` should normally be reported

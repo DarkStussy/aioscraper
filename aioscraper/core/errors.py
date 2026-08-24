@@ -3,9 +3,9 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Mapping
 
-logger = getLogger(__name__)
+from aioscraper.config.models import DEFAULT_MAX_RETAINED_ERRORS
 
-DEFAULT_MAX_RETAINED_ERRORS = 100
+logger = getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -21,14 +21,14 @@ class ScraperError:
     exception: BaseException
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 class RunResult:
     """The outcome of a finished run.
 
     Requests are counted per attempt, and only the attempt that ends a request counts as succeeded
-    or failed: ``requests_succeeded`` and ``requests_failed`` therefore add up to
-    ``requests_started`` minus the attempts that were retried, that a middleware handled on its own,
-    and that a shutdown cut short.
+    or failed: ``requests_succeeded``, ``requests_failed`` and ``requests_retried`` therefore add up
+    to ``requests_started`` minus the attempts that a middleware handled on its own and that a
+    shutdown cut short.
 
     Attributes:
         errors (tuple[ScraperError, ...]): The most recent unhandled errors, capped by the collector.
@@ -41,6 +41,7 @@ class RunResult:
         requests_failed (int): Attempts that ended in an exception and were not retried. Counted
             whether or not an ``errback`` handled it, unlike ``error_counts``; ``ok`` therefore
             stays ``True`` for a handled failure, and ``all_requests_succeeded`` does not.
+        requests_retried (int): Attempts that ended in an exception and were admitted again.
         items_processed (int): Items the pipeline dispatcher handled without raising.
     """
 
@@ -51,6 +52,7 @@ class RunResult:
     requests_started: int = 0
     requests_succeeded: int = 0
     requests_failed: int = 0
+    requests_retried: int = 0
     items_processed: int = 0
 
     @property

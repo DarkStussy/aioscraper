@@ -209,6 +209,8 @@ class AIOScraper:
 
     async def _run(self):
         """Initialize and run the scraper with the configured settings."""
+        # built here rather than in __init__: the config can still be replaced until the run starts
+        self._error_collector = ErrorCollector(self.config.execution.max_retained_errors)
         executor = ScraperExecutor(
             config=self.config,
             scrapers=self.scrapers,
@@ -314,6 +316,7 @@ class AIOScraper:
             requests_started=self._stats.requests_started,
             requests_succeeded=self._stats.requests_succeeded,
             requests_failed=self._stats.requests_failed,
+            requests_retried=self._stats.requests_retried,
             items_processed=self._stats.items_processed,
         )
 

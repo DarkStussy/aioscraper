@@ -142,6 +142,10 @@ def load_config() -> Config:
                 default_config.execution.shutdown_check_interval,
             ),
             on_error=env.parse("EXECUTION_ON_ERROR", default_config.execution.on_error),
+            max_retained_errors=env.parse(
+                "EXECUTION_MAX_RETAINED_ERRORS",
+                default_config.execution.max_retained_errors,
+            ),
             log_level=env.parse_log_level("EXECUTION_LOG_LEVEL", default_config.execution.log_level),
         ),
         pipeline=PipelineConfig(strict=env.parse("PIPELINE_STRICT", default_config.pipeline.strict)),

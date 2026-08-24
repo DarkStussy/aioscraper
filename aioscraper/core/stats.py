@@ -1,12 +1,19 @@
 class RunStats:
     "Counters behind :class:`RunResult <aioscraper.core.errors.RunResult>`, which defines what each one means."
 
-    __slots__ = ("_items_processed", "_requests_failed", "_requests_started", "_requests_succeeded")
+    __slots__ = (
+        "_items_processed",
+        "_requests_failed",
+        "_requests_retried",
+        "_requests_started",
+        "_requests_succeeded",
+    )
 
     def __init__(self):
         self._requests_started = 0
         self._requests_succeeded = 0
         self._requests_failed = 0
+        self._requests_retried = 0
         self._items_processed = 0
 
     @property
@@ -25,6 +32,11 @@ class RunStats:
         return self._requests_failed
 
     @property
+    def requests_retried(self) -> int:
+        "Attempts that ended in an exception and were admitted again by the retry policy."
+        return self._requests_retried
+
+    @property
     def items_processed(self) -> int:
         "Items the pipeline dispatcher handled without raising."
         return self._items_processed
@@ -37,6 +49,9 @@ class RunStats:
 
     def request_failed(self):
         self._requests_failed += 1
+
+    def request_retried(self):
+        self._requests_retried += 1
 
     def item_processed(self):
         self._items_processed += 1

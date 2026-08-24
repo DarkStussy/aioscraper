@@ -353,6 +353,8 @@ class RequestManager:
             wait_for_slot=False,
             retries=retries,
         )
+        # counted once the attempt is queued: a cancelled admission is not a retry
+        self._stats.request_retried()
         return True
 
     def _record_outcome(

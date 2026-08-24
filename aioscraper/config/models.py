@@ -206,6 +206,9 @@ class SchedulerConfig:
     ready_queue_max_size: int = field(default=0, validator=RangeValidator(min_value=0))
 
 
+DEFAULT_MAX_RETAINED_ERRORS = 100
+
+
 class ErrorPolicy(StrEnum):
     """
     What an unhandled error means for the outcome of a run.
@@ -231,6 +234,8 @@ class ExecutionConfig:
         on_error (ErrorPolicy): Whether unhandled errors make the CLI exit non-zero
         log_level (int): Log level for timeout events (e.g., logging.ERROR, logging.WARNING).
             Defaults to logging.ERROR.
+        max_retained_errors (int): How many exceptions ``RunResult.errors`` keeps; the counts stay
+            exact either way. ``0`` keeps none, which frees the tracebacks a failing run holds.
     """
 
     timeout: float | None = field(default=None, validator=RangeValidator(min_value=0.01))
@@ -238,6 +243,10 @@ class ExecutionConfig:
     shutdown_check_interval: float = field(default=0.1, validator=RangeValidator(min_value=0.01))
     on_error: ErrorPolicy = ErrorPolicy.FAIL
     log_level: int = logging.ERROR
+    max_retained_errors: int = field(
+        default=DEFAULT_MAX_RETAINED_ERRORS,
+        validator=RangeValidator(min_value=0),
+    )
 
 
 @dataclass(slots=True, frozen=True)

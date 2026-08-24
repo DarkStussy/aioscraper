@@ -75,8 +75,9 @@ not recorded: handling it is the point of the callback.
 :class:`RunResult <aioscraper.core.errors.RunResult>` describing the outcome:
 
 - ``error_counts`` - exact totals per context, and ``total_errors`` across all of them.
-- ``errors`` - the most recent exceptions, capped so a run failing millions of requests does not keep every
-  traceback alive.
+- ``errors`` - the most recent exceptions, capped by ``execution.max_retained_errors``
+  (``EXECUTION_MAX_RETAINED_ERRORS``, 100 by default) so a run failing millions of requests does not keep
+  every traceback alive. ``0`` keeps none; the counts stay exact either way.
 - ``interrupted`` / ``timed_out`` - whether a signal or ``execution.timeout`` ended the run.
 - ``ok`` - true only when the run finished on its own with nothing recorded. A failure your ``errback``
   handled is not recorded, so it leaves ``ok`` true.
@@ -86,6 +87,8 @@ not recorded: handling it is the point of the callback.
 - ``requests_started`` / ``requests_succeeded`` / ``requests_failed`` - attempts rather than requests: a
   retry starts another one, and only the attempt that ends a request counts as succeeded or failed.
   ``requests_failed`` covers failures an ``errback`` handled, which ``error_counts`` deliberately leaves out.
+- ``requests_retried`` - attempts the retry policy admitted again, which end neither as succeeded nor
+  as failed.
 - ``items_processed`` - items the pipeline dispatcher handled without raising.
 
 The same data stays available on the scraper through

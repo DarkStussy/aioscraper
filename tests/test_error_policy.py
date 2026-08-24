@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from pathlib import Path
 from textwrap import dedent
 
@@ -339,3 +340,24 @@ def test_cli_exits_130_when_stopped_by_signal(tmp_path: Path, monkeypatch: pytes
     monkeypatch.setattr("aioscraper.cli.__main__.run_scraper", fake_run_scraper)
 
     assert main([str(_entrypoint(tmp_path, ErrorPolicy.FAIL))]) == 130
+
+
+async def test_the_retained_error_cap_is_configurable(mock_aioscraper: MockAIOScraper):
+    """Counts stay exact; only the exceptions kept alive with their tracebacks are dropped."""
+    mock_aioscraper.server.add(
+        re.compile(r"api\.test\.com/broken/\d"),
+        handler=lambda _: MockResponse(status=500, text="boom"),
+        repeat=3,
+    )
+    mock_aioscraper.config = Config(execution=ExecutionConfig(max_retained_errors=1))
+
+    @mock_aioscraper
+    async def scraper(send_request):
+        for index in range(3):
+            await send_request(Request(url=f"https://api.test.com/broken/{index}"))
+
+    async with mock_aioscraper:
+        result = await mock_aioscraper.wait()
+
+    assert result.total_errors == 3
+    assert len(result.errors) == 1

@@ -91,6 +91,12 @@ def test_load_config_reads_the_retry_after_cap(monkeypatch):
     assert load_config().session.retry.max_retry_after == 45.0
 
 
+def test_load_config_reads_the_retained_error_cap(monkeypatch):
+    monkeypatch.setenv("EXECUTION_MAX_RETAINED_ERRORS", "5")
+
+    assert load_config().execution.max_retained_errors == 5
+
+
 def test_load_config_parses_proxy_json(monkeypatch):
     monkeypatch.setenv("SESSION_PROXY", '{"http": "http://p:1", "https": "http://p:2"}')
 

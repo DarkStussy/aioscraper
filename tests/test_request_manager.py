@@ -12,6 +12,7 @@ from aioscraper.config import (
 )
 from aioscraper.core.rate_limiter import RequestOutcome
 from aioscraper.core.request_manager import RequestManager
+from aioscraper.core.retry import RetryPolicy
 from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.core.session.httpx import HttpxSession
 from aioscraper.exceptions import HTTPException, InvalidRequestData, TransportTimeout, UnsupportedRequestOption
@@ -21,6 +22,10 @@ from aioscraper.types.session import Attempt
 from tests.mocks import make_response
 
 NO_RETRIES = RequestRetryConfig(enabled=False)
+
+
+def _http_error(status: int = 503) -> HTTPException:
+    return HTTPException(url="https://api.test.com/flaky", method="GET", status_code=status, headers={}, message="")
 
 
 def attempt(request: Request, *, retries: int = 0) -> Attempt:
@@ -721,3 +726,22 @@ async def test_close_stops_queue_processing():
     # Session should be closed
     assert manager._session.closed is True  # type: ignore[reportAttributeAccessIssue]
     assert manager._completed.is_set()
+
+
+@pytest.mark.asyncio
+async def test_a_retry_that_never_reached_the_queue_is_not_counted(base_manager_factory, monkeypatch):
+    """The counter is about attempts that were admitted, not about the decision to admit one."""
+    manager = base_manager_factory(session_factory=FakeSession)
+    manager._retry_policy = RetryPolicy(RequestRetryConfig(enabled=True, attempts=3, base_delay=0.001))
+
+    async def failing_admit(*args, **kwargs):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr("aioscraper.core.request_manager._admit", failing_admit)
+
+    with pytest.raises(asyncio.CancelledError):
+        await manager._retry(attempt(Request(url="https://api.test.com/flaky")), _http_error())
+
+    assert manager._stats.requests_retried == 0
+
+    await manager.close()

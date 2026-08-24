@@ -4,6 +4,7 @@ import pytest
 
 from aioscraper.config import Config, RequestRetryConfig, SessionConfig
 from aioscraper.core import AIOScraper
+from aioscraper.core.errors import RunResult
 from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
@@ -43,6 +44,7 @@ async def test_a_successful_run_counts_its_requests_and_items(mock_aioscraper: M
     assert result.requests_started == 2
     assert result.requests_succeeded == 2
     assert result.requests_failed == 0
+    assert result.requests_retried == 0
     assert result.items_processed == 2
     assert result.ok is True
     assert result.all_requests_succeeded is True
@@ -114,10 +116,20 @@ async def test_a_retried_request_starts_once_per_attempt(mock_aioscraper: MockAI
     assert result.requests_started == 2
     assert result.requests_succeeded == 1
     assert result.requests_failed == 0
+    assert result.requests_retried == 1
     # the 503 ended an attempt, not the request: the retry got the data
     assert result.all_requests_succeeded is True
 
 
-@pytest.mark.parametrize("attribute", ["requests_started", "requests_succeeded", "requests_failed", "items_processed"])
+def test_the_result_is_built_by_keyword():
+    """Field order is not API: a new counter must never shift onto an existing name."""
+    with pytest.raises(TypeError):
+        RunResult((), {})  # type: ignore[reportCallIssue]
+
+
+@pytest.mark.parametrize(
+    "attribute",
+    ["requests_started", "requests_succeeded", "requests_failed", "requests_retried", "items_processed"],
+)
 def test_a_scraper_that_never_ran_counts_nothing(attribute: str):
     assert getattr(AIOScraper().result, attribute) == 0
