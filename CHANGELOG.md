@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.14.0 (2026-08-25)
+
+### Added
+- A backend-neutral transport exception hierarchy: `TransportError` with `TransportTimeout`, `ConnectionFailed`, `DNSError`, `ProxyError` and `TLSError`. Every backend maps its own failures onto it, on the send and on the body read alike, keeping the original as `__cause__`. `TransportTimeout` is also a builtin `TimeoutError`.
+- `TooManyRedirects` and `InvalidURL`, for a redirect chain over the limit and a URL the client refused. Both are `ClientException` but not `TransportError`, and are not retried by default.
+- `RunResult.all_requests_succeeded`, true when no request ended in failure, handled by an `errback` or not; a failure a retry recovered from is not one. `ok` stays about unhandled errors.
+- `RunResult.requests_retried`, attempts the retry policy admitted again. They end neither as succeeded nor as failed, so the counters now add up to `requests_started`.
+- `RequestRetryConfig.max_retry_after` (`SESSION_RETRY_MAX_RETRY_AFTER`), the cap on a delay the server asked for. Still 600 seconds, and now the setting that says how long a server may park a run.
+- `ExecutionConfig.max_retained_errors` (`EXECUTION_MAX_RETAINED_ERRORS`), how many exceptions `RunResult.errors` keeps. Was hard-coded at 100; the counts stay exact.
+- `SESSION_MAX_RESPONSE_BODY_SIZE` accepts `0`, `none` and `unlimited` for no cap.
+
+### Changed
+- **BREAKING:** retries are enabled by default. A failing endpoint costs `attempts` extra requests per URL, and a run takes the backoff delays; `SESSION_RETRY_ENABLED=false` turns them off. Only idempotent methods are replayed, as before.
+- **BREAKING:** the effective timeout — `Request.timeout`, or `session.timeout` without one — is a wall-clock budget for the whole response on every backend, raised as `TransportTimeout`. httpx and httpx2 time each phase separately, so a body arriving chunk by chunk never reached a limit: a 60s timeout allowed a download of any length. A long download now needs its own `Request.timeout`; a client passed as `http_client` gets a budget from `Request.timeout`, or from `ClientTimeout.total` when it is an `aiohttp` one and positive.
+- **BREAKING:** `Response.headers` is a `multidict.CIMultiDictProxy` on every backend. `headers[name]` is the first value of a repeated header everywhere, where httpx joined them into `'a=1, b=2'`; `getall(name)` replaces httpx's `get_list(name)`.
+- **BREAKING:** `SessionConfig.max_response_body_size` defaults to 32 MiB instead of `None`, which bounds memory at that times `scheduler.concurrent_requests`. A larger download needs the cap raised or set to `None`.
+- **BREAKING:** `RequestRetryConfig.exceptions` defaults to `(TransportTimeout, ConnectionFailed)`. Timeouts were retried on `aiohttp` alone: `httpx.TimeoutException` is unrelated to `asyncio.TimeoutError`. `TLSError` is left out on purpose, and a timeout raised outside the transport is no longer retried.
+- **BREAKING:** an `errback` and a `should_retry` hook receive the classes above, not `aiohttp.ClientError`/`httpx.HTTPError`. Catch `ClientException`, or `TransportError` for the transport failures alone.
+- **BREAKING:** `Request.timeout` must be positive. `0`, a negative value, `inf` and `NaN` raise `InvalidRequestData` before dispatch.
+- **BREAKING:** `RunResult` is keyword-only, so its field order is no longer API: a positional build fails instead of shifting a value onto a field added later.
+- `license = "MIT"` with `license-files` (PEP 639), so the wheel carries `License-Expression` instead of the deprecated `License` field. Requires `hatchling>=1.27`.
+- The compatibility policy records the two backend differences that stay: a per-request `Request.max_redirects` on `httpx`/`httpx2`, and the class raised for a body the client could not decode.
+
+### Fixed
+- A URL no parser accepts is rejected as `InvalidURL` when the request is sent, and reaches the `errback` when a middleware sets one. `yarl` used to raise a bare `ValueError` past every callback and counter.
+- A numeric config value that is not finite is rejected, and a `Retry-After` header holding one is ignored. `NaN` passed every range check and parked a retry on a deadline that never comes.
+- The httpx and httpx2 backends send `Request.timeout` as it is instead of testing it for truthiness, which sent a `0` to the client default.
+
 ## 0.13.0 (2026-08-17)
 
 ### Added
