@@ -116,6 +116,12 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.AIOScraperException
 .. autoclass:: aioscraper.exceptions.ClientException
 .. autoclass:: aioscraper.exceptions.HTTPException
+.. autoclass:: aioscraper.exceptions.TransportError
+.. autoclass:: aioscraper.exceptions.TransportTimeout
+.. autoclass:: aioscraper.exceptions.ConnectionFailed
+.. autoclass:: aioscraper.exceptions.DNSError
+.. autoclass:: aioscraper.exceptions.ProxyError
+.. autoclass:: aioscraper.exceptions.TLSError
 .. autoclass:: aioscraper.exceptions.ResponseTooLarge
 .. autoclass:: aioscraper.exceptions.StreamConsumed
 .. autoclass:: aioscraper.exceptions.UnsupportedRequestOption

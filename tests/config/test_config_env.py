@@ -58,8 +58,15 @@ def test_load_config_defaults_body_limits(monkeypatch):
 
     config = load_config()
 
-    assert config.session.max_response_body_size is None
+    assert config.session.max_response_body_size == 32 * 1024 * 1024
     assert config.session.max_error_body_size == 65536
+
+
+@pytest.mark.parametrize("value", ["0", "none", "Unlimited", ""])
+def test_load_config_reads_an_unlimited_response_body(monkeypatch, value: str):
+    monkeypatch.setenv("SESSION_MAX_RESPONSE_BODY_SIZE", value)
+
+    assert load_config().session.max_response_body_size is None
 
 
 def test_load_config_reads_retry_methods(monkeypatch):

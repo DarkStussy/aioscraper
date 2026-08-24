@@ -39,7 +39,8 @@ class RunResult:
         requests_succeeded (int): Attempts whose response was returned by the chain and processed
             by the callback.
         requests_failed (int): Attempts that ended in an exception and were not retried. Counted
-            whether or not an ``errback`` handled it, unlike ``error_counts``.
+            whether or not an ``errback`` handled it, unlike ``error_counts``; ``ok`` therefore
+            stays ``True`` for a handled failure, and ``all_requests_succeeded`` does not.
         items_processed (int): Items the pipeline dispatcher handled without raising.
     """
 
@@ -59,8 +60,13 @@ class RunResult:
 
     @property
     def ok(self) -> bool:
-        "Whether the run finished on its own with nothing recorded."
+        "Whether the run finished on its own with nothing unhandled recorded. A handled failure keeps it ``True``."
         return not self.error_counts and not self.interrupted and not self.timed_out
+
+    @property
+    def all_requests_succeeded(self) -> bool:
+        "Whether no request ended in failure, handled or not. A failure a retry recovered from is not one."
+        return self.requests_failed == 0
 
 
 class ErrorCollector:

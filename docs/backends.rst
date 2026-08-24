@@ -29,13 +29,15 @@ Request fields
      - Not applied: the limit belongs to the client - ``10`` for the one `aioscraper` builds, whatever it was built with for a provided one. Any value other than the ``Request`` default raises ``UnsupportedRequestOption`` unless ``allow_redirects`` is ``False``.
    * - ``timeout``
      - Total budget for the request; falls back to ``session.timeout``.
-     - Applied to each of connect, read, write and pool separately, so a request can take longer than the value; falls back to ``session.timeout``.
+     - Applied to each of connect, read, write and pool separately, so a request can take longer than the value; falls back to ``session.timeout``. Only ``None`` falls back: a value is sent as it is.
    * - ``auth``
      - Credentials are encoded with ``BasicAuth.encoding``, Latin-1 by default.
      - Credentials are encoded as UTF-8; an ``encoding`` that means anything else raises ``UnsupportedRequestOption`` rather than being ignored. A name no codec answers to is rejected before any backend sees it, as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>`, whether the request carried it from the start or a middleware set it.
    * - ``allow_redirects``, ``params``, ``headers``, ``cookies``, ``data``, ``json_data``, ``files``
      - Applied per request.
      - Same.
+
+``Request.timeout`` must be a positive number of seconds. ``0``, a negative value, ``inf`` and ``NaN`` are rejected as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>` before dispatch, rather than left for each client to interpret its own way.
 
 Session settings
 ----------------
@@ -60,6 +62,42 @@ Session settings
      - Enforced by the framework, not the client.
      - Same.
 
+.. _transport-errors:
+
+Transport errors
+----------------
+
+A failure to get a response is raised as a class of one hierarchy, whichever backend produced it. The client's own exception is kept as ``__cause__``, so nothing is lost by catching the neutral one.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 37 37
+
+   * - `aioscraper`
+     - aiohttp
+     - httpx
+   * - :class:`TransportTimeout <aioscraper.exceptions.TransportTimeout>`
+     - ``TimeoutError``, ``ServerTimeoutError``, ``ConnectionTimeoutError``, ``SocketTimeoutError``.
+     - ``TimeoutException`` and its connect/read/write/pool subclasses.
+   * - :class:`DNSError <aioscraper.exceptions.DNSError>`
+     - ``ClientConnectorDNSError``.
+     - ``ConnectError`` raised over a ``socket.gaierror``.
+   * - :class:`TLSError <aioscraper.exceptions.TLSError>`
+     - ``ClientSSLError``, ``ServerFingerprintMismatch``.
+     - ``ConnectError`` raised over an ``ssl.SSLError``.
+   * - :class:`ProxyError <aioscraper.exceptions.ProxyError>`
+     - ``ClientProxyConnectionError``, ``ClientHttpProxyError``.
+     - ``ProxyError``.
+   * - :class:`ConnectionFailed <aioscraper.exceptions.ConnectionFailed>`
+     - ``ClientConnectionError``, ``ClientPayloadError``.
+     - ``NetworkError``, ``RemoteProtocolError``.
+
+``TransportTimeout`` is also a builtin ``TimeoutError``, the class ``asyncio`` and ``aiohttp`` raise, so code and retry policies written against it keep working. ``DNSError`` and ``ProxyError`` are ``ConnectionFailed``; ``TLSError`` is not, because the same handshake fails the same way on the next attempt - which is what :ref:`the default retry set <retry-config>` is built on.
+
+Body reads are covered too: a connection dropped mid-body raises the same classes inside :meth:`iter_bytes() <aioscraper.types.session.Response.iter_bytes>` and :meth:`read() <aioscraper.types.session.Response.read>`.
+
+What is not a transport failure stays the client's own: an invalid URL, a redirect limit, a decoding error. Catch :class:`ClientException <aioscraper.exceptions.ClientException>` for the framework's, and the client's classes for the rest.
+
 Behavior
 --------
 
@@ -80,5 +118,5 @@ httpx2
 What differs from ``httpx`` itself:
 
 - **Trust store.** ``ssl=True`` verifies against the certificates of the operating system through ``truststore``, where ``httpx`` uses the ones bundled in ``certifi``.
-- **Separate package.** ``httpx`` and ``httpx2`` can be installed side by side, and their clients, sentinels and exception classes are unrelated. ``httpx2.AsyncClient`` selects the ``httpx2`` backend, and ``http_backend="httpx"`` with such a client is rejected rather than silently honored. Code that catches client exceptions must catch the ones of the package in use.
+- **Separate package.** ``httpx`` and ``httpx2`` can be installed side by side, and their clients, sentinels and exception classes are unrelated. ``httpx2.AsyncClient`` selects the ``httpx2`` backend, and ``http_backend="httpx"`` with such a client is rejected rather than silently honored. Code that catches client exceptions must catch the ones of the package in use - or the :ref:`transport errors <transport-errors>` above, which are the same on both.
 - **HTTP/2.** Available with the ``http2`` extra of the package, which ``aiohttp`` has no equivalent of. `aioscraper` builds its client with the default of HTTP/1.1; pass your own ``httpx2.AsyncClient(http2=True)`` as ``http_client`` to use it.

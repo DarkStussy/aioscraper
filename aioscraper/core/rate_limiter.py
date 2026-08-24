@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable, Hashable, Self
 from yarl import URL
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
+from aioscraper.exceptions import ConnectionFailed, TransportTimeout
 from aioscraper.types.session import Attempt, Request
 
 from .errors import ErrorCollector
@@ -114,7 +115,7 @@ class AdaptiveStrategy:
         success_threshold: int = 5,
         ewma_alpha: float = 0.3,
         trigger_statuses: tuple[int, ...] = (429, 500, 502, 503, 504, 522, 524, 408),
-        trigger_exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,),
+        trigger_exceptions: tuple[type[BaseException], ...] = (TransportTimeout, ConnectionFailed),
         respect_retry_after: bool = True,
     ):
         self.min_interval = min_interval

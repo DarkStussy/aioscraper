@@ -49,10 +49,9 @@ def load_config() -> Config:
             ssl=ssl_ctx,
             proxy=env.parse_proxy("SESSION_PROXY", None),
             http_backend=env.parse("SESSION_HTTP_BACKEND", default_config.session.http_backend),
-            max_response_body_size=env.parse(
+            max_response_body_size=env.parse_body_limit(
                 "SESSION_MAX_RESPONSE_BODY_SIZE",
                 default_config.session.max_response_body_size,
-                cast=int,
             ),
             max_error_body_size=env.parse(
                 "SESSION_MAX_ERROR_BODY_SIZE",

@@ -45,6 +45,51 @@ class HTTPException(ClientException):
         )
 
 
+class TransportError(ClientException):
+    """
+    Raised when the HTTP client could not deliver a response.
+
+    Every backend maps its own failures onto this hierarchy; the original is kept as ``__cause__``.
+
+    Args:
+        url (str): The URL that was being requested.
+        method (str): The HTTP method used for the request.
+        message (str): What the client reported.
+    """
+
+    def __init__(self, url: str, method: str, message: str):
+        self.url = url
+        self.method = method
+        self.message = message
+        super().__init__(str(self))
+
+    def __str__(self) -> str:
+        return f"{self.method} {self.url}: {self.message}"
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return type(self), (self.url, self.method, self.message), self.__dict__
+
+
+class TransportTimeout(TransportError, TimeoutError):
+    "Raised when the request ran out of time. Also a builtin ``TimeoutError``, as ``aiohttp`` raises."
+
+
+class ConnectionFailed(TransportError):
+    "Raised when the connection could not be established, or was lost before the response ended."
+
+
+class DNSError(ConnectionFailed):
+    "Raised when the host name could not be resolved."
+
+
+class ProxyError(ConnectionFailed):
+    "Raised when the proxy refused the connection or failed to establish the tunnel."
+
+
+class TLSError(TransportError):
+    "Raised when the TLS handshake failed. Not a :class:`ConnectionFailed`: it fails again the same way."
+
+
 class ResponseTooLarge(ClientException):
     """
     Raised when a response body exceeds the configured size limit.

@@ -93,11 +93,27 @@ async def test_body_under_the_limit_is_read(mock_aioscraper: MockAIOScraper):
 
 
 @pytest.mark.asyncio
-async def test_unlimited_by_default(mock_aioscraper: MockAIOScraper):
+async def test_a_body_under_the_default_is_read(mock_aioscraper: MockAIOScraper):
+    """The default cap is 32 MiB, so an ordinary payload never meets it."""
     mock_aioscraper.server.add("https://api.test.com/large", handler=lambda _: MockResponse(text="x" * BODY_SIZE))
 
     scraper = BodyScraper("https://api.test.com/large")
     mock_aioscraper(scraper)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert not scraper.errors
+    assert scraper.bodies == [b"x" * BODY_SIZE]
+
+
+@pytest.mark.asyncio
+async def test_none_disables_the_cap(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add("https://api.test.com/large", handler=lambda _: MockResponse(text="x" * BODY_SIZE))
+
+    scraper = BodyScraper("https://api.test.com/large")
+    mock_aioscraper(scraper)
+    _configure(mock_aioscraper, max_response_body_size=None)
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()

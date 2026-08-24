@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 import pytest
@@ -15,7 +14,7 @@ from aioscraper.config.models import (
     SchedulerConfig,
     SessionConfig,
 )
-from aioscraper.exceptions import ConfigValidationError
+from aioscraper.exceptions import ConfigValidationError, ConnectionFailed, TransportTimeout
 
 
 class TestSessionConfig:
@@ -26,7 +25,7 @@ class TestSessionConfig:
         assert config.ssl is True
         assert config.proxy is None
         assert config.http_backend is None
-        assert config.max_response_body_size is None
+        assert config.max_response_body_size == 32 * 1024 * 1024
         assert config.max_error_body_size == 65536
 
     def test_validates_max_response_body_size_min(self):
@@ -94,7 +93,7 @@ class TestRequestRetryConfig:
         assert config.base_delay == 0.5
         assert config.max_delay == 30.0
         assert config.statuses == (500, 502, 503, 504, 522, 524, 408, 429)
-        assert config.exceptions == (asyncio.TimeoutError,)
+        assert config.exceptions == (TransportTimeout, ConnectionFailed)
         assert config.methods == ("GET", "HEAD", "OPTIONS", "TRACE")
 
     def test_normalizes_methods_to_upper_case(self):

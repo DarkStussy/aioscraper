@@ -14,7 +14,7 @@ from aioscraper.core.rate_limiter import RequestOutcome
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.core.session.httpx import HttpxSession
-from aioscraper.exceptions import HTTPException, InvalidRequestData, UnsupportedRequestOption
+from aioscraper.exceptions import HTTPException, InvalidRequestData, TransportTimeout, UnsupportedRequestOption
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import File, Request, RequestHandler, Response
 from aioscraper.types.session import Attempt
@@ -602,7 +602,8 @@ async def test_callback_failure_is_not_reported_as_transport_failure():
     """Callback errors must not reach the adaptive limiter as request outcomes."""
 
     async def callback(response: Response):
-        raise TimeoutError("callback boom")
+        # a trigger type, so the outcome below is missing because it was never recorded
+        raise TransportTimeout("https://api.test.com/ok", "GET", "callback boom")
 
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
@@ -616,7 +617,7 @@ async def test_callback_failure_is_not_reported_as_transport_failure():
     outcomes = _spy_on_outcomes(manager)
 
     assert manager._rate_limiter_manager.adaptive_strategy is not None
-    assert TimeoutError in manager._rate_limiter_manager.adaptive_strategy.trigger_exceptions
+    assert TransportTimeout in manager._rate_limiter_manager.adaptive_strategy.trigger_exceptions
 
     await manager._send_request(attempt(Request(url="https://api.test.com/ok", callback=callback)))
 

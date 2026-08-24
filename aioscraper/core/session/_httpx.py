@@ -1,12 +1,22 @@
 import codecs
+import socket
 from ssl import SSLContext
+from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, NamedTuple, cast
 
 from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
-from aioscraper.exceptions import UnsupportedRequestOption
+from aioscraper.exceptions import (
+    ConnectionFailed,
+    DNSError,
+    ProxyError,
+    TransportError,
+    TransportTimeout,
+    UnsupportedRequestOption,
+)
 from aioscraper.types import Request, Response
 from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
 
+from ._errors import Classifier, caused_by, classify_tls, guard_stream, transport_errors
 from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
 from .factory import HttpxClient
 
@@ -38,6 +48,7 @@ class HttpxBinding(NamedTuple):
         basic_auth (Callable[..., Any]): ``BasicAuth``, built for a request that carries
             credentials.
         use_client_default (Any): ``USE_CLIENT_DEFAULT`` sentinel, sent when it does not.
+        classify (Classifier): Maps a failure of the package onto the transport hierarchy.
     """
 
     backend: str
@@ -45,6 +56,37 @@ class HttpxBinding(NamedTuple):
     async_http_transport: Callable[..., Any]
     basic_auth: Callable[..., Any]
     use_client_default: Any
+    classify: Classifier
+
+
+def make_classifier(module: ModuleType) -> Classifier:
+    "Classifier for one httpx-compatible package; their exception classes are unrelated."
+    timeout_exception = module.TimeoutException
+    proxy_error = module.ProxyError
+    network_error = module.NetworkError
+    remote_protocol_error = module.RemoteProtocolError
+
+    def classify(exc: BaseException) -> type[TransportError] | None:
+        if isinstance(exc, timeout_exception):
+            return TransportTimeout
+
+        if isinstance(exc, proxy_error):
+            return ProxyError
+
+        # httpx reports every connect failure as ConnectError, so what it wrapped tells them apart
+        if tls_error := classify_tls(exc):
+            return tls_error
+
+        if isinstance(exc, network_error):
+            return DNSError if caused_by(exc, socket.gaierror) else ConnectionFailed
+
+        # the server closed the connection before the response was complete
+        if isinstance(exc, remote_protocol_error):
+            return ConnectionFailed
+
+        return None
+
+    return classify
 
 
 def _is_utf8(encoding: str) -> bool:
@@ -108,6 +150,10 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
 
     async def __aenter__(self) -> Response:
         """Send the request with httpx and convert the response to internal ``Response``."""
+        with transport_errors(self._binding.classify, self._request.url, self._request.method):
+            return await self._send()
+
+    async def _send(self) -> Response:
         if isinstance(self._request.data, dict):
             content, data = None, self._request.data
         else:
@@ -122,7 +168,8 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
             json=self._request.json_data,
             cookies=parse_cookies(self._request.cookies) if self._request.cookies is not None else None,
             headers=self._request.headers,
-            timeout=self._request.timeout or self._binding.use_client_default,
+            # not truthiness: only the absence of a timeout falls back to the client
+            timeout=self._request.timeout if self._request.timeout is not None else self._binding.use_client_default,
         )
         # without stream=True httpx buffers the whole body inside send(), before any limit applies
         response = await self._client.send(
@@ -144,7 +191,12 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
             status=response.status_code,
             headers=response.headers,
             cookies=to_simple_cookie(response.cookies),
-            aiter_bytes=response.aiter_bytes,
+            aiter_bytes=guard_stream(
+                response.aiter_bytes,
+                self._binding.classify,
+                str(response.url),
+                response.request.method,
+            ),
             max_body_size=self._max_body_size,
         )
 

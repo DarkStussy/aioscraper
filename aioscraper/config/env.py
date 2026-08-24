@@ -64,6 +64,21 @@ def parse_log_level(key: str, default: int | None | NotSetType = NOTSET) -> int:
     return parse(key, default, cast=to_log_level)
 
 
+_NO_LIMIT = frozenset({"", "0", "none", "unlimited"})
+
+
+def parse_body_limit(key: str, default: int | None) -> int | None:
+    "Bytes, or None for a value that spells out no limit: 0, none, unlimited or empty."
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+
+    if raw.strip().lower() in _NO_LIMIT:
+        return None
+
+    return parse(key, cast=int)
+
+
 def parse_proxy(key: str, default: str | None = None) -> dict[str, str | None] | str | None:
     if value := parse(key, default):
         url_exc = None

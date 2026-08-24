@@ -27,6 +27,8 @@ SendRequest = Callable[["Request"], Awaitable["Request"]]
 DEFAULT_MAX_REDIRECTS = 10
 DEFAULT_CHUNK_SIZE = 65536
 DEFAULT_MAX_ERROR_BODY_SIZE = 65536
+# bounds what 64 concurrent bodies hold at 2 GiB, and no API payload reaches it by accident
+DEFAULT_MAX_RESPONSE_BODY_SIZE = 32 * 1024 * 1024
 
 
 class File(NamedTuple):
@@ -73,7 +75,8 @@ class Request:
             :class:`~aioscraper.exceptions.UnsupportedRequestOption`
         proxy_auth (BasicAuth | None): Proxy authentication credentials. ``aiohttp`` only
         proxy_headers (RequestHeaders | None): Proxy headers. ``aiohttp`` only
-        timeout (float | None): Request timeout in seconds
+        timeout (float | None): Request timeout in seconds, positive; ``None`` uses the session's.
+            Anything else raises :class:`~aioscraper.exceptions.InvalidRequestData`
         allow_redirects (bool): Whether to follow HTTP redirects
         max_redirects (int): Maximum number of redirects to follow. Only ``aiohttp`` accepts a
             per-request value; on ``httpx`` the limit is the client's, so any value other than the

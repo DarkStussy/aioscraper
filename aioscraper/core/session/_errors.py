@@ -1,0 +1,66 @@
+import ssl
+from contextlib import contextmanager
+from typing import AsyncIterator, Callable, Iterator
+
+from aioscraper.exceptions import TLSError, TransportError
+
+Classifier = Callable[[BaseException], type[TransportError] | None]
+AiterBytes = Callable[[int], AsyncIterator[bytes]]
+
+_MAX_CAUSE_DEPTH = 8
+
+
+def causes(exc: BaseException) -> Iterator[BaseException]:
+    "``exc`` and the exceptions it was raised from."
+    current: BaseException | None = exc
+    for _ in range(_MAX_CAUSE_DEPTH):
+        if current is None:
+            return
+
+        yield current
+        # __context__ too: a client wrapping an error of its own transport layer does not always
+        # chain it explicitly
+        current = current.__cause__ or current.__context__
+
+
+def caused_by(exc: BaseException, *types: type[BaseException]) -> bool:
+    return any(isinstance(cause, types) for cause in causes(exc))
+
+
+def classify_tls(exc: BaseException) -> type[TransportError] | None:
+    return TLSError if caused_by(exc, ssl.SSLError) else None
+
+
+@contextmanager
+def transport_errors(classify: Classifier, url: str, method: str) -> Iterator[None]:
+    "Re-raise what the client raised as its backend-neutral equivalent, chaining the original."
+    try:
+        yield
+    except Exception as exc:
+        error_type = classify(exc)
+        if error_type is None:
+            raise
+
+        # str() of a client exception is often empty: aiohttp's disconnects, httpx's read errors
+        raise error_type(url, method, str(exc) or type(exc).__name__) from exc
+
+
+def guard_stream(aiter_bytes: AiterBytes, classify: Classifier, url: str, method: str) -> AiterBytes:
+    "Wrap a body iterator so a failure mid-stream is translated as well."
+
+    async def guarded(chunk_size: int) -> AsyncIterator[bytes]:
+        # driven by hand rather than with `async for`: a translation around the yield would also
+        # catch what the consumer of the chunk raises
+        with transport_errors(classify, url, method):
+            iterator = aiter_bytes(chunk_size).__aiter__()
+
+        while True:
+            with transport_errors(classify, url, method):
+                try:
+                    chunk = await anext(iterator)
+                except StopAsyncIteration:
+                    return
+
+            yield chunk
+
+    return guarded

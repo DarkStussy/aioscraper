@@ -4,6 +4,7 @@ import heapq
 from contextlib import AsyncExitStack, suppress
 from functools import partial
 from logging import getLogger
+from math import isfinite
 from time import monotonic
 from typing import Any
 
@@ -121,6 +122,10 @@ def _validate(request: Request):
 
     if request.json_data is not None and request.files is not None:
         raise InvalidRequestData("Cannot send both files and json_data")
+
+    # backends disagree on what a non-positive timeout means; None is how a request asks for the session's
+    if request.timeout is not None and not (isfinite(request.timeout) and request.timeout > 0):
+        raise InvalidRequestData(f"Request timeout must be a positive number of seconds, got {request.timeout!r}")
 
     # a codec that does not exist is a broken request, not a backend limitation
     for field in ("auth", "proxy_auth"):

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import random
 import ssl as ssl_module
@@ -7,8 +6,9 @@ from enum import StrEnum, auto
 from http import HTTPMethod
 from typing import Callable, Hashable
 
+from aioscraper.exceptions import ConnectionFailed, TransportTimeout
 from aioscraper.types import Request
-from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE
+from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, DEFAULT_MAX_RESPONSE_BODY_SIZE
 
 from .field_validators import CustomValidator, ProxyValidator, RangeValidator
 from .model_validator import field, validate
@@ -100,6 +100,8 @@ class RequestRetryConfig:
         max_delay (float): Maximum delay between retries in seconds.
         statuses (tuple[int, ...]): HTTP status codes that should trigger a retry.
         exceptions (tuple[type[BaseException], ...]): Exception types that should trigger a retry.
+            Defaults to the transient transport failures, which every backend raises alike;
+            :class:`~aioscraper.exceptions.TLSError` is left out.
         methods (tuple[str, ...]): HTTP methods eligible for a retry, case-insensitive.
             ``Request.retryable`` overrides it per request.
         should_retry (Callable[[Request, Exception, int], bool | None] | None): Decides a failure the
@@ -113,7 +115,7 @@ class RequestRetryConfig:
     base_delay: float = field(default=0.5, validator=RangeValidator(min_value=0.001))
     max_delay: float = field(default=30.0, validator=RangeValidator(min_value=0.001))
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
-    exceptions: tuple[type[BaseException], ...] = (asyncio.TimeoutError,)
+    exceptions: tuple[type[BaseException], ...] = (TransportTimeout, ConnectionFailed)
     methods: tuple[str, ...] = field(
         default=(HTTPMethod.GET, HTTPMethod.HEAD, HTTPMethod.OPTIONS, HTTPMethod.TRACE),
         validator=CustomValidator(lambda methods: tuple(method.upper() for method in methods)),
@@ -156,7 +158,8 @@ class SessionConfig:
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``/``httpx2``; ``None`` lets the factory auto-detect
-        max_response_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap
+        max_response_body_size (int | None): Cap on a response body in bytes, 32 MiB by default;
+            ``None`` disables it. Bounds memory at this value times ``scheduler.concurrent_requests``
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
         retry (RequestRetryConfig): Controls built-in retry behavior
         rate_limit (RateLimitConfig): Controls built-in rate limiting behavior
@@ -166,7 +169,10 @@ class SessionConfig:
     ssl: ssl_module.SSLContext | bool = True
     proxy: str | dict[str, str | None] | None = field(default=None, validator=ProxyValidator({"http", "https"}))
     http_backend: HttpBackend | None = None
-    max_response_body_size: int | None = field(default=None, validator=RangeValidator(min_value=1))
+    max_response_body_size: int | None = field(
+        default=DEFAULT_MAX_RESPONSE_BODY_SIZE,
+        validator=RangeValidator(min_value=1),
+    )
     max_error_body_size: int = field(
         default=DEFAULT_MAX_ERROR_BODY_SIZE,
         validator=RangeValidator(min_value=0),

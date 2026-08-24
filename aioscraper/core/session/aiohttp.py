@@ -1,9 +1,45 @@
-from aiohttp import ClientSession, ClientTimeout, FormData, TCPConnector
+from aiohttp import (
+    ClientConnectionError,
+    ClientConnectorDNSError,
+    ClientHttpProxyError,
+    ClientPayloadError,
+    ClientProxyConnectionError,
+    ClientSession,
+    ClientSSLError,
+    ClientTimeout,
+    FormData,
+    ServerFingerprintMismatch,
+    TCPConnector,
+)
 from aiohttp.helpers import BasicAuth
 
+from aioscraper.exceptions import ConnectionFailed, DNSError, ProxyError, TLSError, TransportError, TransportTimeout
 from aioscraper.types import Request, Response
 
+from ._errors import classify_tls, guard_stream, transport_errors
 from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
+
+
+def classify(exc: BaseException) -> type[TransportError] | None:
+    "Map an aiohttp failure onto the transport hierarchy; ``None`` leaves it alone."
+    # first: a connect timeout is a ClientConnectionError as well
+    if isinstance(exc, TimeoutError):
+        return TransportTimeout
+
+    if isinstance(exc, (ClientProxyConnectionError, ClientHttpProxyError)):
+        return ProxyError
+
+    if isinstance(exc, (ClientSSLError, ServerFingerprintMismatch)):
+        return TLSError
+
+    if isinstance(exc, ClientConnectorDNSError):
+        return DNSError
+
+    # ClientPayloadError included: the body stopped arriving, which is a broken transfer
+    if isinstance(exc, (ClientConnectionError, ClientPayloadError)):
+        return ConnectionFailed
+
+    return classify_tls(exc)
 
 
 class AiohttpRequestContextManager(BaseRequestContextManager):
@@ -16,6 +52,10 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
 
     async def __aenter__(self) -> Response:
         """Prepare payload/files, dispatch the request and wrap the aiohttp response."""
+        with transport_errors(classify, self._request.url, self._request.method):
+            return await self._send()
+
+    async def _send(self) -> Response:
         data = self._request.data
 
         if self._request.files is not None:
@@ -74,7 +114,7 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
             status=response.status,
             headers=response.headers,
             cookies=response.cookies,
-            aiter_bytes=response.content.iter_chunked,
+            aiter_bytes=guard_stream(response.content.iter_chunked, classify, str(response.url), response.method),
             max_body_size=self._max_body_size,
         )
 

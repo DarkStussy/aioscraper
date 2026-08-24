@@ -8,9 +8,12 @@ from multidict import CIMultiDict, CIMultiDictProxy
 
 from aioscraper.exceptions import (
     AIOScraperException,
+    ConnectionFailed,
     HTTPException,
     ResponseTooLarge,
     StreamConsumed,
+    TransportError,
+    TransportTimeout,
     UnsupportedRequestOption,
 )
 
@@ -29,6 +32,10 @@ EXCEPTIONS = (
     pytest.param(partial(ResponseTooLarge, URL, "GET", 1024), id="too-large"),
     pytest.param(partial(StreamConsumed, URL, "GET"), id="stream-consumed"),
     pytest.param(partial(UnsupportedRequestOption, "httpx", "proxy", "Set SessionConfig.proxy."), id="unsupported"),
+    pytest.param(partial(TransportError, URL, "GET", "boom"), id="transport"),
+    # also an OSError through TimeoutError, whose pickling differs
+    pytest.param(partial(TransportTimeout, URL, "GET", "timed out"), id="transport-timeout"),
+    pytest.param(partial(ConnectionFailed, URL, "GET", "connection refused"), id="connection-failed"),
 )
 
 

@@ -7,8 +7,18 @@ import pytest
 
 from aioscraper.config import BackoffStrategy, RequestRetryConfig
 from aioscraper.core.retry import RetryPolicy
-from aioscraper.exceptions import HTTPException
+from aioscraper.exceptions import (
+    ConnectionFailed,
+    DNSError,
+    HTTPException,
+    ProxyError,
+    TLSError,
+    TransportError,
+    TransportTimeout,
+)
 from aioscraper.types import Request
+
+URL = "https://example.com"
 
 
 def _policy(**overrides) -> RetryPolicy:
@@ -83,6 +93,24 @@ def test_retryable_false_blocks_a_retryable_method():
     request = Request(url="https://example.com", retryable=False)
 
     assert _policy().next_delay(request, _http_error(), 0) is None
+
+
+@pytest.mark.parametrize(
+    ("exc", "retried"),
+    [
+        (TransportTimeout(URL, "GET", "timed out"), True),
+        (ConnectionFailed(URL, "GET", "connection refused"), True),
+        (DNSError(URL, "GET", "unknown host"), True),
+        (ProxyError(URL, "GET", "proxy refused"), True),
+        (TLSError(URL, "GET", "bad certificate"), False),
+        (TransportError(URL, "GET", "unclassified"), False),
+    ],
+)
+def test_the_default_exceptions_cover_transient_transport_failures(exc: Exception, retried: bool):
+    """Backend-neutral by construction: every backend raises these same classes."""
+    policy = RetryPolicy(RequestRetryConfig(enabled=True, attempts=3, base_delay=0.1, backoff=BackoffStrategy.CONSTANT))
+
+    assert (policy.next_delay(Request(url=URL), exc, 0) is not None) is retried
 
 
 def test_should_retry_decides_an_unmatched_failure():

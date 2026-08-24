@@ -45,6 +45,7 @@ async def test_a_successful_run_counts_its_requests_and_items(mock_aioscraper: M
     assert result.requests_failed == 0
     assert result.items_processed == 2
     assert result.ok is True
+    assert result.all_requests_succeeded is True
 
 
 async def test_a_failing_request_counts_as_failed(mock_aioscraper: MockAIOScraper):
@@ -87,6 +88,8 @@ async def test_a_handled_failure_counts_as_failed_but_is_not_an_error(mock_aiosc
     assert result.requests_failed == 1
     assert result.error_counts == {}
     assert result.ok is True
+    # ok is about what nobody handled; this is about the requests themselves
+    assert result.all_requests_succeeded is False
 
 
 async def test_a_retried_request_starts_once_per_attempt(mock_aioscraper: MockAIOScraper):
@@ -111,6 +114,8 @@ async def test_a_retried_request_starts_once_per_attempt(mock_aioscraper: MockAI
     assert result.requests_started == 2
     assert result.requests_succeeded == 1
     assert result.requests_failed == 0
+    # the 503 ended an attempt, not the request: the retry got the data
+    assert result.all_requests_succeeded is True
 
 
 @pytest.mark.parametrize("attribute", ["requests_started", "requests_succeeded", "requests_failed", "items_processed"])

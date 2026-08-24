@@ -1,6 +1,7 @@
+import httpx
 from httpx import USE_CLIENT_DEFAULT, AsyncClient, AsyncHTTPTransport, BasicAuth
 
-from ._httpx import BaseHttpxRequestContextManager, BaseHttpxSession, HttpxBinding
+from ._httpx import BaseHttpxRequestContextManager, BaseHttpxSession, HttpxBinding, make_classifier
 
 _BINDING = HttpxBinding(
     backend="httpx",
@@ -8,6 +9,7 @@ _BINDING = HttpxBinding(
     async_http_transport=AsyncHTTPTransport,
     basic_auth=BasicAuth,
     use_client_default=USE_CLIENT_DEFAULT,
+    classify=make_classifier(httpx),
 )
 
 

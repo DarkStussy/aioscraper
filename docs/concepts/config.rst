@@ -78,7 +78,11 @@ not recorded: handling it is the point of the callback.
 - ``errors`` - the most recent exceptions, capped so a run failing millions of requests does not keep every
   traceback alive.
 - ``interrupted`` / ``timed_out`` - whether a signal or ``execution.timeout`` ended the run.
-- ``ok`` - true only when the run finished on its own with nothing recorded.
+- ``ok`` - true only when the run finished on its own with nothing recorded. A failure your ``errback``
+  handled is not recorded, so it leaves ``ok`` true.
+- ``all_requests_succeeded`` - true when no request ended in failure, handled or not. It follows
+  ``requests_failed``, so a failure a retry recovered from does not count, and work the run never
+  attempted is not covered - that is what ``interrupted`` and ``timed_out`` are for.
 - ``requests_started`` / ``requests_succeeded`` / ``requests_failed`` - attempts rather than requests: a
   retry starts another one, and only the attempt that ends a request counts as succeeded or failed.
   ``requests_failed`` covers failures an ``errback`` handled, which ``error_counts`` deliberately leaves out.
@@ -148,7 +152,7 @@ Two independent caps bound how much of a response ends up in memory:
   through both :meth:`read() <aioscraper.types.session.Response.read>` and :meth:`iter_bytes()
   <aioscraper.types.session.Response.iter_bytes>`. It raises :class:`ResponseTooLarge
   <aioscraper.exceptions.ResponseTooLarge>` at the chunk that crosses it, so the rest is never pulled from
-  the socket. Defaults to ``None`` - unlimited.
+  the socket. Defaults to 32 MiB; ``None`` (``SESSION_MAX_RESPONSE_BODY_SIZE=0``) disables it.
 - ``max_error_body_size`` (``SESSION_MAX_ERROR_BODY_SIZE``) applies to a failed response, whose body is read
   only to fill the :class:`HTTPException <aioscraper.exceptions.HTTPException>` message. Defaults to 64 KiB;
   a longer body is cut at the limit and the message ends with ``[truncated]``. ``0`` skips reading it.
@@ -162,8 +166,12 @@ Two independent caps bound how much of a response ends up in memory:
         max_error_body_size=8 * 1024,
     )
 
-The error cap is separate and on by default: an endpoint answering ``500`` with gigabytes of HTML would
-otherwise be buffered whole to build an error message.
+Both caps are on by default because bodies are what a run holds in memory, and it holds
+``scheduler.concurrent_requests`` of them at once: 64 unbounded responses are an unbounded process. The
+response cap bounds that product - 2 GiB with the defaults - and 32 MiB is far above any API payload, so
+raise it deliberately for large downloads rather than meeting it by accident. The error cap is separate
+because an endpoint answering ``500`` with gigabytes of HTML would otherwise be buffered whole to build an
+error message.
 
 See :ref:`reading the response body <response-body>` for the streaming contract these limits apply to.
 
@@ -346,8 +354,8 @@ each send its own budget, and a request reused in a later run starts from zero.
 
 .. code-block:: python
 
-   import asyncio
    from aioscraper.config import RequestRetryConfig, BackoffStrategy
+   from aioscraper.exceptions import ConnectionFailed, TransportTimeout
 
    retry_config = RequestRetryConfig(
       enabled=True,
@@ -356,9 +364,16 @@ each send its own budget, and a request reused in a later run starts from zero.
       base_delay=1.0,
       max_delay=5.0,
       statuses=(500, 502, 503),
-      exceptions=(asyncio.TimeoutError,),
+      exceptions=(TransportTimeout, ConnectionFailed),
       methods=("GET", "HEAD", "OPTIONS", "TRACE"),
    )
+
+``exceptions`` defaults to those two, the transient half of the :ref:`transport hierarchy
+<transport-errors>`: a timeout, and a connection that could not be made or was lost - including DNS and
+proxy failures, which are :class:`ConnectionFailed <aioscraper.exceptions.ConnectionFailed>`. They mean the
+same thing on every backend, so the same policy applies whichever one sends the request.
+:class:`TLSError <aioscraper.exceptions.TLSError>` is left out: a certificate or protocol mismatch fails
+again on the next attempt. Add it, or the client's own classes, to retry more.
 
 The ``backoff`` option accepts the following values:
 

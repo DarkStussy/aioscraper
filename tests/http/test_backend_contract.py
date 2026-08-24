@@ -159,6 +159,65 @@ async def test_httpx_reports_the_redirect_limit_of_the_client(httpx_backend: Htt
             session.make_request(Request(url="https://api.test.com/resource", max_redirects=5))
 
 
+class _StubHttpxResponse:
+    """Enough of an httpx response for the session to wrap, so no connection is needed."""
+
+    status_code = 200
+    headers: dict[str, str] = {}  # noqa: RUF012
+    cookies: dict[str, str] = {}  # noqa: RUF012
+
+    def __init__(self, request: Any):
+        self.request = request
+        self.url = request.url
+
+    async def aiter_bytes(self, chunk_size: int | None = None) -> AsyncGenerator[bytes, None]:
+        yield b""
+
+    async def aclose(self): ...
+
+
+# 0 included: the dispatcher rejects it, but the session must send what it was given rather than
+# read it as "no timeout" and fall back to the client
+@pytest.mark.parametrize("timeout", [0.25, 0, None])
+async def test_httpx_sends_the_request_timeout(httpx_backend: HttpxBackend, timeout: float | None):
+    session = httpx_backend.session_cls(timeout=5.0)
+    captured: dict[str, Any] = {}
+
+    async def spy(request: Any, **kwargs: Any) -> _StubHttpxResponse:
+        captured.update(request.extensions["timeout"])
+        return _StubHttpxResponse(request)
+
+    session._client.send = spy  # type: ignore[reportAttributeAccessIssue]
+
+    async with session.make_request(Request(url="https://api.test.com/resource", timeout=timeout)) as response:
+        assert response.status == 200
+
+    expected = 5.0 if timeout is None else timeout
+    assert captured == {"connect": expected, "read": expected, "write": expected, "pool": expected}
+
+    await session.close()
+
+
+@pytest.mark.parametrize("timeout", [0.25, 0, None])
+async def test_aiohttp_sends_the_request_timeout(timeout: float | None):
+    """The same values, so a request behaves the same whichever backend sends it."""
+    captured: dict[str, Any] = {}
+    session = AiohttpSession(timeout=ClientTimeout(total=5.0), connector=None, proxy=None)
+
+    def spy(**request_kwargs: Any):
+        captured.update(request_kwargs)
+        return _stub_request(**request_kwargs)
+
+    session._session.request = spy  # type: ignore[reportAttributeAccessIssue]
+
+    async with session.make_request(Request(url="https://api.test.com/resource", timeout=timeout)) as response:
+        assert response.status == 200
+
+    assert captured["timeout"] == (session._session.timeout if timeout is None else ClientTimeout(total=timeout))
+
+    await session.close()
+
+
 @pytest.mark.parametrize("encoding", ["utf-8", "UTF8", "u8"])
 async def test_httpx_accepts_an_encoding_that_means_utf_8(httpx_session: BaseHttpxSession, encoding: str):
     """UTF-8 is what httpx sends, however it is spelled."""
