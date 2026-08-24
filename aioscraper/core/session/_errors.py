@@ -3,9 +3,10 @@ import ssl
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncIterator, Callable, Iterator
 
-from aioscraper.exceptions import TLSError, TransportError, TransportTimeout
+from aioscraper.exceptions import ClientException, TLSError, TransportTimeout, _RequestFailure
 
-Classifier = Callable[[BaseException], type[TransportError] | None]
+# every class it can name takes (url, method, message)
+Classifier = Callable[[BaseException], type[ClientException] | None]
 AiterBytes = Callable[[int], AsyncIterator[bytes]]
 
 _MAX_CAUSE_DEPTH = 8
@@ -28,7 +29,7 @@ def caused_by(exc: BaseException, *types: type[BaseException]) -> bool:
     return any(isinstance(cause, types) for cause in causes(exc))
 
 
-def classify_tls(exc: BaseException) -> type[TransportError] | None:
+def classify_tls(exc: BaseException) -> type[ClientException] | None:
     return TLSError if caused_by(exc, ssl.SSLError) else None
 
 
@@ -53,11 +54,11 @@ async def within_deadline(deadline: float | None, url: str, method: str) -> Asyn
 
 
 @contextmanager
-def transport_errors(classify: Classifier, url: str, method: str) -> Iterator[None]:
+def client_errors(classify: Classifier, url: str, method: str) -> Iterator[None]:
     "Re-raise what the client raised as its backend-neutral equivalent, chaining the original."
     try:
         yield
-    except TransportError:
+    except _RequestFailure:
         raise
     except Exception as exc:
         error_type = classify(exc)
@@ -80,11 +81,11 @@ def guard_stream(
     async def guarded(chunk_size: int) -> AsyncIterator[bytes]:
         # driven by hand rather than with `async for`: a translation around the yield would also
         # catch what the consumer of the chunk raises
-        with transport_errors(classify, url, method):
+        with client_errors(classify, url, method):
             iterator = aiter_bytes(chunk_size).__aiter__()
 
         while True:
-            with transport_errors(classify, url, method):
+            with client_errors(classify, url, method):
                 try:
                     async with within_deadline(deadline, url, method):
                         chunk = await anext(iterator)

@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 from decimal import Decimal
+from math import isfinite
 from typing import Any, Generic, Iterable, Protocol, TypeVar
 
 from yarl import URL
@@ -38,6 +39,10 @@ class RangeValidator(Generic[NumericT]):
     def __call__(self, key: str, value: NumericT | None) -> NumericT | None:
         if value is None:
             return value
+
+        # NaN passes every comparison below, and infinity passes the ones that are set
+        if not isfinite(value):
+            raise ValueError(f"Value for {key} is {value}, but must be finite")
 
         if self.min_value is not None and value < self.min_value:
             raise ValueError(f"Value for {key} is {value}, but minimum is {self.min_value}")

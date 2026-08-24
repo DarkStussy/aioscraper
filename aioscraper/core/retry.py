@@ -7,8 +7,6 @@ from aioscraper.types import Request
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRY_AFTER_DELAY = 600.0
-
 
 class RetryPolicy:
     """Decides whether a failed attempt is admitted again, and after how long.
@@ -21,6 +19,7 @@ class RetryPolicy:
         self._enabled = config.enabled
         self._attempts = max(0, config.attempts)
         self._delay_factory = config.delay_factory
+        self._max_retry_after = config.max_retry_after
         self._statuses = set(config.statuses)
         self._exception_types = tuple(config.exceptions)
         self._methods = frozenset(method.upper() for method in config.methods)
@@ -57,7 +56,7 @@ class RetryPolicy:
             return None
 
         if retry_after := parse_retry_after(exc):
-            return min(MAX_RETRY_AFTER_DELAY, round(retry_after, 6))
+            return min(self._max_retry_after, round(retry_after, 6))
 
         return round(self._delay_factory(retries + 1), 6)
 

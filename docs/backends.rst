@@ -95,12 +95,18 @@ A failure to get a response is raised as a class of one hierarchy, whichever bac
    * - :class:`ConnectionFailed <aioscraper.exceptions.ConnectionFailed>`
      - ``ClientConnectionError``, ``ClientPayloadError``.
      - ``NetworkError``, ``RemoteProtocolError``.
+   * - :class:`TooManyRedirects <aioscraper.exceptions.TooManyRedirects>`
+     - ``TooManyRedirects``.
+     - ``TooManyRedirects``.
+   * - :class:`InvalidURL <aioscraper.exceptions.InvalidURL>`
+     - ``InvalidURL``, ``NonHttpUrlClientError``.
+     - ``InvalidURL``, ``UnsupportedProtocol``.
 
-``TransportTimeout`` is also a builtin ``TimeoutError``, the class ``asyncio`` and ``aiohttp`` raise, so code and retry policies written against it keep working. ``DNSError`` and ``ProxyError`` are ``ConnectionFailed``; ``TLSError`` is not, because the same handshake fails the same way on the next attempt - which is what :ref:`the default retry set <retry-config>` is built on.
+``TransportTimeout`` is also a builtin ``TimeoutError``, the class ``asyncio`` and ``aiohttp`` raise, so code and retry policies written against it keep working. ``DNSError`` and ``ProxyError`` are ``ConnectionFailed``; ``TLSError`` is not, because the same handshake fails the same way on the next attempt - which is what :ref:`the default retry set <retry-config>` is built on. ``TooManyRedirects`` and ``InvalidURL`` are :class:`ClientException <aioscraper.exceptions.ClientException>` but not ``TransportError``: a response did arrive, or none was ever attempted.
 
 Body reads are covered too: a connection dropped mid-body raises the same classes inside :meth:`iter_bytes() <aioscraper.types.session.Response.iter_bytes>` and :meth:`read() <aioscraper.types.session.Response.read>`.
 
-What is not a transport failure stays the client's own: an invalid URL, a redirect limit, a decoding error. Catch :class:`ClientException <aioscraper.exceptions.ClientException>` for the framework's, and the client's classes for the rest.
+One case stays the client's own, because the backends do not agree on what it is: a body the client could not decode. httpx raises ``DecodingError``, while aiohttp reports a broken ``Content-Encoding`` as the same ``ClientPayloadError`` it uses for a truncated body, which arrives as ``ConnectionFailed``.
 
 Behavior
 --------

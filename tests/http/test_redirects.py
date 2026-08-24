@@ -1,5 +1,6 @@
 import pytest
 
+from aioscraper.exceptions import TooManyRedirects
 from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
@@ -62,3 +63,32 @@ async def test_redirect_not_followed(mock_aioscraper: MockAIOScraper):
 
     assert scraper.status == 302
     assert scraper.final_url == "https://api.test.com/redirect"
+
+
+class _LoopScraper:
+    def __init__(self, url: str):
+        self._url = url
+        self.error: Exception | None = None
+
+    async def __call__(self, send_request: SendRequest):
+        await send_request(Request(url=self._url, errback=self.on_error))
+
+    async def on_error(self, exc: Exception):
+        self.error = exc
+
+
+@pytest.mark.asyncio
+async def test_a_redirect_loop_is_the_same_error_on_every_backend(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add(
+        "https://api.test.com/loop",
+        handler=lambda _: MockResponse(status=302, headers={"Location": "https://api.test.com/loop"}),
+        repeat=64,
+    )
+
+    scraper = _LoopScraper("https://api.test.com/loop")
+    mock_aioscraper(scraper)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert isinstance(scraper.error, TooManyRedirects)

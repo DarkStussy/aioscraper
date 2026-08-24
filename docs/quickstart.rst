@@ -211,8 +211,7 @@ For production use, configure retries, rate limiting, and concurrency via enviro
 
 .. code-block:: bash
 
-   # Enable retries for transient failures
-   export SESSION_RETRY_ENABLED=true
+   # Retries are on by default; tune or turn them off
    export SESSION_RETRY_ATTEMPTS=3
 
    # Enable rate limiting

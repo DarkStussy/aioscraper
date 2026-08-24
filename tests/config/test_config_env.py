@@ -85,6 +85,12 @@ def test_load_config_defaults_retry_methods_to_idempotent(monkeypatch):
     assert config.session.retry.methods == ("GET", "HEAD", "OPTIONS", "TRACE")
 
 
+def test_load_config_reads_the_retry_after_cap(monkeypatch):
+    monkeypatch.setenv("SESSION_RETRY_MAX_RETRY_AFTER", "45")
+
+    assert load_config().session.retry.max_retry_after == 45.0
+
+
 def test_load_config_parses_proxy_json(monkeypatch):
     monkeypatch.setenv("SESSION_PROXY", '{"http": "http://p:1", "https": "http://p:2"}')
 

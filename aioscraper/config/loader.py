@@ -64,6 +64,7 @@ def load_config() -> Config:
                 backoff=env.parse("SESSION_RETRY_BACKOFF", default_retry.backoff),
                 base_delay=env.parse("SESSION_RETRY_BASE_DELAY", default_retry.base_delay),
                 max_delay=env.parse("SESSION_RETRY_MAX_DELAY", default_retry.max_delay),
+                max_retry_after=env.parse("SESSION_RETRY_MAX_RETRY_AFTER", default_retry.max_retry_after),
                 statuses=env.parse_tuple("SESSION_RETRY_STATUSES", default_retry.statuses, cast=int),
                 exceptions=retry_exceptions,
                 methods=env.parse_tuple("SESSION_RETRY_METHODS", default_retry.methods),

@@ -123,6 +123,8 @@ Exceptions
 .. autoclass:: aioscraper.exceptions.DNSError
 .. autoclass:: aioscraper.exceptions.ProxyError
 .. autoclass:: aioscraper.exceptions.TLSError
+.. autoclass:: aioscraper.exceptions.TooManyRedirects
+.. autoclass:: aioscraper.exceptions.InvalidURL
 .. autoclass:: aioscraper.exceptions.ResponseTooLarge
 .. autoclass:: aioscraper.exceptions.StreamConsumed
 .. autoclass:: aioscraper.exceptions.UnsupportedRequestOption

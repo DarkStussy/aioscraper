@@ -14,7 +14,7 @@ from aioscraper._helpers.asyncio import execute_coroutine, execute_coroutines
 from aioscraper._helpers.func import get_func_kwargs
 from aioscraper._helpers.http import parse_retry_after, parse_url
 from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
-from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData
+from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData, InvalidURL
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import RequestHandler, RequestMiddleware, Response
 from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, Attempt, Request, SendRequest
@@ -115,8 +115,22 @@ async def _admit(
         )
 
 
+def _log_url(request: Request) -> str:
+    "The URL as it will be sent, or the raw one when it does not parse: logging must not fail."
+    try:
+        return str(parse_url(request.url, request.params))
+    except ValueError:
+        return request.url
+
+
 def _validate(request: Request):
     """Reject a request no backend could send, whoever built it."""
+    try:
+        parse_url(request.url, request.params)
+    except ValueError as exc:
+        # otherwise it surfaces from yarl deeper in, where no errback and no counter reach it
+        raise InvalidURL(request.url, request.method, str(exc)) from exc
+
     if request.json_data is not None and request.data is not None:
         raise InvalidRequestData("Cannot send both data and json_data")
 
@@ -367,7 +381,7 @@ class RequestManager:
     async def _send_request(self, attempt: Attempt):
         request = attempt.request
         start_time = monotonic()
-        url = parse_url(request.url, request.params)
+        url = _log_url(request)
         self._stats.request_started()
 
         try:

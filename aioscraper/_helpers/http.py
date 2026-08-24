@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from http import HTTPStatus
 from http.cookies import BaseCookie, Morsel, SimpleCookie
+from math import isfinite
 from typing import Mapping
 
 from yarl import URL
@@ -56,9 +57,12 @@ def parse_retry_after(exc: Exception) -> float | None:
         return None
 
     try:
-        return float(retry_after)
+        seconds = float(retry_after)
     except ValueError:
         pass
+    else:
+        # a header is hostile input: NaN and infinity would park the request forever
+        return seconds if isfinite(seconds) else None
 
     try:
         retry_date = parsedate_to_datetime(retry_after)

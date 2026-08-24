@@ -24,6 +24,12 @@ class TestRangeValidator:
         with pytest.raises(ValueError, match="minimum is 1"):
             validator("port", 0)
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_a_value_that_is_not_finite(self, value: float):
+        """NaN passes every comparison, and a config value parked on it never becomes due."""
+        with pytest.raises(ValueError, match="must be finite"):
+            RangeValidator[float](min_value=0.001)("max_retry_after", value)
+
     def test_validates_max_int(self):
         validator = RangeValidator[int](max_value=100)
 

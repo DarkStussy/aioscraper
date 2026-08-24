@@ -99,6 +99,8 @@ class RequestRetryConfig:
         backoff (BackoffStrategy): Backoff strategy for retries.
         base_delay (float): Base delay between retries in seconds.
         max_delay (float): Maximum delay between retries in seconds.
+        max_retry_after (float): Cap in seconds on a delay the server asked for through
+            ``Retry-After``; a longer one is clamped to it. Bounds how long a run can be parked.
         statuses (tuple[int, ...]): HTTP status codes that should trigger a retry.
         exceptions (tuple[type[BaseException], ...]): Exception types that should trigger a retry.
             Defaults to the transient transport failures, which every backend raises alike;
@@ -115,6 +117,7 @@ class RequestRetryConfig:
     backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL_JITTER
     base_delay: float = field(default=0.5, validator=RangeValidator(min_value=0.001))
     max_delay: float = field(default=30.0, validator=RangeValidator(min_value=0.001))
+    max_retry_after: float = field(default=600.0, validator=RangeValidator(min_value=0.001))
     statuses: tuple[int, ...] = (500, 502, 503, 504, 522, 524, 408, 429)
     exceptions: tuple[type[BaseException], ...] = (TransportTimeout, ConnectionFailed)
     methods: tuple[str, ...] = field(

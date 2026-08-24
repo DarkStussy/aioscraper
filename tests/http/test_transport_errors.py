@@ -12,6 +12,8 @@ from aiohttp.client_exceptions import (
     ClientConnectorError,
     ClientPayloadError,
     ClientProxyConnectionError,
+    ContentTypeError,
+    InvalidUrlClientError,
     ServerTimeoutError,
     TooManyRedirects,
 )
@@ -20,16 +22,18 @@ from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
 from aioscraper.config import Config, HttpBackend, SessionConfig
-from aioscraper.core.session._errors import Classifier, transport_errors
+from aioscraper.core.session._errors import Classifier, client_errors
 from aioscraper.core.session._httpx import make_classifier
 from aioscraper.core.session.aiohttp import classify as classify_aiohttp
 from aioscraper.core.session.factory import get_sessionmaker
-from aioscraper.exceptions import ConnectionFailed, DNSError, ProxyError, TLSError, TransportError, TransportTimeout
+from aioscraper.exceptions import ClientException, ConnectionFailed, DNSError, ProxyError, TLSError, TransportTimeout
+from aioscraper.exceptions import InvalidURL as AioscraperInvalidURL
+from aioscraper.exceptions import TooManyRedirects as AioscraperTooManyRedirects
 from aioscraper.types import Request, Response, SendRequest
 from tests.mocks import MockAIOScraper
 
 # what each backend raises for the same failure, and what it must become
-EXPECTED: dict[str, type[TransportError] | None] = {
+EXPECTED: dict[str, type[ClientException] | None] = {
     "timeout": TransportTimeout,
     "dns": DNSError,
     "tls": TLSError,
@@ -37,6 +41,8 @@ EXPECTED: dict[str, type[TransportError] | None] = {
     "connection": ConnectionFailed,
     "truncated_body": ConnectionFailed,
     "raw_ssl": TLSError,
+    "too_many_redirects": AioscraperTooManyRedirects,
+    "invalid_url": AioscraperInvalidURL,
     "untranslated": None,
 }
 
@@ -50,6 +56,7 @@ _KEY = ConnectionKey(
     proxy_headers_hash=None,
     server_hostname=None,
 )
+_REQUEST_INFO = RequestInfo(URL("https://api.test.com/x"), "GET", CIMultiDictProxy(CIMultiDict()))
 
 
 def _aiohttp_failure(category: str) -> BaseException:
@@ -61,10 +68,9 @@ def _aiohttp_failure(category: str) -> BaseException:
         "connection": lambda: ClientConnectorError(_KEY, OSError("connection refused")),
         "truncated_body": ClientPayloadError,
         "raw_ssl": lambda: ssl.SSLError("handshake failed"),
-        "untranslated": lambda: TooManyRedirects(
-            RequestInfo(URL("https://api.test.com/x"), "GET", CIMultiDictProxy(CIMultiDict())),
-            (),
-        ),
+        "too_many_redirects": lambda: TooManyRedirects(_REQUEST_INFO, ()),
+        "invalid_url": lambda: InvalidUrlClientError("::not a url"),
+        "untranslated": lambda: ContentTypeError(_REQUEST_INFO, ()),
     }[category]()
 
 
@@ -85,7 +91,9 @@ def _httpx_failure(module: Any, category: str) -> BaseException:
         "connection": lambda: _caused_by(module.ConnectError("connection refused"), ConnectionRefusedError()),
         "truncated_body": lambda: module.RemoteProtocolError("peer closed connection"),
         "raw_ssl": lambda: ssl.SSLError("handshake failed"),
-        "untranslated": lambda: module.TooManyRedirects("too many redirects"),
+        "too_many_redirects": lambda: module.TooManyRedirects("too many redirects"),
+        "invalid_url": lambda: module.UnsupportedProtocol("unsupported scheme"),
+        "untranslated": lambda: module.DecodingError("broken gzip"),
     }[category]()
 
 
@@ -114,7 +122,7 @@ def test_a_failure_that_is_not_a_transport_one_is_left_alone():
 
     with (
         pytest.raises(ValueError, match="not a transport failure") as excinfo,
-        transport_errors(lambda _: None, "https://api.test.com/x", "GET"),
+        client_errors(lambda _: None, "https://api.test.com/x", "GET"),
     ):
         raise boom
 

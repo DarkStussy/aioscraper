@@ -92,6 +92,7 @@ class TestRequestRetryConfig:
         assert config.backoff == BackoffStrategy.EXPONENTIAL_JITTER
         assert config.base_delay == 0.5
         assert config.max_delay == 30.0
+        assert config.max_retry_after == 600.0
         assert config.statuses == (500, 502, 503, 504, 522, 524, 408, 429)
         assert config.exceptions == (TransportTimeout, ConnectionFailed)
         assert config.methods == ("GET", "HEAD", "OPTIONS", "TRACE")
@@ -107,6 +108,10 @@ class TestRequestRetryConfig:
     def test_validates_base_delay_min(self):
         with pytest.raises(ConfigValidationError, match=r"base_delay.*minimum is 0.001"):
             RequestRetryConfig(base_delay=0.0)
+
+    def test_rejects_a_retry_after_cap_that_is_not_finite(self):
+        with pytest.raises(ConfigValidationError, match="must be finite"):
+            RequestRetryConfig(max_retry_after=float("nan"))
 
     def test_validates_max_delay_min(self):
         with pytest.raises(ConfigValidationError, match=r"max_delay.*minimum is 0.001"):

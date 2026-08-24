@@ -45,11 +45,9 @@ class HTTPException(ClientException):
         )
 
 
-class TransportError(ClientException):
+class _RequestFailure(ClientException):
     """
-    Raised when the HTTP client could not deliver a response.
-
-    Every backend maps its own failures onto this hierarchy; the original is kept as ``__cause__``.
+    Base for a failure the HTTP client reported for one request.
 
     Args:
         url (str): The URL that was being requested.
@@ -70,6 +68,14 @@ class TransportError(ClientException):
         return type(self), (self.url, self.method, self.message), self.__dict__
 
 
+class TransportError(_RequestFailure):
+    """
+    Raised when the HTTP client could not deliver a response.
+
+    Every backend maps its own failures onto this hierarchy; the original is kept as ``__cause__``.
+    """
+
+
 class TransportTimeout(TransportError, TimeoutError):
     "Raised when the request ran out of time. Also a builtin ``TimeoutError``, as ``aiohttp`` raises."
 
@@ -88,6 +94,14 @@ class ProxyError(ConnectionFailed):
 
 class TLSError(TransportError):
     "Raised when the TLS handshake failed. Not a :class:`ConnectionFailed`: it fails again the same way."
+
+
+class TooManyRedirects(_RequestFailure):
+    "Raised when the redirect chain outgrew the limit. Not a transport failure: the chain repeats."
+
+
+class InvalidURL(_RequestFailure):
+    "Raised when the client refused the URL: unparsable, or a scheme it does not speak."
 
 
 class ResponseTooLarge(ClientException):

@@ -8,20 +8,24 @@ from aiohttp import (
     ClientSSLError,
     ClientTimeout,
     FormData,
+    InvalidURL,
+    NonHttpUrlClientError,
     ServerFingerprintMismatch,
     TCPConnector,
+    TooManyRedirects,
 )
 from aiohttp.helpers import BasicAuth
 
-from aioscraper.exceptions import ConnectionFailed, DNSError, ProxyError, TLSError, TransportError, TransportTimeout
+from aioscraper import exceptions
+from aioscraper.exceptions import ClientException, ConnectionFailed, DNSError, ProxyError, TLSError, TransportTimeout
 from aioscraper.types import Request, Response
 
-from ._errors import classify_tls, deadline_for, guard_stream, transport_errors, within_deadline
+from ._errors import classify_tls, client_errors, deadline_for, guard_stream, within_deadline
 from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
 
 
-def classify(exc: BaseException) -> type[TransportError] | None:
-    "Map an aiohttp failure onto the transport hierarchy; ``None`` leaves it alone."
+def classify(exc: BaseException) -> type[ClientException] | None:
+    "Map an aiohttp failure onto the neutral classes; ``None`` leaves it alone."
     # first: a connect timeout is a ClientConnectionError as well
     if isinstance(exc, TimeoutError):
         return TransportTimeout
@@ -38,6 +42,12 @@ def classify(exc: BaseException) -> type[TransportError] | None:
     # ClientPayloadError included: the body stopped arriving, which is a broken transfer
     if isinstance(exc, (ClientConnectionError, ClientPayloadError)):
         return ConnectionFailed
+
+    if isinstance(exc, TooManyRedirects):
+        return exceptions.TooManyRedirects
+
+    if isinstance(exc, (InvalidURL, NonHttpUrlClientError)):
+        return exceptions.InvalidURL
 
     return classify_tls(exc)
 
@@ -60,7 +70,7 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
     async def __aenter__(self) -> Response:
         """Prepare payload/files, dispatch the request and wrap the aiohttp response."""
         deadline = deadline_for(self._request.timeout, self._session_timeout)
-        with transport_errors(classify, self._request.url, self._request.method):
+        with client_errors(classify, self._request.url, self._request.method):
             async with within_deadline(deadline, self._request.url, self._request.method):
                 return await self._send(deadline)
 

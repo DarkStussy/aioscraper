@@ -474,7 +474,10 @@ The ``Retry-After`` header can be specified as:
 - **Seconds**: ``Retry-After: 120`` (wait 120 seconds)
 - **HTTP-date**: ``Retry-After: Wed, 21 Oct 2015 07:28:00 GMT``
 
-The delay from ``Retry-After`` is capped at 600 seconds (10 minutes) to prevent indefinite delays.
+A longer delay than ``max_retry_after`` (``SESSION_RETRY_MAX_RETRY_AFTER``, 600 seconds by default) is
+clamped to it. Since retries are on by default, that cap is what stops a server from parking a run for as
+long as it likes: lower it where a job has a deadline, and remember that a parked request keeps the run
+alive until it is sent.
 
 
 API

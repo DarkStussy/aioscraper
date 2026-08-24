@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, NamedTuple, cast
 
 from multidict import CIMultiDict, CIMultiDictProxy
 
+from aioscraper import exceptions
 from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
 from aioscraper.exceptions import (
+    ClientException,
     ConnectionFailed,
     DNSError,
     ProxyError,
-    TransportError,
     TransportTimeout,
     UnsupportedRequestOption,
 )
@@ -22,9 +23,9 @@ from ._errors import (
     Classifier,
     caused_by,
     classify_tls,
+    client_errors,
     deadline_for,
     guard_stream,
-    transport_errors,
     within_deadline,
 )
 from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
@@ -58,7 +59,7 @@ class HttpxBinding(NamedTuple):
         basic_auth (Callable[..., Any]): ``BasicAuth``, built for a request that carries
             credentials.
         use_client_default (Any): ``USE_CLIENT_DEFAULT`` sentinel, sent when it does not.
-        classify (Classifier): Maps a failure of the package onto the transport hierarchy.
+        classify (Classifier): Maps a failure of the package onto the neutral classes.
     """
 
     backend: str
@@ -75,8 +76,10 @@ def make_classifier(module: ModuleType) -> Classifier:
     proxy_error = module.ProxyError
     network_error = module.NetworkError
     remote_protocol_error = module.RemoteProtocolError
+    too_many_redirects = module.TooManyRedirects
+    invalid_url = (module.InvalidURL, module.UnsupportedProtocol)
 
-    def classify(exc: BaseException) -> type[TransportError] | None:
+    def classify(exc: BaseException) -> type[ClientException] | None:
         if isinstance(exc, timeout_exception):
             return TransportTimeout
 
@@ -93,6 +96,12 @@ def make_classifier(module: ModuleType) -> Classifier:
         # the server closed the connection before the response was complete
         if isinstance(exc, remote_protocol_error):
             return ConnectionFailed
+
+        if isinstance(exc, too_many_redirects):
+            return exceptions.TooManyRedirects
+
+        if isinstance(exc, invalid_url):
+            return exceptions.InvalidURL
 
         return None
 
@@ -169,7 +178,7 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
     async def __aenter__(self) -> Response:
         """Send the request with httpx and convert the response to internal ``Response``."""
         deadline = deadline_for(self._request.timeout, self._session_timeout)
-        with transport_errors(self._binding.classify, self._request.url, self._request.method):
+        with client_errors(self._binding.classify, self._request.url, self._request.method):
             async with within_deadline(deadline, self._request.url, self._request.method):
                 return await self._send(deadline)
 

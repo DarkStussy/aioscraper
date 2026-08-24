@@ -121,6 +121,7 @@ Retry behavior (:ref:`docs <retry-config>`).
 - ``SESSION_RETRY_BACKOFF`` → ``backoff``
 - ``SESSION_RETRY_BASE_DELAY`` → ``base_delay``
 - ``SESSION_RETRY_MAX_DELAY`` → ``max_delay``
+- ``SESSION_RETRY_MAX_RETRY_AFTER`` → ``max_retry_after``
 - ``SESSION_RETRY_STATUSES`` → ``statuses``
 - ``SESSION_RETRY_EXCEPTIONS`` → ``exceptions``
 - ``SESSION_RETRY_METHODS`` → ``methods``

@@ -214,6 +214,21 @@ def test_retry_after_is_capped():
     assert _policy().next_delay(Request(url="https://example.com"), error, 0) == 600.0
 
 
+@pytest.mark.parametrize("value", ["nan", "inf"])
+def test_a_retry_after_that_is_not_a_number_of_seconds_is_ignored(value: str):
+    """A header is hostile input: a delay of NaN would park the request forever."""
+    error = _http_error(status=429, headers={"Retry-After": value})
+
+    assert _policy(backoff=BackoffStrategy.CONSTANT).next_delay(Request(url=URL), error, 0) == 0.1
+
+
+def test_the_retry_after_cap_is_configurable():
+    """A server asking for ten minutes must not be able to park a run for ten minutes."""
+    error = _http_error(status=503, headers={"Retry-After": "600"})
+
+    assert _policy(max_retry_after=30.0).next_delay(Request(url=URL), error, 0) == 30.0
+
+
 @pytest.mark.parametrize("retries", [0, 4])
 def test_delay_never_depends_on_request_state(retries: int):
     """The count comes from the attempt, so the request object carries nothing."""
