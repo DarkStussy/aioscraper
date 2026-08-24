@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from aiohttp import web
 
 from aioscraper.config import Config, SessionConfig
 from aioscraper.exceptions import InvalidRequestData, TransportTimeout
@@ -84,6 +85,71 @@ async def test_global_timeout_from_config(mock_aioscraper: MockAIOScraper):
     assert isinstance(scraper.error, TransportTimeout)
     # the class aiohttp raises on its own, which a policy written for it still catches
     assert isinstance(scraper.error, asyncio.TimeoutError)
+
+
+class _StreamScraper:
+    def __init__(self, url: str, timeout: float | None):
+        self._url = url
+        self._timeout = timeout
+        self.error: Exception | None = None
+        self.body: bytes | None = None
+
+    async def __call__(self, send_request: SendRequest):
+        await send_request(
+            Request(url=self._url, timeout=self._timeout, callback=self.parse, errback=self.on_error),
+        )
+
+    async def parse(self, response: Response):
+        self.body = await response.read()
+
+    async def on_error(self, exc: Exception):
+        self.error = exc
+
+
+def _drip(chunks: int, pause: float):
+    "A body that arrives one chunk at a time, each within any per-phase read timeout."
+
+    async def handler(request: web.BaseRequest) -> web.StreamResponse:
+        response = web.StreamResponse(status=200)
+        await response.prepare(request)
+        for _ in range(chunks):
+            await response.write(b"x" * 8)
+            await asyncio.sleep(pause)
+
+        await response.write_eof()
+        return response
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_the_timeout_is_a_budget_for_the_whole_response(mock_aioscraper: MockAIOScraper):
+    """A drip-fed body must not outlive the timeout on any backend: httpx times each phase, not the
+    request, so the framework holds the budget itself."""
+    mock_aioscraper.server.add("https://api.test.com/drip", handler=_drip(chunks=40, pause=0.05))
+
+    scraper = _StreamScraper("https://api.test.com/drip", timeout=0.3)
+    mock_aioscraper(scraper)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert scraper.body is None
+    assert isinstance(scraper.error, TransportTimeout)
+
+
+@pytest.mark.asyncio
+async def test_a_body_within_the_budget_is_read_whole(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add("https://api.test.com/drip", handler=_drip(chunks=4, pause=0.01))
+
+    scraper = _StreamScraper("https://api.test.com/drip", timeout=5.0)
+    mock_aioscraper(scraper)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert scraper.error is None
+    assert scraper.body == b"x" * 32
 
 
 @pytest.mark.parametrize("timeout", [0, -1.0, float("nan"), float("inf")])

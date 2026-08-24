@@ -1,7 +1,8 @@
+import asyncio
 from typing import AsyncIterator
 
 import pytest
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 from aiohttp.web import BaseRequest
 from httpx import AsyncClient
 from httpx2 import AsyncClient as AsyncClient2
@@ -96,6 +97,22 @@ async def test_injected_httpx2_client_sends_and_stays_open(httpx2_server: MockSe
         assert client.is_closed is False
 
     assert seen == ["abc"]
+    assert bodies == [{"ok": True}]
+
+
+async def test_injected_aiohttp_client_can_disable_the_budget(aiohttp_server: MockServer):
+    """aiohttp starts no timer for total=0, so it must not become a deadline that fires at once."""
+    bodies: list[dict] = []
+
+    async def handler(request: BaseRequest) -> MockResponse:
+        await asyncio.sleep(0.05)
+        return MockResponse(json={"ok": True})
+
+    aiohttp_server.add(URL, handler=handler)
+
+    async with ClientSession(timeout=ClientTimeout(total=0)) as client:
+        await _scrape(AIOScraper(config=Config(), http_client=client), bodies)
+
     assert bodies == [{"ok": True}]
 
 

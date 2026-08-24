@@ -166,11 +166,9 @@ Two independent caps bound how much of a response ends up in memory:
         max_error_body_size=8 * 1024,
     )
 
-Both caps are on by default because bodies are what a run holds in memory, and it holds
-``scheduler.concurrent_requests`` of them at once: 64 unbounded responses are an unbounded process. The
-response cap bounds that product - 2 GiB with the defaults - and 32 MiB is far above any API payload, so
-raise it deliberately for large downloads rather than meeting it by accident. The error cap is separate
-because an endpoint answering ``500`` with gigabytes of HTML would otherwise be buffered whole to build an
+Both are on by default: a run holds ``scheduler.concurrent_requests`` bodies at once, so the response cap
+bounds that product - 2 GiB with the defaults. Raise it for large downloads. The error cap is separate
+because an endpoint answering ``500`` with gigabytes of HTML would otherwise be buffered whole for an
 error message.
 
 See :ref:`reading the response body <response-body>` for the streaming contract these limits apply to.
@@ -341,7 +339,10 @@ This prevents the system from repeatedly hammering an overloaded server while re
 Retries
 -------
 
-Set :class:`SessionConfig.retry <aioscraper.config.models.SessionConfig>` or override values via :ref:`environment variables <cli-configuration>` to enable built-in retries.
+Retries are on by default. A failing endpoint therefore costs ``attempts`` extra requests per URL and the
+run takes the backoff delays; ``SESSION_RETRY_ENABLED=false`` or
+:class:`RequestRetryConfig(enabled=False) <aioscraper.config.models.RequestRetryConfig>` turns them off.
+Only idempotent methods are replayed - see :ref:`idempotency <retry-idempotency>`.
 
 Retries are applied by the dispatcher, not by a middleware: a matching failure is admitted to the internal
 queue again with the computed delay, and neither the callback nor the errback fires for that attempt. The
@@ -369,9 +370,9 @@ each send its own budget, and a request reused in a later run starts from zero.
    )
 
 ``exceptions`` defaults to those two, the transient half of the :ref:`transport hierarchy
-<transport-errors>`: a timeout, and a connection that could not be made or was lost - including DNS and
-proxy failures, which are :class:`ConnectionFailed <aioscraper.exceptions.ConnectionFailed>`. They mean the
-same thing on every backend, so the same policy applies whichever one sends the request.
+<transport-errors>`: a timeout, and a connection that could not be made or was lost - DNS and proxy
+failures included, as :class:`ConnectionFailed <aioscraper.exceptions.ConnectionFailed>`. They mean the
+same thing on every backend, so one policy covers all three.
 :class:`TLSError <aioscraper.exceptions.TLSError>` is left out: a certificate or protocol mismatch fails
 again on the next attempt. Add it, or the client's own classes, to retry more.
 

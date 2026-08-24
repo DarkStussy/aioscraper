@@ -163,7 +163,7 @@ class _StubHttpxResponse:
     """Enough of an httpx response for the session to wrap, so no connection is needed."""
 
     status_code = 200
-    headers: dict[str, str] = {}  # noqa: RUF012
+    headers = httpx.Headers()
     cookies: dict[str, str] = {}  # noqa: RUF012
 
     def __init__(self, request: Any):

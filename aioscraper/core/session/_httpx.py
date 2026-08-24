@@ -4,6 +4,8 @@ from ssl import SSLContext
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, NamedTuple, cast
 
+from multidict import CIMultiDict, CIMultiDictProxy
+
 from aioscraper._helpers.http import parse_cookies, parse_url, to_simple_cookie
 from aioscraper.exceptions import (
     ConnectionFailed,
@@ -16,7 +18,15 @@ from aioscraper.exceptions import (
 from aioscraper.types import Request, Response
 from aioscraper.types.session import DEFAULT_MAX_REDIRECTS
 
-from ._errors import Classifier, caused_by, classify_tls, guard_stream, transport_errors
+from ._errors import (
+    Classifier,
+    caused_by,
+    classify_tls,
+    deadline_for,
+    guard_stream,
+    transport_errors,
+    within_deadline,
+)
 from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
 from .factory import HttpxClient
 
@@ -138,22 +148,32 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
         request (Request): The request to execute.
         client (HttpxClient): Client the request is sent with.
         max_body_size (int | None): Cap on the response body in bytes; ``None`` disables the cap.
+        session_timeout (float | None): Budget for the whole response when the request sets none.
     """
 
     _binding: ClassVar[HttpxBinding]
 
-    def __init__(self, request: Request, client: HttpxClient, max_body_size: int | None = None):
+    def __init__(
+        self,
+        request: Request,
+        client: HttpxClient,
+        max_body_size: int | None = None,
+        session_timeout: float | None = None,
+    ):
         super().__init__(request)
         # the two packages share the API the code below uses, and httpx names it for the type checker
         self._client = cast("AsyncClient", client)
         self._max_body_size = max_body_size
+        self._session_timeout = session_timeout
 
     async def __aenter__(self) -> Response:
         """Send the request with httpx and convert the response to internal ``Response``."""
+        deadline = deadline_for(self._request.timeout, self._session_timeout)
         with transport_errors(self._binding.classify, self._request.url, self._request.method):
-            return await self._send()
+            async with within_deadline(deadline, self._request.url, self._request.method):
+                return await self._send(deadline)
 
-    async def _send(self) -> Response:
+    async def _send(self, deadline: float | None) -> Response:
         if isinstance(self._request.data, dict):
             content, data = None, self._request.data
         else:
@@ -189,13 +209,15 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
             url=str(response.url),
             method=response.request.method,
             status=response.status_code,
-            headers=response.headers,
+            # httpx joins repeated headers on lookup, where aiohttp returns the first
+            headers=CIMultiDictProxy(CIMultiDict(response.headers.multi_items())),
             cookies=to_simple_cookie(response.cookies),
             aiter_bytes=guard_stream(
                 response.aiter_bytes,
                 self._binding.classify,
                 str(response.url),
                 response.request.method,
+                deadline,
             ),
             max_body_size=self._max_body_size,
         )
@@ -235,6 +257,8 @@ class BaseHttpxSession(BaseSession):
     ):
         super().__init__(owns_client=resolve_client_ownership(client, owns_client))
         self._max_body_size = max_body_size
+        # a provided client carries no total to take the budget from: httpx times each phase
+        self._session_timeout = None if client is not None else timeout
         if client is not None:
             self._client = cast("AsyncClient", client)
             return
@@ -267,7 +291,7 @@ class BaseHttpxSession(BaseSession):
             UnsupportedRequestOption: The request sets an option httpx cannot honor per request.
         """
         _check_supported(request, self._binding.backend, self._client.max_redirects)
-        return self._context_manager(request, self._client, self._max_body_size)
+        return self._context_manager(request, self._client, self._max_body_size, self._session_timeout)
 
     async def _close_client(self):
         """Close the ``AsyncClient`` to free connectors and sockets."""

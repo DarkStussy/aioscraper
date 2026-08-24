@@ -1,8 +1,9 @@
+import asyncio
 import ssl
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncIterator, Callable, Iterator
 
-from aioscraper.exceptions import TLSError, TransportError
+from aioscraper.exceptions import TLSError, TransportError, TransportTimeout
 
 Classifier = Callable[[BaseException], type[TransportError] | None]
 AiterBytes = Callable[[int], AsyncIterator[bytes]]
@@ -31,11 +32,33 @@ def classify_tls(exc: BaseException) -> type[TransportError] | None:
     return TLSError if caused_by(exc, ssl.SSLError) else None
 
 
+def deadline_for(request_timeout: float | None, session_timeout: float | None) -> float | None:
+    "Loop-clock instant the response must be complete by."
+    budget = request_timeout if request_timeout is not None else session_timeout
+    return None if budget is None else asyncio.get_running_loop().time() + budget
+
+
+@asynccontextmanager
+async def within_deadline(deadline: float | None, url: str, method: str) -> AsyncIterator[None]:
+    "Hold the budget ourselves: httpx times each phase, so a drip-fed body never reaches a limit."
+    if deadline is None:
+        yield
+        return
+
+    try:
+        async with asyncio.timeout_at(deadline):
+            yield
+    except TimeoutError as exc:
+        raise TransportTimeout(url, method, "timed out") from exc
+
+
 @contextmanager
 def transport_errors(classify: Classifier, url: str, method: str) -> Iterator[None]:
     "Re-raise what the client raised as its backend-neutral equivalent, chaining the original."
     try:
         yield
+    except TransportError:
+        raise
     except Exception as exc:
         error_type = classify(exc)
         if error_type is None:
@@ -45,8 +68,14 @@ def transport_errors(classify: Classifier, url: str, method: str) -> Iterator[No
         raise error_type(url, method, str(exc) or type(exc).__name__) from exc
 
 
-def guard_stream(aiter_bytes: AiterBytes, classify: Classifier, url: str, method: str) -> AiterBytes:
-    "Wrap a body iterator so a failure mid-stream is translated as well."
+def guard_stream(
+    aiter_bytes: AiterBytes,
+    classify: Classifier,
+    url: str,
+    method: str,
+    deadline: float | None = None,
+) -> AiterBytes:
+    "Wrap a body iterator: a failure mid-stream is translated, and the budget covers the body too."
 
     async def guarded(chunk_size: int) -> AsyncIterator[bytes]:
         # driven by hand rather than with `async for`: a translation around the yield would also
@@ -57,7 +86,8 @@ def guard_stream(aiter_bytes: AiterBytes, classify: Classifier, url: str, method
         while True:
             with transport_errors(classify, url, method):
                 try:
-                    chunk = await anext(iterator)
+                    async with within_deadline(deadline, url, method):
+                        chunk = await anext(iterator)
                 except StopAsyncIteration:
                     return
 

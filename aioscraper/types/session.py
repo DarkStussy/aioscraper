@@ -7,12 +7,13 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
-    Mapping,
     MutableMapping,
     NamedTuple,
     NotRequired,
     TypedDict,
 )
+
+from multidict import MultiMapping
 
 from aioscraper.exceptions import ResponseTooLarge, StreamConsumed
 
@@ -20,7 +21,9 @@ QueryParams = MutableMapping[str, str | int | float]
 RequestCookies = MutableMapping[str, str | BaseCookie[str] | Morsel[Any]]
 RequestHeaders = MutableMapping[str, str]
 RequestFiles = MutableMapping[str, "File"]
-ResponseHeaders = Mapping[str, str]
+# a multi-mapping on every backend: lookup is case-insensitive, ``[]`` gives the first value of a
+# repeated header and ``getall()`` gives all of them
+ResponseHeaders = MultiMapping[str]
 
 SendRequest = Callable[["Request"], Awaitable["Request"]]
 
@@ -75,8 +78,9 @@ class Request:
             :class:`~aioscraper.exceptions.UnsupportedRequestOption`
         proxy_auth (BasicAuth | None): Proxy authentication credentials. ``aiohttp`` only
         proxy_headers (RequestHeaders | None): Proxy headers. ``aiohttp`` only
-        timeout (float | None): Request timeout in seconds, positive; ``None`` uses the session's.
-            Anything else raises :class:`~aioscraper.exceptions.InvalidRequestData`
+        timeout (float | None): Budget in seconds for the whole response, positive; ``None`` uses
+            :attr:`SessionConfig.timeout <aioscraper.config.models.SessionConfig>`. Anything else
+            raises :class:`~aioscraper.exceptions.InvalidRequestData`
         allow_redirects (bool): Whether to follow HTTP redirects
         max_redirects (int): Maximum number of redirects to follow. Only ``aiohttp`` accepts a
             per-request value; on ``httpx`` the limit is the client's, so any value other than the
@@ -205,7 +209,7 @@ class Response:
 
     @property
     def headers(self) -> ResponseHeaders:
-        "Response headers."
+        "Response headers. ``headers['Set-Cookie']`` is the first of repeated ones, ``getall()`` all."
         return self._headers
 
     @property

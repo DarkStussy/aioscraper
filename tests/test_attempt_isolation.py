@@ -20,6 +20,7 @@ from tests.test_request_manager import FixedStatusSession
 
 # Long enough that a re-admitted request stays parked in the delayed heap for the assertions.
 PARKED_DELAY = 30.0
+NO_RETRIES = RequestRetryConfig(enabled=False)
 
 
 def _manager(
@@ -116,7 +117,7 @@ async def test_a_later_send_does_not_inherit_the_previous_budget():
 
 async def test_user_delay_applies_to_every_send():
     """The delayed heap used to clear Request.delay, so a later send skipped the delay."""
-    manager = _manager(retry_config=RequestRetryConfig())
+    manager = _manager(retry_config=NO_RETRIES)
     request = Request(url="https://api.test.com/slow", delay=0.001)
 
     try:

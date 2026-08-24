@@ -13,6 +13,7 @@ from aioscraper.config import (
     RateLimitConfig,
     RequestRetryConfig,
     SchedulerConfig,
+    SessionConfig,
 )
 from aioscraper.core import AIOScraper
 from aioscraper.core.errors import ErrorCollector, RunResult
@@ -23,12 +24,19 @@ from aioscraper.types import Request, Response
 from tests.mocks import MockAIOScraper, MockResponse
 from tests.test_request_manager import FakeSession, FixedStatusSession, attempt
 
+NO_RETRIES = RequestRetryConfig(enabled=False)
+
+
+def _no_retries() -> Config:
+    "One attempt at the unreachable host: the outcome is the subject, not the backoff."
+    return Config(session=SessionConfig(retry=NO_RETRIES))
+
 
 def _manager(collector: ErrorCollector, session_factory) -> RequestManager:
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
         rate_limit_config=RateLimitConfig(),
-        retry_config=RequestRetryConfig(),
+        retry_config=NO_RETRIES,
         shutdown_check_interval=0.01,
         sessionmaker=session_factory,
         dependencies={},
@@ -144,14 +152,15 @@ async def test_scraper_without_errors_is_clean(mock_aioscraper: MockAIOScraper):
 
 
 def _entrypoint(tmp_path: Path, policy: ErrorPolicy | None = None) -> Path:
-    config = "Config()" if policy is None else f"Config(execution=ExecutionConfig(on_error=ErrorPolicy.{policy.name}))"
+    session = "session=SessionConfig(retry=RequestRetryConfig(enabled=False))"
+    execution = "" if policy is None else f", execution=ExecutionConfig(on_error=ErrorPolicy.{policy.name})"
     path = tmp_path / "failing_scraper.py"
     path.write_text(
         dedent(f"""
         from aioscraper import AIOScraper, Request
-        from aioscraper.config import Config, ErrorPolicy, ExecutionConfig
+        from aioscraper.config import Config, ErrorPolicy, ExecutionConfig, RequestRetryConfig, SessionConfig
 
-        scraper = AIOScraper(config={config})
+        scraper = AIOScraper(config=Config({session}{execution}))
 
         @scraper
         async def run(send_request):
@@ -292,7 +301,7 @@ async def test_run_scraper_reports_timeout():
 
 async def test_run_scraper_returns_recorded_errors():
     """The outcome must be readable from the return value, not only from the scraper."""
-    scraper = AIOScraper()
+    scraper = AIOScraper(config=_no_retries())
 
     @scraper
     async def run(send_request):
@@ -307,7 +316,7 @@ async def test_run_scraper_returns_recorded_errors():
 
 
 async def test_wait_returns_the_outcome():
-    scraper = AIOScraper()
+    scraper = AIOScraper(config=_no_retries())
 
     @scraper
     async def run(send_request):

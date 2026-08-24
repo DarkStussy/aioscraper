@@ -93,7 +93,8 @@ class RequestRetryConfig:
     """Retry behavior applied by the dispatcher.
 
     Args:
-        enabled (bool): Toggle retries on or off.
+        enabled (bool): Toggle retries on or off. On by default, which costs a failing endpoint
+            ``attempts`` extra requests per URL.
         attempts (int): Maximum number of retry attempts per request.
         backoff (BackoffStrategy): Backoff strategy for retries.
         base_delay (float): Base delay between retries in seconds.
@@ -109,7 +110,7 @@ class RequestRetryConfig:
             method check applies first.
     """
 
-    enabled: bool = False
+    enabled: bool = True
     attempts: int = field(default=3, validator=RangeValidator(min_value=1))
     backoff: BackoffStrategy = BackoffStrategy.EXPONENTIAL_JITTER
     base_delay: float = field(default=0.5, validator=RangeValidator(min_value=0.001))
@@ -154,7 +155,8 @@ class SessionConfig:
     """HTTP session settings shared by every request.
 
     Args:
-        timeout (float): Request timeout in seconds
+        timeout (float): Budget in seconds for the whole response - send, headers and body - unless
+            the request carries its own; enforced by the framework on every backend
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``/``httpx2``; ``None`` lets the factory auto-detect

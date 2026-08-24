@@ -95,6 +95,10 @@ def test_retryable_false_blocks_a_retryable_method():
     assert _policy().next_delay(request, _http_error(), 0) is None
 
 
+def test_the_default_policy_retries_a_failing_status():
+    assert RetryPolicy(RequestRetryConfig()).next_delay(Request(url=URL), _http_error(503), 0) is not None
+
+
 @pytest.mark.parametrize(
     ("exc", "retried"),
     [

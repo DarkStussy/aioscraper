@@ -1,15 +1,15 @@
-from typing import Mapping
-
 import pytest
+from aiohttp import web
 
 from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types.session import ResponseHeaders
 from tests.mocks import MockAIOScraper, MockResponse
 
 
 class Scraper:
     def __init__(self):
         self.seen_headers: dict[str, str] | None = None
-        self.response_headers: Mapping[str, str] | None = None
+        self.response_headers: ResponseHeaders | None = None
 
     async def __call__(self, send_request: SendRequest):
         await send_request(
@@ -59,3 +59,28 @@ async def test_response_headers_received(mock_aioscraper: MockAIOScraper):
 
     assert scraper.response_headers is not None
     assert scraper.response_headers["X-From-Server"] == "ok"
+    # header names are case-insensitive, and httpx lowercases the ones it parses
+    assert scraper.response_headers["x-from-server"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_a_repeated_header_keeps_every_value(mock_aioscraper: MockAIOScraper):
+    """httpx joins repeated headers on lookup and aiohttp returns the first; both must not."""
+
+    def two_cookies(request: web.BaseRequest) -> web.StreamResponse:
+        response = web.json_response(data={"ok": True})
+        response.headers.add("Set-Cookie", "a=1")
+        response.headers.add("Set-Cookie", "b=2")
+        return response
+
+    mock_aioscraper.server.add("https://api.test.com/headers", handler=two_cookies)
+
+    scraper = Scraper()
+    mock_aioscraper(scraper)
+
+    async with mock_aioscraper:
+        await mock_aioscraper.wait()
+
+    assert scraper.response_headers is not None
+    assert scraper.response_headers.getall("Set-Cookie") == ["a=1", "b=2"]
+    assert scraper.response_headers["Set-Cookie"] == "a=1"

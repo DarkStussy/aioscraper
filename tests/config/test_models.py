@@ -87,7 +87,7 @@ class TestRequestRetryConfig:
     def test_creates_with_defaults(self):
         config = RequestRetryConfig()
 
-        assert config.enabled is False
+        assert config.enabled is True
         assert config.attempts == 3
         assert config.backoff == BackoffStrategy.EXPONENTIAL_JITTER
         assert config.base_delay == 0.5

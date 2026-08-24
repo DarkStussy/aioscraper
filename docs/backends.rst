@@ -28,14 +28,18 @@ Request fields
      - Applied per request.
      - Not applied: the limit belongs to the client - ``10`` for the one `aioscraper` builds, whatever it was built with for a provided one. Any value other than the ``Request`` default raises ``UnsupportedRequestOption`` unless ``allow_redirects`` is ``False``.
    * - ``timeout``
-     - Total budget for the request; falls back to ``session.timeout``.
-     - Applied to each of connect, read, write and pool separately, so a request can take longer than the value; falls back to ``session.timeout``. Only ``None`` falls back: a value is sent as it is.
+     - Total budget for the request, the client's own; falls back to ``session.timeout``.
+     - Sent to the client, which applies it to each of connect, read, write and pool separately, and enforced by the framework as a total budget on top. Falls back to ``session.timeout``, and only ``None`` does: a value is sent as it is.
    * - ``auth``
      - Credentials are encoded with ``BasicAuth.encoding``, Latin-1 by default.
      - Credentials are encoded as UTF-8; an ``encoding`` that means anything else raises ``UnsupportedRequestOption`` rather than being ignored. A name no codec answers to is rejected before any backend sees it, as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>`, whether the request carried it from the start or a middleware set it.
    * - ``allow_redirects``, ``params``, ``headers``, ``cookies``, ``data``, ``json_data``, ``files``
      - Applied per request.
      - Same.
+
+.. _timeout-budget:
+
+The effective timeout - ``Request.timeout``, or ``session.timeout`` without one - is a wall-clock budget for the whole response, enforced by the framework on every backend: httpx times each phase, so a body arriving chunk by chunk would otherwise never reach a limit. The read that crosses the deadline raises :class:`TransportTimeout <aioscraper.exceptions.TransportTimeout>`, and time a callback spends between chunks counts against it. A long download needs its own ``Request.timeout``; a client passed as ``http_client`` gets a budget from ``Request.timeout`` alone, except an ``aiohttp`` one, whose ``ClientTimeout.total`` is used when it is positive.
 
 ``Request.timeout`` must be a positive number of seconds. ``0``, a negative value, ``inf`` and ``NaN`` are rejected as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>` before dispatch, rather than left for each client to interpret its own way.
 
@@ -57,7 +61,7 @@ Session settings
      - The same value as httpx's ``verify``.
    * - ``timeout``
      - Total budget for the request.
-     - The same number for each of connect, read, write and pool, which is not a budget for the request as a whole.
+     - The same number for each of connect, read, write and pool, plus the framework's total budget, which is what makes it one.
    * - ``max_response_body_size``, ``max_error_body_size``, ``retry``, ``rate_limit``
      - Enforced by the framework, not the client.
      - Same.
@@ -104,6 +108,7 @@ Behavior
 - **Redirects.** The httpx client is pinned to the ``Request.max_redirects`` default so every backend follows the same number of them; httpx would otherwise use its own default of 20.
 - **Response bodies.** All of them stream: aiohttp through ``content.iter_chunked``, httpx through a ``stream=True`` send closed with the request context. :meth:`iter_bytes() <aioscraper.types.session.Response.iter_bytes>` and :meth:`read() <aioscraper.types.session.Response.read>` behave the same everywhere.
 - **Cookies.** ``Response.cookies`` is a ``SimpleCookie`` on every backend; httpx's own cookie jar is converted.
+- **Response headers.** ``Response.headers`` is a ``multidict.CIMultiDictProxy`` on every backend: ``headers[name]`` is the first value of a repeated header, ``headers.getall(name)`` all of them. httpx's own ``Headers``, which joins repeated values on lookup, is converted. Names keep the case the client parsed them with - httpx lowercases them - and lookups ignore it.
 - **URLs.** ``params`` extend the query the URL already carries on every backend, so ``?tag=old`` with ``params={"tag": "new"}`` is sent as ``?tag=old&tag=new``. On httpx they are merged into the URL before the request is built.
 
 An injected client keeps its own timeout, SSL, proxy and redirect settings, so the second table no longer describes it, and neither does the redirect limit above. The per-request fields are applied to it as they are to any client, ``Request.timeout`` included.

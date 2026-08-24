@@ -63,6 +63,7 @@ Session
 .. autodata:: aioscraper.types.session.RequestCookies
 .. autodata:: aioscraper.types.session.RequestHeaders
 .. autodata:: aioscraper.types.session.RequestFiles
+.. autodata:: aioscraper.types.session.ResponseHeaders
 
 Pipeline
 --------

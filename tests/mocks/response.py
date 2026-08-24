@@ -1,6 +1,8 @@
 from http.cookies import SimpleCookie
 from typing import AsyncIterator, Callable
 
+from multidict import CIMultiDict, CIMultiDictProxy
+
 from aioscraper.types import Response
 
 
@@ -33,7 +35,9 @@ def make_response(
         url=url,
         method=method,
         status=status,
-        headers={"Content-Type": "text/plain; charset=utf-8"} if headers is None else headers,
+        headers=CIMultiDictProxy(
+            CIMultiDict({"Content-Type": "text/plain; charset=utf-8"} if headers is None else headers),
+        ),
         cookies=SimpleCookie(),
         aiter_bytes=byte_stream(body, calls=calls),
         max_body_size=max_body_size,

@@ -16,7 +16,7 @@ from aiohttp.helpers import BasicAuth
 from aioscraper.exceptions import ConnectionFailed, DNSError, ProxyError, TLSError, TransportError, TransportTimeout
 from aioscraper.types import Request, Response
 
-from ._errors import classify_tls, guard_stream, transport_errors
+from ._errors import classify_tls, deadline_for, guard_stream, transport_errors, within_deadline
 from .base import BaseRequestContextManager, BaseSession, resolve_client_ownership
 
 
@@ -45,17 +45,26 @@ def classify(exc: BaseException) -> type[TransportError] | None:
 class AiohttpRequestContextManager(BaseRequestContextManager):
     """aiohttp-backed context manager that issues a single HTTP request."""
 
-    def __init__(self, request: Request, session: ClientSession, max_body_size: int | None = None):
+    def __init__(
+        self,
+        request: Request,
+        session: ClientSession,
+        max_body_size: int | None = None,
+        session_timeout: float | None = None,
+    ):
         super().__init__(request)
         self._session = session
         self._max_body_size = max_body_size
+        self._session_timeout = session_timeout
 
     async def __aenter__(self) -> Response:
         """Prepare payload/files, dispatch the request and wrap the aiohttp response."""
+        deadline = deadline_for(self._request.timeout, self._session_timeout)
         with transport_errors(classify, self._request.url, self._request.method):
-            return await self._send()
+            async with within_deadline(deadline, self._request.url, self._request.method):
+                return await self._send(deadline)
 
-    async def _send(self) -> Response:
+    async def _send(self, deadline: float | None) -> Response:
         data = self._request.data
 
         if self._request.files is not None:
@@ -114,7 +123,13 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
             status=response.status,
             headers=response.headers,
             cookies=response.cookies,
-            aiter_bytes=guard_stream(response.content.iter_chunked, classify, str(response.url), response.method),
+            aiter_bytes=guard_stream(
+                response.content.iter_chunked,
+                classify,
+                str(response.url),
+                response.method,
+                deadline,
+            ),
             max_body_size=self._max_body_size,
         )
 
@@ -155,7 +170,14 @@ class AiohttpSession(BaseSession):
 
     def make_request(self, request: Request) -> AiohttpRequestContextManager:
         """Create an aiohttp request context manager bound to the shared client."""
-        return AiohttpRequestContextManager(request, self._session, self._max_body_size)
+        # aiohttp starts no timer for a non-positive total, which is how a client says "no budget"
+        total = self._session.timeout.total
+        return AiohttpRequestContextManager(
+            request,
+            self._session,
+            self._max_body_size,
+            total if total is not None and total > 0 else None,
+        )
 
     async def _close_client(self):
         """Close the underlying ``ClientSession`` and release network resources."""
