@@ -10,6 +10,7 @@ from yarl import URL
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.exceptions import ConnectionFailed, TransportTimeout
+from aioscraper.types import GroupBy
 from aioscraper.types.session import Attempt, Request
 
 from .errors import ErrorCollector
@@ -355,6 +356,8 @@ class RateLimitManager:
             ``adaptive.inherit_retry_triggers`` is on.
         schedule (Callable[[Attempt], Awaitable[Any]]): Hands an attempt to the scheduler.
         error_collector (ErrorCollector | None): Records what a group's worker failed with.
+        group_by (GroupBy | None): Maps a request to its group key and that group's interval;
+            ``None`` groups by hostname at ``config.default_interval``.
     """
 
     def __init__(
@@ -363,10 +366,11 @@ class RateLimitManager:
         retry_config: RequestRetryConfig,
         schedule: Callable[[Attempt], Awaitable[Any]],
         error_collector: ErrorCollector | None = None,
+        group_by: GroupBy | None = None,
     ):
         self._schedule = schedule
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
-        self._group_by = config.group_by or default_group_by_factory(config.default_interval)
+        self._group_by = group_by or default_group_by_factory(config.default_interval)
         self._default_interval = config.default_interval
         self._cleanup_timeout = config.cleanup_timeout
         self._groups: dict[Hashable, RequestGroup] = {}
@@ -398,7 +402,7 @@ class RateLimitManager:
             self._handle = self._handle_with_group
             logger.info(
                 "Rate limiting enabled: grouping=%s, default_interval=%0.10g, cleanup_timeout=%0.10g",
-                "custom" if config.group_by else "by hostname",
+                "custom" if group_by else "by hostname",
                 self._default_interval,
                 self._cleanup_timeout,
             )

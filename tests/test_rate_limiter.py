@@ -268,7 +268,8 @@ class TestRateLimitManager:
             return ("slow", 0.05)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, group_by=custom_group_by),
+            config=RateLimitConfig(enabled=True),
+            group_by=custom_group_by,
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
@@ -304,7 +305,8 @@ class TestRateLimitManager:
                 return ("slow", 0.1)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, group_by=custom_group_by),
+            config=RateLimitConfig(enabled=True),
+            group_by=custom_group_by,
             retry_config=RequestRetryConfig(),
             schedule=schedule_with_timing,
         ) as manager:
@@ -392,7 +394,8 @@ class TestRateLimitManager:
             return ("zero", 0.0)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, group_by=zero_interval_group_by),
+            config=RateLimitConfig(enabled=True),
+            group_by=zero_interval_group_by,
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:

@@ -4,10 +4,9 @@ import ssl as ssl_module
 from dataclasses import dataclass
 from enum import StrEnum, auto
 from http import HTTPMethod
-from typing import Callable, Hashable
+from typing import Callable
 
 from aioscraper.exceptions import ConnectionFailed, TransportTimeout
-from aioscraper.types import Request
 from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, DEFAULT_MAX_RESPONSE_BODY_SIZE
 
 from .field_validators import CustomValidator, ProxyValidator, RangeValidator
@@ -60,18 +59,15 @@ class RateLimitConfig:
     Args:
         enabled (bool): Group requests and pace each group separately. Off by default, in which
             case ``default_interval`` still applies, but to the whole run rather than per group.
-        group_by (Callable[[Request], tuple[Hashable, float]] | None): Maps a request to its group
-            key and that group's interval. Grouping is by hostname when this is ``None``.
         default_interval (float): Seconds between requests under the built-in hostname grouping.
-            A ``group_by`` of your own returns the interval itself, so this is not consulted; with
-            ``enabled`` off it becomes a flat delay between all requests.
+            An ``AIOScraper(group_by=...)`` of your own returns the interval itself, so this is not
+            consulted; with ``enabled`` off it becomes a flat delay between all requests.
         cleanup_timeout (float): Idle time after which a group is dropped.
         adaptive (AdaptiveRateLimitConfig | None): Adjust the intervals from how the requests
             actually go; ``None`` keeps them fixed.
     """
 
     enabled: bool = False
-    group_by: Callable[[Request], tuple[Hashable, float]] | None = field(default=None, skip_validation=True)
     default_interval: float = field(default=0.0, validator=RangeValidator(min_value=0.0))
     cleanup_timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.1))
     adaptive: AdaptiveRateLimitConfig | None = None
@@ -114,9 +110,6 @@ class RequestRetryConfig:
             :class:`~aioscraper.exceptions.TLSError` is left out.
         methods (tuple[str, ...]): HTTP methods eligible for a retry, case-insensitive.
             ``Request.retryable`` overrides it per request.
-        should_retry (Callable[[Request, Exception, int], bool | None] | None): Decides a failure the
-            ``statuses``/``exceptions`` match cannot express; ``None`` defers to that match, and the
-            method check applies first.
     """
 
     enabled: bool = True
@@ -130,10 +123,6 @@ class RequestRetryConfig:
     methods: tuple[str, ...] = field(
         default=(HTTPMethod.GET, HTTPMethod.HEAD, HTTPMethod.OPTIONS, HTTPMethod.TRACE),
         validator=CustomValidator(lambda methods: tuple(method.upper() for method in methods)),
-    )
-    should_retry: Callable[[Request, Exception, int], bool | None] | None = field(
-        default=None,
-        skip_validation=True,
     )
 
     @property

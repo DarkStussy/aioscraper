@@ -3,7 +3,7 @@ import logging
 from aioscraper._helpers.http import parse_retry_after
 from aioscraper.config import RequestRetryConfig
 from aioscraper.exceptions import HTTPException
-from aioscraper.types import Request
+from aioscraper.types import Request, ShouldRetry
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,11 @@ class RetryPolicy:
 
     Args:
         config (RequestRetryConfig): Retry settings to apply.
+        should_retry (ShouldRetry | None): Decides a failure the ``statuses``/``exceptions`` match
+            cannot express; ``None`` defers to that match, and the method check applies first.
     """
 
-    def __init__(self, config: RequestRetryConfig):
+    def __init__(self, config: RequestRetryConfig, should_retry: ShouldRetry | None = None):
         self._enabled = config.enabled
         self._attempts = max(0, config.attempts)
         self._delay_factory = config.delay_factory
@@ -23,7 +25,7 @@ class RetryPolicy:
         self._statuses = set(config.statuses)
         self._exception_types = tuple(config.exceptions)
         self._methods = frozenset(method.upper() for method in config.methods)
-        self._should_retry = config.should_retry
+        self._should_retry = should_retry
 
         if self._enabled:
             logger.info(

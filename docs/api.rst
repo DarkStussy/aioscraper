@@ -58,6 +58,10 @@ Session
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
 .. autoclass:: aioscraper.types.session.File
+.. autodata:: aioscraper.types.scraper.GroupBy
+.. autodata:: aioscraper.types.scraper.ShouldRetry
+.. autofunction:: aioscraper.config.converters.parse_exception
+.. autofunction:: aioscraper.config.converters.parse_ssl
 .. autodata:: aioscraper.types.session.ScheduleRequest
 .. autodata:: aioscraper.types.session.SendRequest
 

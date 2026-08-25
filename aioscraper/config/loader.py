@@ -1,8 +1,5 @@
-import ssl as ssl_module
-
-from aioscraper._helpers.module import import_exception
-
 from . import env
+from .converters import parse_exception, parse_ssl
 from .models import (
     AdaptiveRateLimitConfig,
     Config,
@@ -33,17 +30,11 @@ def load_config() -> Config:
     default_retry = default_config.session.retry
     default_adaptive_rate_limit = AdaptiveRateLimitConfig()
 
-    if (raw_ssl_value := env.parse("SESSION_SSL", None)) is not None:
-        if raw_ssl_value.lower() not in {"true", "false"}:
-            ssl_ctx = ssl_module.create_default_context()
-            ssl_ctx.load_verify_locations(raw_ssl_value)
-        else:
-            ssl_ctx = env.to_bool(raw_ssl_value)
-    else:
-        ssl_ctx = True
+    raw_ssl_value = env.parse("SESSION_SSL", None)
+    ssl_ctx = True if raw_ssl_value is None else parse_ssl(raw_ssl_value)
 
     if retry_exceptions_raw := env.parse_list("SESSION_RETRY_EXCEPTIONS", None):
-        retry_exceptions = tuple(import_exception(item) for item in retry_exceptions_raw)
+        retry_exceptions = tuple(parse_exception(item) for item in retry_exceptions_raw)
     else:
         retry_exceptions = default_retry.exceptions
 

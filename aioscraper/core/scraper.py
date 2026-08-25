@@ -9,7 +9,7 @@ from typing import Any, AsyncGenerator, Callable, Mapping, Self
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import Config, load_config
 from aioscraper.holders import MiddlewareHolder, PipelineHolder
-from aioscraper.types import Scraper
+from aioscraper.types import GroupBy, Scraper, ShouldRetry
 
 from .errors import ErrorCollector, RunResult, ScraperError
 from .executor import ScraperExecutor
@@ -60,6 +60,12 @@ class AIOScraper:
             function that builds HTTP sessions (defaults to
             :func:`aioscraper.core.session.factory.get_sessionmaker`).
             Mutually exclusive with ``http_client``.
+        group_by (GroupBy | None): Maps a request to its rate limit group key and that group's
+            interval in seconds; ``None`` groups by hostname at
+            :attr:`RateLimitConfig.default_interval <aioscraper.config.models.RateLimitConfig>`.
+        should_retry (ShouldRetry | None): Decides a failure the retry config's
+            ``statuses``/``exceptions`` cannot express, such as a marker in the error body;
+            ``None`` defers to that match, and the method check applies first.
 
     Raises:
         ValueError: Both ``http_client`` and ``sessionmaker_factory`` are given.
@@ -72,12 +78,16 @@ class AIOScraper:
         lifespan: Lifespan | None = None,
         http_client: HttpClient | None = None,
         sessionmaker_factory: SessionMakerFactory | None = None,
+        group_by: GroupBy | None = None,
+        should_retry: ShouldRetry | None = None,
     ):
         if http_client is not None and sessionmaker_factory is not None:
             raise ValueError("http_client and sessionmaker_factory are mutually exclusive")
 
         self.scrapers = [*scrapers]
         self.config = config or load_config()
+        self.group_by = group_by
+        self.should_retry = should_retry
         self.dependencies: dict[str, Any] = {}
         self._error_collector = ErrorCollector()
         self._stats = RunStats()
@@ -228,6 +238,8 @@ class AIOScraper:
             sessionmaker=self._sessionmaker_factory(self.config.session),
             error_collector=self._error_collector,
             stats=self._stats,
+            group_by=self.group_by,
+            should_retry=self.should_retry,
         )
         try:
             logger.debug("Starting executor")

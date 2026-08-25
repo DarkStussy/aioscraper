@@ -21,7 +21,7 @@ from aioscraper.types import Request
 URL = "https://example.com"
 
 
-def _policy(**overrides) -> RetryPolicy:
+def _policy(should_retry=None, **overrides) -> RetryPolicy:
     settings = {
         "enabled": True,
         "attempts": 3,
@@ -32,7 +32,7 @@ def _policy(**overrides) -> RetryPolicy:
         "exceptions": (),
         **overrides,
     }
-    return RetryPolicy(RequestRetryConfig(**settings))
+    return RetryPolicy(RequestRetryConfig(**settings), should_retry=should_retry)
 
 
 def _http_error(status: int = 502, headers: dict[str, str] | None = None, method: str = "GET") -> HTTPException:

@@ -7,7 +7,7 @@ from aioscraper._helpers.asyncio import execute_coroutines
 from aioscraper._helpers.func import get_func_kwargs
 from aioscraper.config import Config
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import Scraper
+from aioscraper.types import GroupBy, Scraper, ShouldRetry
 
 from .errors import ErrorCollector
 from .pipeline import PipelineDispatcher
@@ -43,6 +43,8 @@ class ScraperExecutor:
         sessionmaker: SessionMaker,
         error_collector: ErrorCollector | None = None,
         stats: RunStats | None = None,
+        group_by: GroupBy | None = None,
+        should_retry: ShouldRetry | None = None,
     ):
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._config = config
@@ -59,6 +61,8 @@ class ScraperExecutor:
             shutdown_check_interval=self._config.execution.shutdown_check_interval,
             max_error_body_size=self._config.session.max_error_body_size,
             buffer_body=self._config.session.buffer_body,
+            group_by=group_by,
+            should_retry=should_retry,
             sessionmaker=sessionmaker,
             dependencies=self._dependencies,
             middleware_holder=middleware_holder,

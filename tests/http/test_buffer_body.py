@@ -148,7 +148,6 @@ async def test_a_buffered_body_failure_reaches_the_rate_limiter(
 
 @pytest.mark.asyncio
 async def test_a_buffered_body_replays_to_the_stream(mock_aioscraper: MockAIOScraper):
-    """A callback that streams still works: iter_bytes replays what was buffered."""
     chunks: list[bytes] = []
 
     async def parse(response: Response):

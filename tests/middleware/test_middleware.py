@@ -361,18 +361,18 @@ async def test_middleware_factory_receives_dependencies(mock_aioscraper: MockAIO
     assert callable(captured["schedule_request"])
 
 
-def _retry_everything(attempts: int = 1) -> Config:
-    return Config(
+def _retry_everything(scraper: MockAIOScraper, attempts: int = 1):
+    scraper.config = Config(
         session=SessionConfig(
             retry=RequestRetryConfig(
                 enabled=True,
                 attempts=attempts,
                 base_delay=0.01,
                 backoff=BackoffStrategy.CONSTANT,
-                should_retry=lambda request, exc, retries: True,
             ),
         ),
     )
+    scraper.should_retry = lambda request, exc, retries: True
 
 
 @pytest.mark.asyncio
@@ -406,7 +406,7 @@ async def test_middleware_failure_reaches_the_retry_policy(mock_aioscraper: Mock
     async def callback(): ...
 
     mock_aioscraper(scrape)
-    mock_aioscraper.config = _retry_everything()
+    _retry_everything(mock_aioscraper)
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()
@@ -436,7 +436,7 @@ async def test_callback_failure_is_not_retried(mock_aioscraper: MockAIOScraper):
         await schedule_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
 
     mock_aioscraper(scrape)
-    mock_aioscraper.config = _retry_everything()
+    _retry_everything(mock_aioscraper)
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()
@@ -471,7 +471,7 @@ async def test_middleware_can_swallow_a_failure_before_the_retry_policy(mock_aio
         await schedule_request(Request(url="https://api.test.com/error", errback=on_error))
 
     mock_aioscraper(scrape)
-    mock_aioscraper.config = _retry_everything(attempts=3)
+    _retry_everything(mock_aioscraper, attempts=3)
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()

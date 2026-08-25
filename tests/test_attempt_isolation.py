@@ -243,10 +243,8 @@ async def test_should_retry_hook_runs_end_to_end(mock_aioscraper: MockAIOScraper
     scraper = RetryScraper("https://api.test.com/teapot")
     mock_aioscraper(scraper)
     # 418 is in neither statuses nor exceptions: only the hook can keep the request alive.
-    mock_aioscraper.config = _retry_config(
-        statuses=(),
-        should_retry=lambda request, exc, retries: getattr(exc, "status_code", None) == 418,
-    )
+    mock_aioscraper.config = _retry_config(statuses=())
+    mock_aioscraper.should_retry = lambda request, exc, retries: getattr(exc, "status_code", None) == 418
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()

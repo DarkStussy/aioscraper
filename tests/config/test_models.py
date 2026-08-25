@@ -227,7 +227,6 @@ class TestRateLimitConfig:
         config = RateLimitConfig()
 
         assert config.enabled is False
-        assert config.group_by is None
         assert config.default_interval == 0.0
         assert config.cleanup_timeout == 60.0
         assert config.adaptive is None

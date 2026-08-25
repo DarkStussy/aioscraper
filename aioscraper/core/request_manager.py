@@ -16,7 +16,7 @@ from aioscraper._helpers.http import parse_retry_after, parse_url
 from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConfig
 from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData, InvalidURL
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import RequestHandler, RequestMiddleware, Response
+from aioscraper.types import GroupBy, RequestHandler, RequestMiddleware, Response, ShouldRetry
 from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, Attempt, Request, ScheduleRequest
 
 from .errors import ErrorCollector
@@ -192,6 +192,8 @@ class RequestManager:
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
         stats (RunStats | None): Counts attempts for the run's outcome.
         buffer_body (bool): Whether to read a body before the callback runs, unless the request says.
+        group_by (GroupBy | None): Maps a request to its rate limit group and interval.
+        should_retry (ShouldRetry | None): Decides a failure the retry config cannot express.
     """
 
     def __init__(
@@ -208,6 +210,8 @@ class RequestManager:
         stats: RunStats | None = None,
         *,
         buffer_body: bool = False,
+        group_by: GroupBy | None = None,
+        should_retry: ShouldRetry | None = None,
     ):
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._stats = RunStats() if stats is None else stats
@@ -256,8 +260,9 @@ class RequestManager:
             retry_config=retry_config,
             schedule=self._schedule,
             error_collector=self._error_collector,
+            group_by=group_by,
         )
-        self._retry_policy = RetryPolicy(retry_config)
+        self._retry_policy = RetryPolicy(retry_config, should_retry=should_retry)
         self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
         self._initialized = False
         self._completed = asyncio.Event()

@@ -52,6 +52,32 @@ Set :class:`SessionConfig.http_backend <aioscraper.config.models.SessionConfig>`
         scraper = AIOScraper(config=config)
         await run_scraper(scraper)
 
+.. _config-hooks:
+
+Hooks are not configuration
+---------------------------
+
+``Config`` holds only what a file or an environment variable can hold. The two settings that are code
+- ``group_by`` and ``should_retry`` - are arguments of :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>`,
+next to ``http_client`` and ``sessionmaker_factory``:
+
+.. code-block:: python
+
+    scraper = AIOScraper(config=config, group_by=custom_group_by, should_retry=should_retry)
+
+Both are also plain attributes, so a test or a lifespan can replace them until the run starts.
+
+That split is what lets any loader that fills dataclasses from their annotations build the whole
+``Config``. Three fields name their object indirectly: ``session.ssl`` takes a path to a CA bundle,
+``retry.exceptions`` and ``adaptive.custom_trigger_exceptions`` take dotted paths. A loader resolves
+them with :func:`parse_ssl <aioscraper.config.converters.parse_ssl>` and :func:`parse_exception
+<aioscraper.config.converters.parse_exception>`, which raise ``ValueError`` on anything they cannot
+resolve, with the underlying failure chained.
+
+:func:`load_config <aioscraper.config.loader.load_config>` reads the environment through the same two
+functions, so a file and a variable resolve identically. ``examples/third_party_config.py`` wires
+this up end to end.
+
 Graceful shutdown
 -----------------
 
@@ -249,7 +275,6 @@ A group paces its requests; it does not get a share of the concurrency. ``schedu
 **Configuration options:**
 
 - ``enabled``: Toggle rate limiting on or off (default: ``False``).
-- ``group_by``: Custom function to group requests and specify per-group intervals. Must return ``tuple[Hashable, float]`` where the first element is the group key and the second is the interval in seconds.
 - ``default_interval``: Default delay in seconds between requests within each group (default: ``0.0``).
 - ``cleanup_timeout``: Timeout in seconds for cleaning up inactive request groups (default: ``60.0``).
 - ``adaptive``: Enable :ref:`adaptive rate limiting <adaptive-rate-limiting>` (default: ``None``).
@@ -258,12 +283,16 @@ A group paces its requests; it does not get a share of the concurrency. ``schedu
 Custom grouping
 ~~~~~~~~~~~~~~~
 
-You can define custom grouping logic to apply different rate limits per domain or endpoint:
+``group_by`` maps a request to its group key and that group's interval, so different domains or
+endpoints can be paced differently. It is code rather than configuration, so it goes to
+:class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` and not to ``RateLimitConfig`` - see
+:ref:`hooks <config-hooks>`:
 
 .. code-block:: python
 
    from yarl import URL
-   from aioscraper.config import RateLimitConfig
+   from aioscraper import AIOScraper
+   from aioscraper.config import Config, RateLimitConfig, SessionConfig
 
 
    def custom_group_by(request):
@@ -277,7 +306,10 @@ You can define custom grouping logic to apply different rate limits per domain o
       return (host, 0.5)  # 500ms default
 
 
-   rate_limit_config = RateLimitConfig(enabled=True, group_by=custom_group_by)
+   scraper = AIOScraper(
+       config=Config(session=SessionConfig(rate_limit=RateLimitConfig(enabled=True))),
+       group_by=custom_group_by,
+   )
 
 When ``enabled=False`` (default), group-based rate limiting is bypassed. However, if ``default_interval`` is set, it will still apply a simple delay between all requests without grouping logic.
 
@@ -425,11 +457,12 @@ For ``EXPONENTIAL_JITTER``, the delay is calculated as follows:
 For both ``EXPONENTIAL`` and ``EXPONENTIAL_JITTER``, ``max_delay`` caps the final delay to avoid excessively long waits.
 
 ``should_retry`` covers failures ``statuses``/``exceptions`` cannot express — a marker in the error body,
-or an error code inside a ``200`` that your own middleware turns into an exception:
+or an error code inside a ``200`` that your own middleware turns into an exception. Like ``group_by`` it
+is a :ref:`hook <config-hooks>` on the scraper, not a config field:
 
 .. code-block:: python
 
-   from aioscraper.config import RequestRetryConfig
+   from aioscraper import AIOScraper
    from aioscraper.exceptions import HTTPException
    from aioscraper.types import Request
 
@@ -441,7 +474,7 @@ or an error code inside a ``200`` that your own middleware turns into an excepti
        return None  # fall back to the statuses/exceptions match
 
 
-   retry_config = RequestRetryConfig(enabled=True, should_retry=should_retry)
+   scraper = AIOScraper(should_retry=should_retry)
 
 ``True``/``False`` is final; ``None`` defers to ``statuses``/``exceptions``. The method check below runs
 before the hook either way, so a hook cannot widen retries to a non-idempotent request.
