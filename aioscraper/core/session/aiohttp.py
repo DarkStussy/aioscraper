@@ -53,7 +53,7 @@ def classify(exc: BaseException) -> type[ClientException] | None:
 
 
 class AiohttpRequestContextManager(BaseRequestContextManager):
-    """aiohttp-backed context manager that issues a single HTTP request."""
+    "Sends one request with ``aiohttp``, translating its failures on the way out."
 
     def __init__(
         self,
@@ -68,7 +68,7 @@ class AiohttpRequestContextManager(BaseRequestContextManager):
         self._session_timeout = session_timeout
 
     async def __aenter__(self) -> Response:
-        """Prepare payload/files, dispatch the request and wrap the aiohttp response."""
+        """Send the request and wrap what aiohttp returns in a :class:`Response`."""
         deadline = deadline_for(self._request.timeout, self._session_timeout)
         with client_errors(classify, self._request.url, self._request.method):
             async with within_deadline(deadline, self._request.url, self._request.method):
@@ -179,7 +179,6 @@ class AiohttpSession(BaseSession):
         )
 
     def make_request(self, request: Request) -> AiohttpRequestContextManager:
-        """Create an aiohttp request context manager bound to the shared client."""
         # aiohttp starts no timer for a non-positive total, which is how a client says "no budget"
         total = self._session.timeout.total
         return AiohttpRequestContextManager(
@@ -190,5 +189,4 @@ class AiohttpSession(BaseSession):
         )
 
     async def _close_client(self):
-        """Close the underlying ``ClientSession`` and release network resources."""
         await self._session.close()

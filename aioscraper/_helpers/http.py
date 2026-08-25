@@ -45,7 +45,7 @@ def parse_cookies(v: RequestCookies) -> dict[str, str]:
 
 
 def parse_retry_after(exc: Exception) -> float | None:
-    "Parse Retry-After header from HTTPException."
+    "Seconds the server asked for, from a 429 or 503 that carried a Retry-After. Others give None."
     if not isinstance(exc, HTTPException) or exc.status_code not in (
         HTTPStatus.TOO_MANY_REQUESTS,
         HTTPStatus.SERVICE_UNAVAILABLE,

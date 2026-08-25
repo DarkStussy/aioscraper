@@ -1,15 +1,15 @@
 Pipelines
 =========
 
-Pipelines are ordered processors for your scraped items. Items are routed by their Python type: register pipelines against the item class and the dispatcher will use ``type(item)`` to find them. Add pipelines with ``scraper.pipeline.add`` or decorate pipeline classes with ``@scraper.pipeline(ItemType, *args, **kwargs)``; wrap their flow with middleware decorators.
+Pipelines are where a scraped item goes after a callback produces it. Routing is by exact Python type: the dispatcher looks up ``type(item)``, so a subclass needs its own registration.
 
 Core
 ----
 - Implement the :class:`BasePipeline <aioscraper.types.pipeline.BasePipeline>` protocol: provide ``put_item`` (persist/transform/fan out and return the item) and ``close`` for cleanup.
 - Pipelines are keyed by item type; every pipeline registered for that type runs sequentially.
 - Missing pipeline handling is controlled by ``PipelineConfig.strict`` (defaults to raising; set ``PIPELINE_STRICT=false`` to warn and continue).
-- ``scraper.pipeline.add(...)`` adds one or more pipeline instances for a given item type.
-- ``@scraper.pipeline(ItemType, *args, **kwargs)`` is a convenient decorator that instantiates the pipeline class and registers it for you (handy when the pipeline needs constructor arguments).
+- ``scraper.pipeline.add(ItemType, *pipelines)`` registers instances you built yourself, which is what a pipeline needing a dependency takes.
+- ``@scraper.pipeline(ItemType, *args, **kwargs)`` instantiates the decorated class with those arguments and registers the instance.
 
 
 .. code-block:: python

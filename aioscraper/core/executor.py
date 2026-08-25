@@ -19,12 +19,7 @@ logger = getLogger(__name__)
 
 
 class ScraperExecutor:
-    """
-    Executes scrapers and manages the scraping process.
-
-    This class is responsible for running scraper functions, managing the request
-    scheduler, and handling the graceful shutdown of the scraping process.
-    """
+    "Runs the scraper callables and owns the request manager they send through."
 
     def __init__(
         self,
@@ -56,7 +51,7 @@ class ScraperExecutor:
         )
 
     async def run(self):
-        "Start the scraping process."
+        "Run every scraper at once, then wait for the requests they scheduled, retries included."
         self._request_manager.start_listening()
         try:
             logger.debug("Running %d scraper(s) concurrently", len(self._scrapers))
@@ -79,7 +74,7 @@ class ScraperExecutor:
             await self._request_manager.shutdown()
 
     async def close(self):
-        "Close all resources and cleanup."
+        "Close the request manager and the pipelines. A failure to close is recorded, not raised."
         await execute_coroutines(
             self._request_manager.close(),
             self._pipeline_dispatcher.close(),

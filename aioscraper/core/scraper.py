@@ -107,11 +107,13 @@ class AIOScraper:
         return scraper
 
     def add_dependencies(self, **kwargs: Any):
-        "Add shared dependencies to inject into scraper callbacks."
+        """Register objects injected by parameter name into scrapers, callbacks, errbacks and
+        middleware factories. A pipeline gets what its own constructor was given, nothing more.
+        """
         self.dependencies.update(kwargs)
 
     def lifespan(self, lifespan: Lifespan) -> Lifespan:
-        "Attach a lifespan callback to run before/after scraping."
+        "Attach an async generator that sets the run up before its ``yield`` and tears it down after."
         self._lifespan = asynccontextmanager(lifespan)
         return lifespan
 
@@ -137,12 +139,12 @@ class AIOScraper:
 
     @property
     def middleware(self) -> MiddlewareHolder:
-        "Access the middleware registry for request/response hooks."
+        "The request middleware registry; call it as a decorator to register a factory."
         return self._middleware_holder
 
     @property
     def pipeline(self) -> PipelineHolder:
-        "Access the pipeline registry and middleware helpers."
+        "The pipeline registry, and the decorators for pipeline middlewares."
         return self._pipeline_holder
 
     async def __aenter__(self) -> Self:
@@ -208,7 +210,6 @@ class AIOScraper:
         self._state = _State.RUNNING
 
     async def _run(self):
-        """Initialize and run the scraper with the configured settings."""
         # built here rather than in __init__: the config can still be replaced until the run starts
         self._error_collector = ErrorCollector(self.config.execution.max_retained_errors)
         executor = ScraperExecutor(
@@ -260,7 +261,7 @@ class AIOScraper:
 
         On a closing or closed scraper the call waits for teardown instead, so the result covers
         the errors it recorded. A ``close()`` landing mid-wait is reported the same way rather
-        than cancelling the caller.
+        than canceling the caller.
 
         Args:
             timeout (float | None): Overrides ``execution.timeout`` for this call. It bounds the

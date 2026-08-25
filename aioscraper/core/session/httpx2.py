@@ -14,7 +14,7 @@ _BINDING = HttpxBinding(
 
 
 class Httpx2RequestContextManager(BaseHttpxRequestContextManager):
-    """httpx2-backed context manager that executes a prepared HTTP request."""
+    "Sends one request with ``httpx2``, translating its failures on the way out."
 
     _binding = _BINDING
 

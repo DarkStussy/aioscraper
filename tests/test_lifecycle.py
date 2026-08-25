@@ -183,13 +183,13 @@ async def test_start_during_startup_is_rejected():
 
 async def test_close_waits_for_an_unfinished_startup():
     release_lifespan = asyncio.Event()
-    cancelled = asyncio.Event()
+    canceled = asyncio.Event()
 
     async def run():
         try:
             await asyncio.Event().wait()
         finally:
-            cancelled.set()
+            canceled.set()
 
     async def lifespan(_: AIOScraper):
         await release_lifespan.wait()
@@ -208,7 +208,7 @@ async def test_close_waits_for_an_unfinished_startup():
     await asyncio.wait_for(entering, timeout=5.0)
     await asyncio.wait_for(closing, timeout=5.0)
 
-    assert cancelled.is_set()
+    assert canceled.is_set()
     with pytest.raises(RuntimeError, match="single-use"):
         scraper.start()
 

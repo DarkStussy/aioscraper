@@ -1,7 +1,7 @@
 Configuration
 =============
 
-`aioscraper` ships sane defaults but exposes configuration for sessions, scheduling, execution, and pipeline dispatching.
+Everything a run is configured with lives in four groups: the HTTP session, the scheduler, execution and shutdown, and pipeline dispatching. The defaults are usable as they are; the settings below are the ones worth revisiting for a real target.
 
 You can build a :class:`Config <aioscraper.config.models.Config>` and pass it to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` via ``AIOScraper(config=...)``, or override values via :ref:`environment variables <cli-configuration>`.
 The CLI reads well-known environment variables (for example ``SESSION_REQUEST_TIMEOUT``, ``SCHEDULER_CONCURRENT_REQUESTS``, ``EXECUTION_TIMEOUT``, ``PIPELINE_STRICT``) and applies them before launching the scraper.
@@ -56,7 +56,7 @@ Graceful shutdown
 -----------------
 
 - ``execution.timeout`` - overall budget (``None`` by default, i.e. no total limit); on expiry the runner logs at ``execution.log_level`` and cancels all tasks.
-- ``execution.shutdown_timeout`` - grace period after SIGINT/SIGTERM/timeout before hard cancelling in-flight work.
+- ``execution.shutdown_timeout`` - grace period after SIGINT/SIGTERM/timeout before in-flight work is canceled outright.
 - ``execution.shutdown_check_interval`` - pause between drain checks while waiting for the scheduler/queue to empty.
 - Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
 
@@ -262,14 +262,14 @@ When ``enabled=False`` (default), group-based rate limiting is bypassed. However
 Adaptive Rate Limiting
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The adaptive rate limiting feature automatically adjusts request intervals based on server responses, using a hybrid **EWMA (Exponentially Weighted Moving Average) + AIMD (Additive Increase Multiplicative Decrease)** algorithm inspired by TCP congestion control.
+Adaptive rate limiting lets each group find its own pace instead of holding the one you configured, on the **AIMD (Additive Increase Multiplicative Decrease)** pattern TCP congestion control uses. **EWMA (Exponentially Weighted Moving Average)** smooths the latency it tracks alongside.
 
 How it works:
 
-- Fast multiplicative increase on server overload (429, 503, timeouts) - backs off aggressively to avoid hammering struggling servers
-- Slow additive decrease on sustained success - gradually probes for increased capacity
-- Respects Retry-After headers - server-provided backoff takes priority over heuristics
-- Per-group adaptation - each hostname/group adapts independently
+- Pushback (429, 503, timeouts) multiplies the interval at once - one bad response is enough to back off
+- A run of successes takes a small step off it - capacity is reclaimed slowly, and given up quickly
+- A ``Retry-After`` overrides both: what the server asked for beats anything inferred
+- Every group adapts on its own history, so a slow host does not throttle a fast one
 
 .. code-block:: python
 
@@ -470,7 +470,7 @@ request object as it is, headers and body included.
 Server-side Retry-After
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-When the server responds with a ``Retry-After`` header (RFC 9110), the middleware respects it and uses the server-specified delay instead of the configured backoff strategy. This only applies to ``429 Too Many Requests`` and ``503 Service Unavailable`` responses.
+A ``Retry-After`` header (RFC 9110) on a ``429 Too Many Requests`` or ``503 Service Unavailable`` replaces the computed backoff for that attempt: the server knows when it will be ready and the backoff curve does not. It is read on those two statuses only.
 
 The ``Retry-After`` header can be specified as:
 

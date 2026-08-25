@@ -1,14 +1,16 @@
 Callbacks and Error Handling
 ============================
 
-Callbacks drive the happy path, while error handlers keep failures contained. `aioscraper` routes both through the request lifecycle so you can react at the right moment.
+A callback handles a successful response; an errback handles a terminal failure, including one raised by the callback. Depending on the outcome, either, both, or neither may run.
 
 .. rubric:: Key points
 
-- ``Request.callback`` runs only on successful responses.
-- ``Request.errback`` handles HTTP statuses ``>=400`` and unexpected exceptions from callbacks or middlewares.
-- ``Request.cb_kwargs`` are merged into callback/errback arguments alongside framework dependencies (``send_request``, ``pipeline``, etc.).
-- Use ``@compiled`` decorator on callbacks for optimized dependency injection.
+- ``callback`` runs on a response with a status below ``400``.
+- ``errback`` handles statuses ``>=400``, transport failures, and anything a callback or middleware raised.
+- Neither runs when the attempt was retried, when a middleware returned ``None``, or when the request set no handler for what happened.
+- A failure with no ``errback`` is logged and recorded in :ref:`RunResult <unhandled-errors>` instead.
+- Both receive ``Request.cb_kwargs`` and the run's dependencies (``send_request``, ``pipeline``, ...), matched by parameter name.
+- An ``errback`` that raises turns both exceptions into an ``ExceptionGroup``, which is then recorded.
 
 
 .. code-block:: python
@@ -85,9 +87,9 @@ without async support - has to be pushed off it, for example with ``asyncio.to_t
 to ``errback``.
 
 Optimizing callbacks
----------------------------------------
+--------------------
 
-By default, `aioscraper` uses runtime inspection to inject dependencies into callbacks. For performance-critical scrapers, use the ``@compiled`` decorator to pre-compute parameter filtering at import time.
+Deciding what to pass a callback means inspecting its signature, which by default happens on every call. ``@compiled`` does it once, at import time, and keeps the parameter names on the wrapper.
 
 .. code-block:: python
 
@@ -103,18 +105,11 @@ By default, `aioscraper` uses runtime inspection to inject dependencies into cal
 
     @compiled
     async def parse(response: Response, send_request: SendRequest):
-        # Dependencies injected with zero runtime overhead
         data = await response.json()
         # process data...
 
 
-The ``@compiled`` decorator:
-
-- Caches function parameters at import time instead of inspecting on every call
-- Eliminates repeated ``inspect.signature()`` calls from the hot path
-- Provides ~10-30% performance improvement for callback execution
-- Works with both callbacks and errbacks
-- Maintains full compatibility with dependency injection
+It works on callbacks and errbacks alike, and changes nothing about which arguments they receive. Worth it where a callback runs thousands of times; not worth the import elsewhere.
 
 
 .. autoclass:: aioscraper.types.session.Request

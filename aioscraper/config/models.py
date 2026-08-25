@@ -17,24 +17,27 @@ from .model_validator import field, validate
 @dataclass(slots=True, frozen=True)
 @validate
 class AdaptiveRateLimitConfig:
-    """Configuration for adaptive rate limiting using EWMA + AIMD.
+    """Lets each rate limit group find its own pace instead of holding the configured one.
 
-    Adaptively adjusts request intervals based on server response patterns.
-    Uses EWMA (Exponentially Weighted Moving Average) for latency tracking
-    and AIMD (Additive Increase Multiplicative Decrease) for interval adjustment.
+    The interval is multiplied on server pushback and stepped back down after a run of successes,
+    per group. Setting this leaves ``default_interval`` as the starting point.
 
     Args:
-        min_interval (float): Minimum allowed interval between requests (seconds).
-        max_interval (float): Maximum allowed interval between requests (seconds).
-        increase_factor (float): Multiplicative factor for interval increase on failure (must be > 1.0).
-        decrease_step (float): Additive step for interval decrease on success (seconds).
-        success_threshold (int): Number of consecutive successes before decreasing interval.
-        ewma_alpha (float): EWMA smoothing factor for latency (0 < alpha <= 1, higher = more weight to recent).
-        respect_retry_after (bool): Whether to use Retry-After header as interval override.
-        inherit_retry_triggers (bool): Whether to use RequestRetryConfig statuses/exceptions as triggers.
-        custom_trigger_statuses (tuple[int, ...]): Additional HTTP statuses to trigger adaptive slowdown.
-        custom_trigger_exceptions (tuple[type[BaseException], ...]):
-            Additional exception types to trigger adaptive slowdown.
+        min_interval (float): Floor for the interval, in seconds.
+        max_interval (float): Ceiling for the interval, in seconds; a ``Retry-After`` is clamped
+            to it too.
+        increase_factor (float): The interval is multiplied by this on a failure.
+        decrease_step (float): Seconds taken off after a run of successes.
+        success_threshold (int): How many successes in a row it takes to step down.
+        ewma_alpha (float): Weight of the newest latency sample, 0 to 1; higher follows the recent
+            requests more closely.
+        respect_retry_after (bool): Let a ``Retry-After`` on a 429 or 503 set the interval outright.
+        inherit_retry_triggers (bool): Also treat what :class:`RequestRetryConfig` retries as
+            pushback.
+        custom_trigger_statuses (tuple[int, ...]): Statuses that count as pushback on top of the
+            built-in ones.
+        custom_trigger_exceptions (tuple[type[BaseException], ...]): Exceptions that count as
+            pushback on top of the built-in ones.
     """
 
     min_interval: float = field(default=0.001, validator=RangeValidator(min_value=0.001))
@@ -52,15 +55,19 @@ class AdaptiveRateLimitConfig:
 @dataclass(slots=True, frozen=True)
 @validate
 class RateLimitConfig:
-    """
-    Configuration for rate limiting.
+    """How requests are spaced out, per group of related targets.
 
     Args:
-        enabled (bool): Toggle rate limiting on or off.
-        group_by (Callable[[Request], tuple[Hashable, float]] | None): Function to group requests by.
-        default_interval (float): Default interval for group.
-        cleanup_timeout (float): Timeout in seconds before cleaning up an idle request group.
-        adaptive (AdaptiveRateLimitConfig | None): Adaptive rate limiting configuration (EWMA + AIMD).
+        enabled (bool): Group requests and pace each group separately. Off by default, in which
+            case ``default_interval`` still applies, but to the whole run rather than per group.
+        group_by (Callable[[Request], tuple[Hashable, float]] | None): Maps a request to its group
+            key and that group's interval. Grouping is by hostname when this is ``None``.
+        default_interval (float): Seconds between requests under the built-in hostname grouping.
+            A ``group_by`` of your own returns the interval itself, so this is not consulted; with
+            ``enabled`` off it becomes a flat delay between all requests.
+        cleanup_timeout (float): Idle time after which a group is dropped.
+        adaptive (AdaptiveRateLimitConfig | None): Adjust the intervals from how the requests
+            actually go; ``None`` keeps them fixed.
     """
 
     enabled: bool = False
@@ -71,14 +78,14 @@ class RateLimitConfig:
 
 
 class BackoffStrategy(StrEnum):
-    """
-    Backoff strategy for retries.
+    """How the delay before a retry grows with the attempt number.
 
     Attributes:
-        CONSTANT: Constant backoff
-        LINEAR: Linear backoff
-        EXPONENTIAL: Exponential backoff
-        EXPONENTIAL_JITTER: Exponential backoff with jitter
+        CONSTANT: Always ``base_delay``.
+        LINEAR: ``base_delay * attempt``, uncapped.
+        EXPONENTIAL: ``base_delay * 2 ** attempt``, capped at ``max_delay``.
+        EXPONENTIAL_JITTER: The same, with the second half of each delay randomized, so retries of
+            a batch that failed together do not come back together.
     """
 
     CONSTANT = auto()
@@ -95,10 +102,10 @@ class RequestRetryConfig:
     Args:
         enabled (bool): Toggle retries on or off. On by default, which costs a failing endpoint
             ``attempts`` extra requests per URL.
-        attempts (int): Maximum number of retry attempts per request.
-        backoff (BackoffStrategy): Backoff strategy for retries.
-        base_delay (float): Base delay between retries in seconds.
-        max_delay (float): Maximum delay between retries in seconds.
+        attempts (int): How many extra sends a request gets, on top of the first one.
+        backoff (BackoffStrategy): How the delay grows from one attempt to the next.
+        base_delay (float): Delay the backoff is computed from, in seconds.
+        max_delay (float): Cap on a computed delay, in seconds. ``LINEAR`` ignores it.
         max_retry_after (float): Cap in seconds on a delay the server asked for through
             ``Retry-After``; a longer one is clamped to it. Bounds how long a run can be parked.
         statuses (tuple[int, ...]): HTTP status codes that should trigger a retry.
@@ -189,15 +196,16 @@ class SessionConfig:
 @dataclass(slots=True, frozen=True)
 @validate
 class SchedulerConfig:
-    """
-    Configuration for request scheduler.
+    """Limits on the ``aiojobs`` scheduler that runs the requests.
 
     Args:
-        concurrent_requests (int): Maximum number of concurrent requests
-        pending_requests (int): Number of pending requests to maintain
-        close_timeout (float | None): Timeout for closing scheduler in seconds
+        concurrent_requests (int): Requests allowed in flight at once, across every rate limit
+            group.
+        pending_requests (int): How many attempts may sit inside the scheduler waiting for a free
+            slot.
+        close_timeout (float | None): Grace period a job gets when the scheduler is closed.
         ready_queue_max_size (int): Throttles the entrypoint at this many accepted but
-            unscheduled requests (0 for unlimited); sends from inside a job are not blocked
+            unscheduled requests (0 for unlimited); sends from inside a job are not blocked.
     """
 
     concurrent_requests: int = field(default=64, validator=RangeValidator(min_value=1))
@@ -210,12 +218,11 @@ DEFAULT_MAX_RETAINED_ERRORS = 100
 
 
 class ErrorPolicy(StrEnum):
-    """
-    What an unhandled error means for the outcome of a run.
+    """What an unhandled error means for the exit code. Read by the CLI, and by nothing else.
 
     Attributes:
-        LOG: Log it and finish successfully.
-        FAIL: Log it and finish with a non-zero exit code.
+        LOG: Log it and exit ``0``.
+        FAIL: Log it and exit ``1``.
     """
 
     LOG = auto()
@@ -225,15 +232,17 @@ class ErrorPolicy(StrEnum):
 @dataclass(slots=True, frozen=True)
 @validate
 class ExecutionConfig:
-    """
-    Configuration for execution.
+    """How long the run may take and how it is stopped.
 
     Args:
-        timeout (float | None): Overall execution timeout in seconds
-        shutdown_timeout (float): Timeout for graceful shutdown in seconds
-        on_error (ErrorPolicy): Whether unhandled errors make the CLI exit non-zero
-        log_level (int): Log level for timeout events (e.g., logging.ERROR, logging.WARNING).
-            Defaults to logging.ERROR.
+        timeout (float | None): Budget for the whole run, in seconds; ``None`` gives it no
+            deadline. Once it expires the run is cut short and ``RunResult.timed_out`` is set.
+        shutdown_timeout (float): How long in-flight work gets to finish after SIGINT/SIGTERM or
+            an expired ``timeout``, before it is canceled.
+        shutdown_check_interval (float): How long the queue listener may block before rechecking
+            whether the run is over. Bounds how late a shutdown is noticed.
+        on_error (ErrorPolicy): Whether unhandled errors make the CLI exit non-zero.
+        log_level (int): Level the timeout message is logged at.
         max_retained_errors (int): How many exceptions ``RunResult.errors`` keeps; the counts stay
             exact either way. ``0`` keeps none, which frees the tracebacks a failing run holds.
     """
@@ -253,10 +262,9 @@ class ExecutionConfig:
 @validate
 class PipelineConfig:
     """
-    Configuration for pipelines.
-
     Args:
-        strict (bool): Raise an exception if a pipeline for an item is missing
+        strict (bool): Raise :class:`PipelineException` for an item type nothing is registered
+            for. Turning it off logs a warning and returns the item untouched.
     """
 
     strict: bool = True
@@ -265,7 +273,7 @@ class PipelineConfig:
 @dataclass(slots=True, frozen=True)
 @validate
 class Config:
-    "Main configuration class that combines all configuration components."
+    "Everything a run is configured with. Build one directly, or from the environment with :func:`load_config`."
 
     session: SessionConfig = SessionConfig()
     scheduler: SchedulerConfig = SchedulerConfig()

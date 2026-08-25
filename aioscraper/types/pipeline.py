@@ -11,31 +11,22 @@ class BasePipeline(Protocol[PipelineItemType]):
     "Interface for classes that process scraped items of a specific type."
 
     async def put_item(self, item: PipelineItemType) -> PipelineItemType:
-        """
-        Process an item and return it (mutated or replaced).
-
-        This method must be implemented by all concrete pipeline classes.
-        """
+        "Handle one item and return it, mutated or replaced. The next pipeline receives what you return."
         ...
 
     async def close(self):
-        """
-        Close the pipeline.
-
-        This method is called when the pipeline is no longer needed.
-        It can be overridden to perform any necessary cleanup operations.
-        """
+        "Called once when the run ends, for flushing buffers and closing what the pipeline opened."
         ...
 
 
 class PipelineMiddleware(Protocol[PipelineItemType]):
-    "Async hook used before or after pipeline execution; must return the item."
+    "Hook running before or after the pipelines of one item type; must return the item."
 
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
 
 
 class Pipeline(Protocol[PipelineItemType]):
-    """Protocol for callables that accept an item and return the processed item."""
+    "The ``pipeline`` dependency callbacks receive: hand it an item, get the processed one back."
 
     async def __call__(self, item: PipelineItemType) -> PipelineItemType: ...
 
@@ -44,7 +35,7 @@ ItemHandler = Pipeline
 
 
 class GlobalPipelineMiddleware(Protocol[PipelineItemType]):
-    "Wrapper invoked around the entire pipeline chain for every item type."
+    "Wraps the whole chain, whatever the item type. Must ``await handler(item)`` to keep it moving."
 
     async def __call__(self, handler: ItemHandler, item: PipelineItemType) -> PipelineItemType: ...
 

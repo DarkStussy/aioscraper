@@ -117,16 +117,7 @@ def _is_utf8(encoding: str) -> bool:
 
 
 def _check_supported(request: Request, backend: str, max_redirects: int):
-    """Reject request options httpx cannot honor, instead of dropping them silently.
-
-    Args:
-        request (Request): The request about to be sent.
-        backend (str): Name of the backend, for the exception.
-        max_redirects (int): The client's redirect limit, reported when a request asks for another.
-
-    Raises:
-        UnsupportedRequestOption: One of the options is set and cannot be applied.
-    """
+    "Reject request options httpx cannot honor, rather than dropping them silently."
     for option, hint in _UNSUPPORTED_HINTS.items():
         if getattr(request, option) is not None:
             raise UnsupportedRequestOption(backend, option, hint)
@@ -151,7 +142,7 @@ def _check_supported(request: Request, backend: str, max_redirects: int):
 
 
 class BaseHttpxRequestContextManager(BaseRequestContextManager):
-    """Context manager that executes a prepared HTTP request through an httpx-compatible client.
+    """Sends one request through an httpx-compatible client.
 
     Args:
         request (Request): The request to execute.
@@ -176,7 +167,7 @@ class BaseHttpxRequestContextManager(BaseRequestContextManager):
         self._session_timeout = session_timeout
 
     async def __aenter__(self) -> Response:
-        """Send the request with httpx and convert the response to internal ``Response``."""
+        """Send the request and wrap what httpx returns in a :class:`Response`."""
         deadline = deadline_for(self._request.timeout, self._session_timeout)
         with client_errors(self._binding.classify, self._request.url, self._request.method):
             async with within_deadline(deadline, self._request.url, self._request.method):
@@ -303,5 +294,4 @@ class BaseHttpxSession(BaseSession):
         return self._context_manager(request, self._client, self._max_body_size, self._session_timeout)
 
     async def _close_client(self):
-        """Close the ``AsyncClient`` to free connectors and sockets."""
         await self._client.aclose()

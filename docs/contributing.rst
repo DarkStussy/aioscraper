@@ -1,10 +1,10 @@
 Contributing
 ============
 
-Thank you for considering contributing! Here is how to get set up and what we expect.
+Thanks for considering it. Here is how to get set up and what a change is expected to come with.
 
-How to setup
-------------
+Setup
+-----
 
 - Install `uv <https://docs.astral.sh/uv/>`_ (the project uses ``uv`` for dependency management and command execution).
 

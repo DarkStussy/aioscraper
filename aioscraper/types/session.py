@@ -61,15 +61,17 @@ class BasicAuth(TypedDict):
 @dataclass(slots=True, kw_only=True)
 class Request:
     """
-    Represents an HTTP request with all its parameters.
+    One request to send, and what to do with what comes back.
+
+    The same object can be sent more than once; the framework tracks nothing on it.
 
     Args:
         url (str): Target URL
         method (str): HTTP method
-        params (QueryParams | None): URL query parameters
-        data (Any): Request body data
-        files (RequestFiles | None): Multipart files mapping
-        json_data (Any): JSON data to be sent in the request body
+        params (QueryParams | None): Query parameters, added to any the URL already carries
+        data (Any): Request body; a ``dict`` is form-encoded
+        files (RequestFiles | None): Multipart uploads, keyed by field name
+        json_data (Any): JSON body. Cannot be combined with ``data`` or ``files``
         cookies (RequestCookies | None): Request cookies
         headers (RequestHeaders | None): Request headers
         auth (BasicAuth | None): Basic authentication credentials. ``httpx`` sends them as UTF-8
@@ -86,13 +88,17 @@ class Request:
             per-request value; on ``httpx`` the limit is the client's, so any value other than the
             default here is rejected
 
-        delay (float | None): Delay before sending the request
+        delay (float | None): Seconds to hold the request back before it becomes ready to send
         retryable (bool | None): Overrides the retry policy's method check; ``None`` defers to
             :attr:`RequestRetryConfig.methods <aioscraper.config.models.RequestRetryConfig.methods>`
-        priority (int): Priority of the request
-        callback (Callable[..., Awaitable] | None): Async callback function to be called after successful request
-        cb_kwargs (dict[str, Any]): Keyword arguments for the callback function
-        errback (Callable[..., Awaitable] | None): Async error callback function
+        priority (int): Order among requests ready at the same time; the lowest goes first
+        callback (Callable[..., Awaitable] | None): Awaited on a successful response, with the
+            arguments it names - ``response``, ``request``, the run's dependencies, and the entries
+            of ``cb_kwargs``
+        cb_kwargs (dict[str, Any]): Passed as keyword arguments to the callback and the errback
+            alike, one entry per parameter
+        errback (Callable[..., Awaitable] | None): Awaited on a failure that was not retried, the
+            same way, with ``exc`` in place of ``response``
         state (dict[str, Any]): Free-form bag for middlewares and callbacks, shared by every send
             of this object. The framework never writes to it
     """
@@ -145,7 +151,7 @@ class Attempt:
 
 class Response:
     """
-    Represents an HTTP response with all its components.
+    A response whose headers have arrived and whose body has not.
 
     The body is streamed from the connection, which the backend closes once the middleware
     chain and the callback return, so it has to be read inside the callback.
@@ -219,7 +225,7 @@ class Response:
 
     @property
     def ok(self) -> bool:
-        "Returns ``True`` if ``status`` is less than ``400``, ``False`` if not"
+        "Whether the status is below ``400``."
         return self._status < 400  # noqa: PLR2004
 
     def __repr__(self) -> str:
@@ -250,7 +256,7 @@ class Response:
 
     async def iter_bytes(self, chunk_size: int = DEFAULT_CHUNK_SIZE) -> AsyncIterator[bytes]:
         """
-        Stream the response payload chunk by chunk.
+        Stream the body chunk by chunk, buffering nothing.
 
         Breaking out of the loop early is allowed; the connection is released when the request
         context closes. A body already buffered by :meth:`read` is replayed from memory.
@@ -282,7 +288,7 @@ class Response:
 
     async def read(self, *, limit: int | None = None) -> bytes:
         """
-        Read response payload.
+        Read the body into memory.
 
         An unlimited read buffers the body and can be repeated; a limited read consumes the
         stream without buffering, so it cannot be followed by another read.
@@ -315,7 +321,7 @@ class Response:
         return self._content
 
     async def text(self, encoding: str | None = "utf-8", errors: str = "strict") -> str:
-        "Read response payload and decode."
+        "Read the whole body and decode it. ``encoding=None`` takes the charset from ``Content-Type``."
         if encoding is None:
             encoding = self.get_encoding()
 
@@ -323,7 +329,7 @@ class Response:
         return content.decode(encoding, errors=errors)
 
     async def json(self, *, encoding: str | None = None, loads: Callable[[str], Any] = json.loads) -> Any:
-        "Read and decodes JSON response."
+        "Read the whole body and parse it as JSON. An empty body gives ``None`` rather than raising."
         content = await self.read()
 
         stripped_content = content.strip()
@@ -337,13 +343,11 @@ class Response:
 
     def get_encoding(self) -> str:
         """
-        Resolve response encoding from the ``Content-Type`` header.
-
-        Parses the Content-Type header for a charset parameter. Returns "utf-8"
-        as a safe default if no charset is found or if the charset is invalid.
+        Read the charset out of the ``Content-Type`` header.
 
         Returns:
-            str: Detected charset or ``"utf-8"`` as a safe default.
+            str: The charset the header names, or ``"utf-8"`` when it names none or names one
+            Python has no codec for.
         """
         content_type = self.headers.get("Content-Type", "")
         parts = content_type.split(";")

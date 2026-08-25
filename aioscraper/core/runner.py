@@ -46,7 +46,7 @@ async def _cancel(task: asyncio.Task[Any]):
 
 
 async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: asyncio.Event) -> RunResult | None:
-    "Run scraper with shutdown handling, ignoring force-exit logic."
+    "Run to completion, or until a signal, which buys in-flight work ``shutdown_timeout`` to finish."
     shutdown_task = asyncio.create_task(shutdown_event.wait())
 
     async with scraper:
@@ -67,7 +67,7 @@ async def _run_scraper_without_force_exit(scraper: AIOScraper, shutdown_event: a
         try:
             return await asyncio.wait_for(asyncio.shield(scraper_task), timeout=shutdown_timeout)
         except asyncio.TimeoutError:
-            logger.warning("Shutdown timeout expired, cancelling tasks")
+            logger.warning("Shutdown timeout expired, canceling tasks")
             await _cancel(scraper_task)
         except asyncio.CancelledError:
             await _cancel(scraper_task)

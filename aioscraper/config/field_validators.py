@@ -10,10 +10,10 @@ T = TypeVar("T")
 
 
 class Validator(Protocol[T]):
-    """Protocol for validators that check parsed values."""
+    "Checks one config field, and may return a normalized value in place of the original."
 
     def __call__(self, key: str, value: T) -> T:
-        """Validates the value and returns it if valid."""
+        """Return the value to keep, or raise ``ValueError`` naming ``key``."""
         ...
 
 
@@ -22,11 +22,11 @@ NumericT = TypeVar("NumericT", int, float, Decimal)
 
 class RangeValidator(Generic[NumericT]):
     """
-    Validates that numeric values are within a specified range.
+    Bounds a number, inclusive on both ends. ``None`` passes, ``NaN`` and infinity never do.
 
     Args:
-        min: Minimum allowed value (inclusive)
-        max: Maximum allowed value (inclusive)
+        min_value: Lowest accepted value; ``None`` leaves it unbounded below.
+        max_value: Highest accepted value; ``None`` leaves it unbounded above.
     """
 
     def __init__(self, min_value: NumericT | None = None, max_value: NumericT | None = None):
@@ -53,7 +53,7 @@ class RangeValidator(Generic[NumericT]):
 
 
 class LengthValidator:
-    """Validates the length of strings, lists, or tuples."""
+    "Bounds the length of a string, list or tuple, inclusive on both ends."
 
     def __init__(self, *, min_length: int | None = None, max_length: int | None = None):
         if min_length is None and max_length is None:
@@ -80,11 +80,11 @@ class LengthValidator:
 
 class RegexValidator:
     """
-    Validates that a string matches a regular expression pattern.
+    Requires a string to match a pattern from its start, as ``re.match`` does.
 
     Args:
-        pattern (str): Regular expression pattern to match
-        flags (int): Optional regex flags (e.g., re.IGNORECASE)
+        pattern (str): The pattern to match.
+        flags (int): Flags to compile it with, such as ``re.IGNORECASE``.
     """
 
     def __init__(self, pattern: str, flags: int = 0):
@@ -99,7 +99,7 @@ class RegexValidator:
 
 
 class ChoicesValidator(Generic[T]):
-    """Validates that a value is one of the allowed choices."""
+    "Requires the value to be one of a fixed set."
 
     def __init__(self, choices: set[T] | list[T]):
         self.choices = set(choices) if isinstance(choices, list) else choices
@@ -112,7 +112,7 @@ class ChoicesValidator(Generic[T]):
 
 
 class CustomValidator(Generic[T]):
-    """Validates using a custom function."""
+    "Defers to a function. ``True`` keeps the value, ``False`` rejects it, anything else replaces it."
 
     def __init__(self, func: Callable[[Any], bool | T]):
         self._func = func
@@ -132,7 +132,7 @@ class CustomValidator(Generic[T]):
 
 
 class ChainValidator(Generic[T]):
-    """Chains multiple validators together."""
+    "Runs validators in order, each seeing what the previous one returned."
 
     def __init__(self, validators: Iterable[Validator[T]]):
         if not validators:
@@ -149,12 +149,10 @@ class ChainValidator(Generic[T]):
 
 class ProxyValidator:
     """
-    Validates proxy configuration.
+    Checks a proxy setting, which is either ``None``, one URL, or a URL per scheme.
 
-    Accepts:
-        - None
-        - str (valid URL like "http://proxy:8080")
-        - dict[str, str | None] (mapping of schemes to proxy URLs like {"http": "...", "https": "..."})
+    A mapping comes back keyed as httpx mounts want it - ``"http"`` becomes ``"http://"``. Every
+    URL must carry a scheme the constructor was given.
     """
 
     def __init__(self, valid_schemes: set[str]):

@@ -14,8 +14,8 @@ def make_scraper_mock() -> AsyncMock:
     scraper.entered = False
     scraper.exited = False
     scraper.started = False
-    scraper.cancelled = False
-    scraper.cancelled_by_timeout = False
+    scraper.canceled = False
+    scraper.canceled_by_timeout = False
     scraper._stop = asyncio.Event()
     scraper.result = RunResult()
 
@@ -31,10 +31,10 @@ def make_scraper_mock() -> AsyncMock:
         try:
             await asyncio.wait_for(scraper._stop.wait(), scraper.config.execution.timeout)
         except TimeoutError:
-            scraper.cancelled = True
-            scraper.cancelled_by_timeout = True
+            scraper.canceled = True
+            scraper.canceled_by_timeout = True
         except asyncio.CancelledError:
-            scraper.cancelled = True
+            scraper.canceled = True
             raise
 
     scraper.__aenter__.side_effect = aenter
@@ -63,12 +63,12 @@ async def test_shutdown_event_cancels_scraper():
     assert scraper.entered is True
     assert scraper.exited is True
     assert scraper.started is True
-    assert scraper.cancelled is True
+    assert scraper.canceled is True
 
 
 @pytest.mark.asyncio
 async def test_shutdown_grants_grace_period_to_in_flight_work():
-    """In-flight work that finishes inside shutdown_timeout must not be cancelled."""
+    """In-flight work that finishes inside shutdown_timeout must not be canceled."""
     scraper = make_scraper_mock()
     scraper.config = Config(execution=ExecutionConfig(timeout=None, shutdown_timeout=0.5))
     shutdown = asyncio.Event()
@@ -86,7 +86,7 @@ async def test_shutdown_grants_grace_period_to_in_flight_work():
 
     assert scraper.started is True
     assert scraper.exited is True
-    assert scraper.cancelled is False
+    assert scraper.canceled is False
 
 
 @pytest.mark.asyncio
@@ -97,8 +97,8 @@ async def test_execution_timeout_cancels_scraper():
 
     await _run_scraper_without_force_exit(scraper, shutdown)
 
-    assert scraper.cancelled is True
-    assert scraper.cancelled_by_timeout is True
+    assert scraper.canceled is True
+    assert scraper.canceled_by_timeout is True
 
 
 @pytest.mark.asyncio
@@ -124,4 +124,4 @@ async def test_force_exit_path():
     with suppress(asyncio.CancelledError):
         await trigger
 
-    assert scraper.cancelled is True
+    assert scraper.canceled is True

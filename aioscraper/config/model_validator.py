@@ -83,6 +83,12 @@ def _validate_and_cast(value: Any, annotation: type) -> Any:
 
 
 def validate(cls: type[_T]) -> type[_T]:
+    """Give a config dataclass a ``__post_init__`` that casts and checks every field.
+
+    Environment variables arrive as strings, so a field is cast to its annotation before its
+    validator sees it, and the frozen instance is updated in place with what comes back. Fields
+    marked ``skip_validation`` - callables, mostly - are left alone.
+    """
     orig_post_init = getattr(cls, "__post_init__", None)
     hints = get_type_hints(cls)
 
@@ -126,7 +132,7 @@ def field(
     validator: Validator | None = None,
     skip_validation: bool = False,
 ) -> Any:
-    """Wraps a dataclass field with optional validation."""
+    """A ``dataclasses.field`` that also carries a validator for :func:`validate` to run."""
     metadata = metadata or {}
     metadata["validator"] = validator
     metadata["skip_validation"] = skip_validation

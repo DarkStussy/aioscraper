@@ -30,7 +30,11 @@ def resolve_client_ownership(client: object | None, owns_client: bool | None) ->
 
 
 class BaseRequestContextManager(abc.ABC):
-    """Asynchronous context manager that encapsulates request execution lifecycle."""
+    """One request, from dispatch to the connection being released.
+
+    Entering it sends the request and returns a :class:`Response` whose body is still on the
+    connection; leaving it releases the connection, so the body has to be read in between.
+    """
 
     def __init__(self, request: Request):
         self._request = request
@@ -46,12 +50,12 @@ class BaseRequestContextManager(abc.ABC):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ):
-        """Tear down resources registered in the exit stack when the request finishes."""
+        """Release the connection and anything else the send registered."""
         await self._exit_stack.__aexit__(exc_type, exc_val, exc_tb)
 
 
 class BaseSession(abc.ABC):
-    """Base abstract class for HTTP session.
+    """The HTTP client of a run, shared by every request it sends.
 
     Args:
         owns_client (bool): Whether the session created the underlying HTTP client and is
@@ -70,7 +74,7 @@ class BaseSession(abc.ABC):
 
     @abc.abstractmethod
     def make_request(self, request: Request) -> BaseRequestContextManager:
-        """Build a context manager responsible for executing ``request``."""
+        """Prepare ``request`` for sending; nothing is sent until the result is entered."""
         ...
 
     @abc.abstractmethod
@@ -79,10 +83,6 @@ class BaseSession(abc.ABC):
         ...
 
     async def close(self):
-        """
-        Close the session and release all resources.
-
-        A client the session did not create is left open for whoever owns it.
-        """
+        "Close the client, unless it belongs to the caller, in which case it is left open."
         if self._owns_client:
             await self._close_client()

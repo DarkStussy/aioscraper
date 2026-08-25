@@ -45,7 +45,7 @@ class PipelineDispatcher:
         self._handler = self._build_handler()
 
     async def _put_item(self, item: PipelineItemType) -> PipelineItemType:
-        "Processes an item through pre-middleware, pipelines, and post-middleware for its type."
+        "Run the chain registered for this item's type: pre middlewares, pipelines, post middlewares."
         item_type = type(item).__name__
         logger.debug("Pipeline item received: %s", item)
 
@@ -111,7 +111,7 @@ class PipelineDispatcher:
         return handler
 
     async def put_item(self, item: PipelineItemType) -> PipelineItemType:
-        "Dispatches an item through the pipeline."
+        "The ``pipeline`` dependency itself: the global middlewares, then the chain for this type."
         try:
             item = await self._handler(item)
         except StopItemProcessing:
@@ -122,11 +122,7 @@ class PipelineDispatcher:
         return item
 
     async def close(self):
-        """
-        Closes all pipelines.
-
-        Calls the close() method for each pipeline in the system.
-        """
+        "Close every registered pipeline. One that fails is recorded and the rest still close."
         total_pipelines = sum(len(pc.pipelines) for pc in self._pipelines.values())
         logger.debug("Closing pipeline dispatcher: %d pipeline(s) to close", total_pipelines)
 

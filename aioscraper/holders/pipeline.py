@@ -28,7 +28,7 @@ class PipelineHolder:
         *args,
         **kwargs,
     ) -> Callable[[type[BasePipeline[PipelineItemType]]], type[BasePipeline[PipelineItemType]]]:
-        "Return a decorator that instantiates and registers a pipeline class for the given item type."
+        "Return a decorator that instantiates the pipeline class with ``*args``/``**kwargs`` and registers it."
 
         def decorator(pipeline_class: type[BasePipeline[PipelineItemType]]) -> type[BasePipeline[PipelineItemType]]:
             try:
@@ -44,9 +44,8 @@ class PipelineHolder:
         return decorator
 
     def add(self, item_type: type[PipelineItemType], *pipelines: BasePipeline[PipelineItemType]):
-        "Add pipelines to process scraped data."
+        "Register pipelines for an item type. They run in the order they were added."
         for pipeline in pipelines:
-            # runtime protocol check to ensure BasePipeline interface compliance
             try:
                 ok = isinstance(pipeline, BasePipeline)
             except TypeError as exc:
@@ -71,7 +70,7 @@ class PipelineHolder:
         middleware_type: PipelineMiddlewareStage,
         item_type: type[PipelineItemType],
     ) -> Callable[[PipelineMiddleware[PipelineItemType]], PipelineMiddleware[PipelineItemType]]:
-        "Return a decorator that registers a pipeline middleware for the given stage."
+        "Return a decorator registering a middleware to run before (``pre``) or after (``post``) the pipelines."
 
         def decorator(middleware: PipelineMiddleware[PipelineItemType]) -> PipelineMiddleware[PipelineItemType]:
             self.add_middlewares(middleware_type, item_type, middleware)
@@ -85,7 +84,7 @@ class PipelineHolder:
         item_type: type[PipelineItemType],
         *middlewares: PipelineMiddleware[PipelineItemType],
     ):
-        "Add pipeline processing middlewares."
+        "Register middlewares for one stage of an item type's chain, in the order they were added."
         if item_type not in self.pipelines:
             container = self.pipelines[item_type] = PipelineContainer()
         else:
@@ -112,10 +111,11 @@ class PipelineHolder:
 
     def add_global_middlewares(self, *factories: GlobalPipelineMiddlewareFactory[PipelineItemType]):
         """
-        Register global pipeline middleware factories in order.
+        Register global pipeline middleware factories, outermost first.
 
-        Each factory can accept injected dependencies and must return a middleware with signature
-        ``async def mw(handler, item): ...`` which wraps the entire pipeline chain for every item type.
+        A factory takes the dependencies it names as parameters and returns the middleware itself,
+        ``async def mw(handler, item): ...``, which wraps the chain of every item type. Factories
+        are called once, when the dispatcher is built.
         """
         for factory in factories:
             logger.debug("Installing global pipeline middleware factory %s", get_log_name(factory))

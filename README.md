@@ -93,55 +93,31 @@ scraper = AIOScraper()
 
 @dataclass(slots=True)
 class RepoStats:
-    """Data model for extracted repository stats."""
-
     name: str
     stars: int
     language: str
 
 
-# this decorator registers this pipeline to handle RepoStats items
+# registers the pipeline that handles RepoStats items
 @scraper.pipeline(RepoStats)
 class StatsPipeline:
-    """Pipeline for processing extracted repository data."""
-
     def __init__(self):
         self.total_stars = 0
 
     async def put_item(self, item: RepoStats) -> RepoStats:
-        """
-        Called for each extracted item.
-
-        This is where you'd:
-        - Save to database
-        - Send to message queue
-        - Perform validation/transformation
-        - Aggregate statistics
-        """
+        # runs once per extracted item: store it, queue it, validate it, or aggregate as here
         self.total_stars += item.stars
         logger.info("✓ %s: ⭐ %s (%s)", item.name, item.stars, item.language)
         return item
 
     async def close(self):
-        """
-        Called when scraper shuts down.
-
-        Use for:
-        - Final aggregations
-        - Closing database connections
-        - Cleanup operations
-        """
+        # runs once when the scraper stops: flush buffers, close connections, report totals
         logger.info("Total stars collected: %s", self.total_stars)
 
 
-# this decorator marks this as the scraper's entry point.
+# registers an entry point; send_request is injected by parameter name
 @scraper
 async def get_repos(send_request: SendRequest):
-    """
-    Entry point: defines what to scrape.
-
-    Receives send_request - a function to schedule HTTP requests.
-    """
     repos = (
         "django/django",
         "fastapi/fastapi",
@@ -153,23 +129,19 @@ async def get_repos(send_request: SendRequest):
     for repo in repos:
         await send_request(
             Request(
-                url=f"https://api.github.com/repos/{repo}",  # API endpoint
-                callback=parse_repo,  # Success handler
-                errback=on_failure,  # Error handler (network failures, timeouts)
-                cb_kwargs={"repo": repo},  # Additional arguments to pass to callbacks
-                headers={"Accept": "application/vnd.github+json"},  # Required by GitHub API
+                url=f"https://api.github.com/repos/{repo}",
+                callback=parse_repo,  # runs on a response with a status below 400
+                errback=on_failure,  # runs on anything else: 4xx/5xx, timeouts, connection failures
+                cb_kwargs={"repo": repo},  # extra arguments for both of them
+                headers={"Accept": "application/vnd.github+json"},  # required by the GitHub API
             )
         )
 
 
 async def parse_repo(response: Response, pipeline: Pipeline):
-    """
-    Success callback: parse response and extract data.
-
-    The `pipeline` dependency is automatically injected by aioscraper.
-    """
-    data = await response.json()  # Parse JSON response from API
-    await pipeline(  # Send extracted item to pipeline
+    # the body has to be read here: the connection is released when the callback returns
+    data = await response.json()
+    await pipeline(
         RepoStats(
             name=data["full_name"],
             stars=data["stargazers_count"],
@@ -179,14 +151,6 @@ async def parse_repo(response: Response, pipeline: Pipeline):
 
 
 async def on_failure(exc: Exception, repo: str):
-    """
-    Error callback: handle request/processing failures.
-
-    Use for:
-    - Logging errors
-    - Sending alerts
-    - Custom retry logic
-    """
     logger.error("%s: cannot parse response: %s", repo, exc)
 ```
 
@@ -197,18 +161,18 @@ aioscraper scraper
 
 What's happening?
 
-1. `@scraper` registers your entry point
-2. `@scraper.pipeline` registers a pipeline for processing extracted data
-3. `send_request()` schedules multiple API requests concurrently with automatic queuing
-4. `callback=parse_repo` processes successful responses, `errback=on_failure` handles errors
+1. `@scraper` registers the entry point; `@scraper.pipeline` registers a pipeline for `RepoStats`
+2. `send_request()` queues a request and returns; the framework dispatches it when a slot frees up
+3. Requests run concurrently up to the limit, so responses arrive in no particular order
+4. `parse_repo` handles each response, `on_failure` handles each failure that was not retried
+5. `StatsPipeline.close()` runs once at the end, after every request has finished
 
-Recommendation:
-
-Configure [retries, rate limiting, concurrency](https://aioscraper.readthedocs.io/en/latest/cli.html#configuration) via environment variables for production use.
+Retries are on by default. Rate limiting is not - turn it on, along with concurrency and timeouts, through
+[environment variables](https://aioscraper.readthedocs.io/en/latest/cli.html#configuration) before running this against a real API.
 
 ## Examples
 
-See the [examples/](examples/) directory for fully commented code demonstrating.
+Runnable, commented scrapers live in [examples/](examples/).
 
 ## Why aioscraper?
 

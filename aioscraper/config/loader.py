@@ -16,14 +16,18 @@ from .models import (
 
 
 def load_config() -> Config:
-    """Load configuration from environment variables.
+    """Build a :class:`Config` from the ``SESSION_*``, ``SCHEDULER_*``, ``EXECUTION_*`` and
+    ``PIPELINE_*`` environment variables, falling back to the dataclass defaults.
 
-    Reads configuration from environment variables prefixed with `SESSION`, `SCHEDULER`,
-    `EXECUTION`, and `PIPELINE`. When parameters are None, values are read from
-    corresponding environment variables. Defaults are used when env vars are not set.
+    Adaptive rate limiting is the one part that stays off unless
+    ``SESSION_RATE_LIMIT_ADAPTIVE_ENABLED`` is set, whatever the other adaptive variables say.
 
     Returns:
-        Config: Complete configuration object with all settings resolved.
+        Config: The resolved configuration, validated field by field.
+
+    Raises:
+        ValueError: A variable is set to something its field cannot be cast from.
+        ConfigValidationError: A resolved value is out of range for its field.
     """
     default_config = Config()
     default_retry = default_config.session.retry

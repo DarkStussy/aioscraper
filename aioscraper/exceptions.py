@@ -13,14 +13,15 @@ class ClientException(AIOScraperException):
 
 class HTTPException(ClientException):
     """
-    Exception raised when an HTTP request fails with a specific status code.
+    Raised when a response came back with a status of ``400`` or above.
 
     Args:
-        status_code (int): The HTTP status code of the failed request
-        message (str): Error message describing the failure
-        url (str): The URL that was being accessed
-        method (str): The HTTP method used for the request
-        headers (Mapping[str, str]): Response headers returned by the server
+        url (str): The URL that was requested, query parameters included.
+        method (str): The HTTP method used for the request.
+        status_code (int): The status the server answered with.
+        headers (Mapping[str, str]): Headers of that response.
+        message (str): As much of the body as ``session.max_error_body_size`` allowed, ending in
+            ``[truncated]`` when it was cut.
     """
 
     def __init__(self, url: str, method: str, status_code: int, headers: Mapping[str, str], message: str):
@@ -126,7 +127,7 @@ class ResponseTooLarge(ClientException):
 
 class StreamConsumed(ClientException):
     """
-    Raised when a response body is read after its stream has been consumed.
+    Raised when a body is read again after it was streamed rather than buffered.
 
     Args:
         url (str): The URL whose body was already consumed.
@@ -167,11 +168,11 @@ class PipelineException(AIOScraperException):
 
 
 class StopMiddlewareProcessing(AIOScraperException):
-    "Stop further pipeline middlewares in the current phase (pre/post)."
+    "Raise from a pipeline middleware to skip the rest of its stage and carry on with the flow."
 
 
 class StopItemProcessing(AIOScraperException):
-    "Raised by pipeline middlewares to stop processing the current item."
+    "Raise from a pipeline middleware to stop the rest of the chain; the item is returned as it stands."
 
 
 class InvalidRequestData(AIOScraperException):
@@ -183,4 +184,4 @@ class CLIError(AIOScraperException):
 
 
 class ConfigValidationError(AIOScraperException):
-    "Raised when configuration validation fails."
+    "Raised when a configuration field has the wrong type or a value outside its allowed range."

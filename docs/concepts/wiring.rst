@@ -1,24 +1,24 @@
 Wiring scrapers and dependencies
 ================================
 
-``AIOScraper`` uses dependency injection to provide shared resources (database clients, API clients, configs, services) to your callbacks, errbacks, pipelines, and middlewares. Dependencies are resolved automatically by parameter name and type hints.
+Shared resources - database clients, API clients, settings objects - are registered once on the scraper and reach your scrapers, callbacks, errbacks, middleware factories and pipeline middleware factories as arguments.
 
 How it works
 ------------
 
-1. **Register dependencies** via ``add_dependencies(**kwargs)`` - typically in a lifespan context manager
-2. **Request dependencies** in your callbacks/pipelines via parameter names
-3. **aioscraper injects them automatically** when calling your functions based on parameter name or type
+1. Register with ``add_dependencies(**kwargs)``, usually from a lifespan.
+2. Name the ones you want as parameters of your function.
+3. `aioscraper` inspects the signature and passes the ones whose names match.
 
-This makes testing easy (mock dependencies) and keeps your code decoupled from resource management.
+Matching is **by parameter name only** - the type hint is documentation, not part of the lookup. A parameter whose name matches nothing registered is simply not passed, so a parameter without a default makes the call fail with ``TypeError``.
 
 Scrapers
 --------
-:meth:`__call__ <aioscraper.core.scraper.AIOScraper.__call__>`: Add one or more async scraper callables (entry points). Returns the first callable so you can use it as a decorator.
+:meth:`__call__ <aioscraper.core.scraper.AIOScraper.__call__>`: Register one async callable as an entry point and return it, so it works as a decorator. Call it again for each further entry point; they all run concurrently.
 
 Dependencies
 ------------
-:meth:`add_dependencies <aioscraper.core.scraper.AIOScraper.add_dependencies>`: Register objects (clients, configs, services) that become injectable into callbacks, errbacks, pipelines, and middlewares via type hints.
+:meth:`add_dependencies <aioscraper.core.scraper.AIOScraper.add_dependencies>`: Register objects under the names they will be injected by. Calling it again adds to what is registered, and reuses a name to replace it.
 
 Example
 -------
@@ -101,29 +101,24 @@ Example
         await metrics.close()
 
 
-Dependency injection rules
----------------------------
+Rules
+-----
 
-1. **Name-based matching**: Dependencies are injected by matching parameter names to registered keys (``config: Config`` matches ``add_dependencies(config=...)`` by the name ``config``)
+1. **Names, not types**: ``config: Config`` is injected because ``add_dependencies(config=...)`` used the name ``config``. Renaming the parameter breaks the match; changing the annotation does not.
 
-2. **Built-in dependencies**: Some dependencies are always available:
+2. **Always available**: three dependencies are registered by the framework itself:
 
-   - ``send_request: SendRequest`` - schedule new requests
-   - ``pipeline: Pipeline`` - send items to pipelines
+   - ``send_request: SendRequest`` - schedule further requests
+   - ``pipeline: Pipeline`` - send items into the pipelines
+   - ``config: Config`` - the run's configuration, unless you registered your own ``config``
 
-3. **No dependency found**: If a parameter has no default and no matching dependency, raises an error
+3. **Callbacks also get the request**: ``response`` and ``request`` reach a callback, ``exc`` and ``request`` an errback, alongside anything in ``Request.cb_kwargs``.
 
-Best practices
---------------
+4. **Nothing matched**: an unmatched parameter is left out of the call, so give it a default unless you mean the call to fail.
 
-1. **Use lifespan for setup/teardown**: Register dependencies in ``@scraper.lifespan`` to ensure proper cleanup
+Registering in a lifespan is what ties setup to teardown; see :doc:`lifespan`. In tests, ``add_dependencies`` is also how you swap a client for a fake:
 
-2. **Keep dependencies simple**: Inject services/clients, not raw data
+.. code-block:: python
 
-3. **Test with mocks**: Dependency injection makes testing easy - just register mock objects
-
-   .. code-block:: python
-
-      # In tests
-      mock_db = MockDatabase()
-      scraper.add_dependencies(db_pool=mock_db)
+   mock_db = MockDatabase()
+   scraper.add_dependencies(db_pool=mock_db)

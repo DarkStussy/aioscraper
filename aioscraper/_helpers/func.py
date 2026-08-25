@@ -9,9 +9,10 @@ def get_func_kwargs(func: Callable[..., Any], **kwargs: Any) -> dict[str, Any]:
 
 def compiled(func: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Decorator that optimizes dependency injection by caching function parameters.
+    Take the parameter names of a callback once, at import time, instead of on every call.
 
-    Replaces runtime inspection with compile-time parameter extraction.
+    Without it every call inspects the signature to decide which dependencies to pass. Use it on
+    callbacks and errbacks that run often; the injection they get is the same either way.
     """
     params = set(inspect.signature(func).parameters)
 

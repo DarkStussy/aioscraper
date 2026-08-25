@@ -20,11 +20,10 @@ class MiddlewareHolder:
 
     def add(self, *factories: RequestMiddlewareFactory):
         """
-        Register request middleware factories in order.
+        Register request middleware factories, outermost first.
 
-        Each factory can accept injected dependencies and must return a middleware with signature
-        ``async def mw(call_next, request): ...`` which wraps the request handler chain for every
-        request..
+        A factory takes the dependencies it names as parameters and returns the middleware itself,
+        ``async def mw(call_next, request): ...``. Factories are called once, when the run starts.
         """
         for factory in factories:
             logger.debug("Installing request middleware factory %s", get_log_name(factory))

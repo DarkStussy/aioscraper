@@ -171,17 +171,23 @@ def _get_request_sender(
 
 
 class RequestManager:
-    """
-    Manages HTTP requests with priority queuing, rate limiting, and middleware support.
+    """Carries a request from ``send_request`` to its callback.
+
+    Accepted requests wait in a priority queue, or on a heap when they were given a delay. A
+    listener task moves them through the rate limiter to the scheduler, which runs the middleware
+    chain and the dispatch inside it. A failure the retry policy accepts is admitted again instead
+    of reaching the errback.
 
     Args:
-        scheduler_config (SchedulerConfig): Configuration for the request scheduler.
-        rate_limit_config (RateLimitConfig): Configuration for the request rate limiter.
-        retry_config (RequestRetryConfig): Configuration for request retries.
-        shutdown_check_interval (float): Interval between shutdown checks in seconds
-        sessionmaker (SessionMaker): A factory for creating session objects.
-        dependencies (dict[str, Any]): Additional dependencies to be injected into middleware and callbacks.
-        middleware_holder (MiddlewareHolder): A container for middleware collections.
+        scheduler_config (SchedulerConfig): Concurrency limits and the admission cap.
+        rate_limit_config (RateLimitConfig): How requests are grouped and paced.
+        retry_config (RequestRetryConfig): What is retried, how often and after how long.
+        shutdown_check_interval (float): How long the listener may block before rechecking whether
+            the run is over.
+        sessionmaker (SessionMaker): Builds the HTTP session requests are sent through.
+        dependencies (dict[str, Any]): Injected into middleware factories, callbacks and errbacks
+            by parameter name.
+        middleware_holder (MiddlewareHolder): The registered request middleware factories.
         error_collector (ErrorCollector | None): Records errors that are logged and dropped.
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
         stats (RunStats | None): Counts attempts for the run's outcome.
@@ -353,7 +359,7 @@ class RequestManager:
             wait_for_slot=False,
             retries=retries,
         )
-        # counted once the attempt is queued: a cancelled admission is not a retry
+        # counted once the attempt is queued: a canceled admission is not a retry
         self._stats.request_retried()
         return True
 
@@ -500,7 +506,7 @@ class RequestManager:
         self._task = asyncio.create_task(self._listen_queue())
 
     async def _listen_queue(self):
-        """Process requests from the queue using the rate limiter."""
+        "Feed queued attempts to the rate limiter until nothing is left anywhere to run."
         while (
             not self._initialized
             or len(self._scheduler) > 0
@@ -522,7 +528,7 @@ class RequestManager:
             try:
                 await asyncio.shield(self._rate_limiter_manager(attempt))
             except asyncio.CancelledError:
-                logger.debug("Queue listener cancelled")
+                logger.debug("Queue listener canceled")
                 break
 
         self._completed.set()

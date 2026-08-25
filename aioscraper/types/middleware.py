@@ -4,23 +4,22 @@ from .session import Request, Response
 
 
 class RequestHandler(Protocol):
-    """Callable that processes a request through the middleware chain.
+    """The ``call_next`` a middleware is handed: the rest of the chain, down to the HTTP dispatch.
 
-    Returns the response on success. Returns ``None`` when the chain handled
-    the request internally (e.g. retry scheduled) and the orchestrator should
-    skip the callback. Raises to route the failure to the request errback.
+    Returns the response, or ``None`` when a middleware below handled the request itself and the
+    callback is to be skipped. Raises what dispatch or a middleware raised, which reaches the
+    errback unless the retry policy takes the request back first.
     """
 
     async def __call__(self, request: Request) -> Response | None: ...
 
 
 class RequestMiddleware(Protocol):
-    """Async middleware wrapping the request handler chain.
+    """One layer around the request dispatch.
 
-    Implementations may modify the request before invoking ``call_next``,
-    short-circuit by not calling it, inspect the returned response, or catch
-    exceptions. Return ``None`` to signal that the request was handled
-    internally and the orchestrator should skip the callback.
+    Change the request before awaiting ``call_next``, look at the response after, catch what it
+    raises, or skip it entirely. Returning ``None`` says the request was handled here: neither the
+    callback nor the errback runs for that attempt.
     """
 
     async def __call__(
