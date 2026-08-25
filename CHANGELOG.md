@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 (2026-08-25)
 
 ### Added
 - `RateLimitConfig.group_concurrency` (`SESSION_RATE_LIMIT_GROUP_CONCURRENCY`), a cap on one rate limit group's requests in flight. `scheduler.concurrent_requests` is a single global limit, so requests waiting on a slow host held slots every other group would otherwise use, and the limit had to be sized for the slowest target. The cap is applied at admission: a group hands the scheduler at most that many attempts and releases the next when a request finishes, so an attempt waiting on its group holds no scheduler slot. Not a reservation — groups still draw from the same `concurrent_requests`. Requires `per_group`, `0` for no ceiling.
