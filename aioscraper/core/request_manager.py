@@ -247,7 +247,6 @@ class RequestManager:
             self._pending_slots,
             wait_for_slot=False,
         )
-        # a registered dependency wins, as for the entrypoints; the executor already warned
         self._dependencies: dict[str, Any] = {
             "schedule_request": self._job_sender,
             # deprecated alias of schedule_request, removed in 1.0

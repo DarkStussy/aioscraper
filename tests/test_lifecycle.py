@@ -260,7 +260,7 @@ async def test_wait_in_flight_is_not_cancelled_by_close():
 
 
 async def test_wait_with_zero_does_not_take_the_configured_timeout():
-    """0 means check now; the config timeout is None by default, so it would never return."""
+    """0 gives the run no time; the config timeout is None by default, so it would never return."""
 
     async def run():
         await asyncio.Event().wait()

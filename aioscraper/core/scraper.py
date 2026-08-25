@@ -284,7 +284,9 @@ class AIOScraper:
 
         Args:
             timeout (float | None): Overrides ``execution.timeout`` for this call; ``None`` takes
-                it, and ``0`` checks without waiting. It bounds the run, not teardown.
+                it. It bounds the run, not teardown. ``0`` gives the run no time at all, so an
+                unfinished one is cancelled and reported as timed out; :attr:`result` is the read
+                that leaves it running.
 
         Returns:
             RunResult: What the run recorded, including whether the timeout expired.

@@ -120,7 +120,7 @@ Rules
 
 4. **Nothing matched**: an unmatched parameter is left out of the call, so give it a default unless you mean the call to fail.
 
-5. **Reserved names**: ``request``, ``response``, ``exc``, ``schedule_request``, ``send_request`` and ``pipeline`` are the framework's. ``add_dependencies`` raises ``ValueError`` on them, and so does a ``Request`` whose ``cb_kwargs`` takes one of the first three. ``config`` is the exception: registering it replaces the framework's for the whole run. Between the two that are yours to fill, ``cb_kwargs`` wins over a dependency of the same name, being the per-request one.
+5. **Reserved names**: ``request``, ``response``, ``exc``, ``schedule_request``, ``send_request`` and ``pipeline`` are the framework's. ``add_dependencies`` raises ``ValueError`` on them, and so does a ``Request`` whose ``cb_kwargs`` takes one of the first three. ``config`` is the exception: registering it replaces the framework's for the whole run. Precedence, highest to lowest: framework callback arguments, ``cb_kwargs``, injected dependencies.
 
 Registering in a lifespan is what ties setup to teardown; see :doc:`lifespan`. In tests, ``add_dependencies`` is also how you swap a client for a fake:
 
