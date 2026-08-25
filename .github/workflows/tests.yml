@@ -129,6 +129,81 @@ jobs:
       - name: Run tests
         run: uv run --python 3.11 --no-sync pytest -q
 
+  extras:
+    name: Install (${{ matrix.extra || 'no backend' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        extra:
+          - ""
+          - "aiohttp"
+          - "httpx"
+          - "httpx2"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      # Every other job installs all three backends together, where an import of one leaking
+      # outside its own module goes unnoticed.
+      - name: Install
+        env:
+          EXTRA: ${{ matrix.extra }}
+        run: |
+          uv venv --python 3.11 "${RUNNER_TEMP}/extra-env"
+          uv pip install --python "${RUNNER_TEMP}/extra-env/bin/python" ".${EXTRA:+[$EXTRA]}"
+
+      # -I keeps the checkout off sys.path, so this exercises the installed package.
+      - name: Check what the install can and cannot do
+        env:
+          EXTRA: ${{ matrix.extra }}
+        run: |
+          "${RUNNER_TEMP}/extra-env/bin/python" -I - <<'PY'
+          import os
+
+          import aioscraper
+          from aioscraper.config import SessionConfig
+          from aioscraper.core.session.factory import get_sessionmaker
+          from aioscraper.exceptions import AIOScraperException
+
+          extra = os.environ["EXTRA"]
+
+          for backend in ("aiohttp", "httpx", "httpx2"):
+              if backend == extra:
+                  continue
+
+              try:
+                  __import__(backend)
+              except ModuleNotFoundError:
+                  continue
+
+              raise SystemExit(f"{backend} is installed, but no extra asked for it")
+
+          if extra:
+              get_sessionmaker(SessionConfig())
+              get_sessionmaker(SessionConfig(http_backend=extra))
+              print(f"{extra}: auto-detected and selected explicitly")
+          else:
+              try:
+                  get_sessionmaker(SessionConfig())
+              except AIOScraperException as exc:
+                  print(f"no backend: {exc}")
+              else:
+                  raise SystemExit("an install without extras must not resolve a backend")
+
+          print(aioscraper.__all__)
+          PY
+          "${RUNNER_TEMP}/extra-env/bin/aioscraper" --help
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
