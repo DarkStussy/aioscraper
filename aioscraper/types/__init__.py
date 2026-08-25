@@ -8,7 +8,7 @@ from .pipeline import (
     PipelineMiddleware,
     PipelineMiddlewareStage,
 )
-from .scraper import GroupBy, Scraper, ShouldRetry
+from .scraper import GroupBy, GroupPolicy, Scraper, ShouldRetry
 from .session import (
     BasicAuth,
     File,
@@ -29,6 +29,7 @@ __all__ = (
     "GlobalPipelineMiddleware",
     "GlobalPipelineMiddlewareFactory",
     "GroupBy",
+    "GroupPolicy",
     "ItemHandler",
     "Pipeline",
     "PipelineMiddleware",

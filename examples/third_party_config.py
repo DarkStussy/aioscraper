@@ -49,15 +49,19 @@ import dature
 from aioscraper import AIOScraper, Request, Response, ScheduleRequest, run_scraper
 from aioscraper.config import Config
 from aioscraper.config.converters import parse_exception, parse_ssl
+from aioscraper.types import GroupPolicy
 
 # the two fields a file can only name, not hold
 TYPE_LOADERS = {ssl.SSLContext: parse_ssl, type[BaseException]: parse_exception}
 TEAPOT = 418
 
 
-def group_by(request: Request) -> tuple[str, float]:
-    "Pace the API twice as fast as everything else."
-    return ("api", 0.1) if "/api/" in request.url else ("web", 0.25)
+def group_by(request: Request) -> GroupPolicy:
+    "Pace the API twice as fast as everything else, and keep it to 8 requests at a time."
+    if "/api/" in request.url:
+        return GroupPolicy(key="api", interval=0.1, concurrency=8)
+
+    return GroupPolicy(key="web", interval=0.25)
 
 
 def should_retry(request: Request, exc: Exception, retries: int) -> bool | None:

@@ -3,6 +3,7 @@ import logging
 import sys
 from contextlib import suppress
 from dataclasses import dataclass
+from functools import partial
 from time import monotonic
 from typing import Any, Awaitable, Callable, Hashable, Self
 
@@ -10,7 +11,7 @@ from yarl import URL
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.exceptions import ConnectionFailed, TransportTimeout
-from aioscraper.types import GroupBy
+from aioscraper.types import GroupBy, GroupPolicy
 from aioscraper.types.session import Attempt, Request
 
 from .errors import ErrorCollector
@@ -210,11 +211,11 @@ class AdaptiveStrategy:
         return False
 
 
-def default_group_by_factory(default_interval: float) -> Callable[[Request], tuple[Hashable, float]]:
-    "Group requests by hostname, every group at the same interval."
+def default_group_by_factory(default_interval: float) -> GroupBy:
+    "Group requests by hostname, every group at the same interval and the configured ceiling."
 
-    def _group_by(request: Request) -> tuple[Hashable, float]:
-        return URL(request.url).host or "unknown", default_interval
+    def _group_by(request: Request) -> GroupPolicy:
+        return GroupPolicy(key=URL(request.url).host or "unknown", interval=default_interval)
 
     return _group_by
 
@@ -226,6 +227,10 @@ class RequestGroup:
     between them, so the requests of a group never overlap in dispatch. The worker exits once the
     group has been idle for ``cleanup_timeout``, and the manager drops the group with it.
 
+    With a ``concurrency`` ceiling the worker takes a permit before handing an attempt off, and
+    blocks while the group has that many in flight. Held back here, at admission, rather than
+    inside the request job: an attempt waiting on a permit occupies no scheduler slot.
+
     Args:
         key (Hashable): What the requests were grouped by, a hostname by default.
         interval (float): Seconds to wait after handing off one attempt.
@@ -234,6 +239,7 @@ class RequestGroup:
         schedule (Callable[[Attempt], Awaitable[None]]): Hands an attempt to the scheduler.
         on_finished (Callable[[Hashable, RequestGroup], None]): Called when the worker stops, idle
             or crashed.
+        concurrency (int): Ceiling on the group's requests in flight; ``0`` for no ceiling.
     """
 
     def __init__(
@@ -244,6 +250,7 @@ class RequestGroup:
         schedule: Callable[[Attempt], Awaitable[None]],
         on_finished: Callable[[Hashable, "RequestGroup"], None],
         error_collector: ErrorCollector | None = None,
+        concurrency: int = 0,
     ):
         self._key = key
         self._interval = interval
@@ -253,6 +260,12 @@ class RequestGroup:
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._queue: asyncio.PriorityQueue[Attempt] = asyncio.PriorityQueue()
         self._task: asyncio.Task[None] | None = None
+        self._concurrency = concurrency
+        self._permits = asyncio.Semaphore(concurrency) if concurrency else None
+        self._in_flight = 0
+        # keyed by identity: Attempt orders by priority, so equal attempts are not the same one
+        self._admitted: dict[int, Attempt] = {}
+        self._admission: asyncio.Task[None] | None = None
 
     @property
     def key(self) -> Hashable:
@@ -260,8 +273,17 @@ class RequestGroup:
 
     @property
     def active(self) -> bool:
-        "Whether anything is still queued. An attempt already handed off does not count."
-        return not self._queue.empty()
+        "Whether anything is still queued or in flight."
+        return not self._queue.empty() or self._in_flight > 0
+
+    @property
+    def in_flight(self) -> int:
+        "Attempts handed off and not yet finished, plus the one the worker is admitting."
+        return self._in_flight
+
+    @property
+    def concurrency(self) -> int:
+        return self._concurrency
 
     @property
     def interval(self) -> float:
@@ -290,13 +312,37 @@ class RequestGroup:
         self._task.add_done_callback(self._on_task_done_factory())
 
     async def close(self):
-        "Cancel the worker and wait for it to settle. Anything still queued is dropped."
+        """Cancel the worker and settle what it was admitting. Anything still queued is dropped.
+
+        A closed group holds no permits, including for a job the scheduler accepted but cancelled
+        before it could run.
+        """
         if self._task is None:
             return
 
         self._task.cancel()
         with suppress(asyncio.CancelledError):
             await self._task
+
+        await self._settle_admission()
+
+        for attempt in tuple(self._admitted.values()):
+            attempt.release_permit()
+
+    async def _settle_admission(self):
+        "Finish the hand-off the cancelled worker left running, so no coroutine is left unawaited."
+        admission, self._admission = self._admission, None
+        if admission is None:
+            return
+
+        admission.cancel()
+        try:
+            await admission
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.exception("Rate limiter scheduler failed for %r while closing", self._key)
+            self._error_collector.record("rate_limiter", exc)
 
     async def _listen_queue(self):
         while True:
@@ -306,8 +352,10 @@ class RequestGroup:
                 async with asyncio.timeout(self._cleanup_timeout):
                     attempt = await self._queue.get()
             except asyncio.TimeoutError:
-                # something may have been queued while the timeout was firing
-                if not self._queue.empty():
+                # something may have been queued while the timeout was firing; collecting a group
+                # with requests in flight would hand the next group of that key a full ceiling
+                # beside them
+                if not self._queue.empty() or self._in_flight:
                     continue
 
                 self._on_finished(self._key, self)
@@ -317,13 +365,56 @@ class RequestGroup:
             if attempt.request.url == "stub":
                 break
 
+            await self._acquire_permit(attempt)
+
+            # kept on the group: the shield leaves it running when the worker is cancelled, and
+            # close() has to settle it
+            admission = asyncio.ensure_future(self._schedule(attempt))
+            self._admission = admission
+
             try:
-                await asyncio.shield(self._schedule(attempt))
+                await asyncio.shield(admission)
             except Exception as exc:
                 logger.exception("Rate limiter scheduler failed for %r", self._key)
                 self._error_collector.record("rate_limiter", exc)
+                # the job never started, so nothing downstream will give the permit back
+                attempt.release_permit()
+
+            # skipped when the worker is cancelled, leaving close() the admission to settle
+            self._admission = None
 
             await asyncio.sleep(self._interval)
+
+    async def _acquire_permit(self, attempt: Attempt):
+        "Take the group's permit for this attempt, waiting while the group is at its ceiling."
+        # Counted and reclaimable from here rather than from the acquire below: an attempt
+        # waiting for a permit sits in no queue and no scheduler, so a run that cannot see it
+        # declares itself finished.
+        self._in_flight += 1
+        self._admitted[id(attempt)] = attempt
+        attempt.permit_release = partial(self._drop_attempt, attempt)
+
+        if self._permits is not None:
+            if self._permits.locked():
+                logger.debug(
+                    "Rate limit group %r at its concurrency ceiling of %d, waiting for a permit",
+                    self._key,
+                    self._concurrency,
+                )
+
+            await self._permits.acquire()
+
+        attempt.permit_release = partial(self._release_permit, attempt)
+
+    def _drop_attempt(self, attempt: Attempt):
+        "Let go of an attempt that never got as far as taking a permit."
+        self._admitted.pop(id(attempt), None)
+        self._in_flight -= 1
+
+    def _release_permit(self, attempt: Attempt):
+        self._drop_attempt(attempt)
+        if self._permits is not None:
+            self._permits.release()
 
     def _on_task_done_factory(self) -> Callable[[asyncio.Task[None]], None]:
         def _on_task_done(task: asyncio.Task[None]):
@@ -356,8 +447,8 @@ class RateLimitManager:
             ``adaptive.inherit_retry_triggers`` is on.
         schedule (Callable[[Attempt], Awaitable[Any]]): Hands an attempt to the scheduler.
         error_collector (ErrorCollector | None): Records what a group's worker failed with.
-        group_by (GroupBy | None): Maps a request to its group key and that group's interval;
-            ``None`` groups by hostname at ``config.default_interval``.
+        group_by (GroupBy | None): Maps a request to its group key, that group's interval and its
+            concurrency ceiling; ``None`` groups by hostname at ``config.default_interval``.
     """
 
     def __init__(
@@ -373,6 +464,7 @@ class RateLimitManager:
         self._group_by = group_by or default_group_by_factory(config.default_interval)
         self._default_interval = config.default_interval
         self._cleanup_timeout = config.cleanup_timeout
+        self._group_concurrency = config.group_concurrency
         self._groups: dict[Hashable, RequestGroup] = {}
         self._enabled = config.per_group
         self._stopped = False
@@ -401,10 +493,12 @@ class RateLimitManager:
         if config.per_group:
             self._handle = self._handle_with_group
             logger.info(
-                "Rate limiting per group: grouping=%s, default_interval=%0.10g, cleanup_timeout=%0.10g",
+                "Rate limiting per group: grouping=%s, default_interval=%0.10g, cleanup_timeout=%0.10g, "
+                "group_concurrency=%s",
                 "custom" if group_by else "by hostname",
                 self._default_interval,
                 self._cleanup_timeout,
+                self._group_concurrency or "unlimited",
             )
         else:
             self._handle = self._handle_without_group
@@ -504,31 +598,61 @@ class RateLimitManager:
             group.set_intervals(interval=new_interval, cleanup_timeout=max(self._cleanup_timeout, new_interval * 2))
 
     async def _handle_with_group(self, attempt: Attempt):
-        group_key, interval = self._group_by(attempt.request)
+        group_key, interval, concurrency = self._group_by(attempt.request)
 
         # a custom group_by can hand back zero or less, which would spin the group's worker
         if interval <= 0:
             logger.debug("Adjusting invalid interval %.3f to 0.01s for group %r", interval, group_key)
             interval = 0.01
 
+        concurrency = self._resolve_concurrency(group_key, concurrency)
+
         if (group := self._groups.get(group_key)) is None:
-            group = self._groups[group_key] = self._create_group(group_key, interval)
+            group = self._groups[group_key] = self._create_group(group_key, interval, concurrency)
             logger.debug(
-                "Created rate limit group %r: interval=%0.10g, cleanup_timeout=%0.10g",
+                "Created rate limit group %r: interval=%0.10g, cleanup_timeout=%0.10g, concurrency=%d",
                 group_key,
                 interval,
                 self._cleanup_timeout,
+                concurrency,
             )
         else:
+            if concurrency != group.concurrency:
+                # resizing it under the requests already counted against it would let the group
+                # exceed both the old ceiling and the new one
+                logger.warning(
+                    "Rate limit group %r runs with concurrency=%d; the %d from group_by applies "
+                    "only to a group created later",
+                    group_key,
+                    group.concurrency,
+                    concurrency,
+                )
+
             logger.debug("Queueing request to existing group %r (interval=%0.3fs)", group_key, group.interval)
 
         await group.put(attempt)
+
+    def _resolve_concurrency(self, group_key: Hashable, concurrency: int | None) -> int:
+        "Fall back to the configured ceiling when none was asked for, or when the one asked for makes no sense."
+        if concurrency is None:
+            return self._group_concurrency
+
+        if concurrency < 0:
+            logger.warning(
+                "Invalid concurrency %d from group_by for group %r, using the configured %d",
+                concurrency,
+                group_key,
+                self._group_concurrency,
+            )
+            return self._group_concurrency
+
+        return concurrency
 
     async def _handle_without_group(self, attempt: Attempt):
         await self._schedule(attempt)
         await asyncio.sleep(self._default_interval)
 
-    def _create_group(self, key: Hashable, interval: float) -> RequestGroup:
+    def _create_group(self, key: Hashable, interval: float, concurrency: int) -> RequestGroup:
         group = RequestGroup(
             key=key,
             interval=interval,
@@ -536,6 +660,7 @@ class RateLimitManager:
             schedule=self._schedule,
             on_finished=self._on_group_finished,
             error_collector=self._error_collector,
+            concurrency=concurrency,
         )
         group.start_listening()
         return group

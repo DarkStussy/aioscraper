@@ -61,8 +61,10 @@ class AIOScraper:
             function that builds HTTP sessions (defaults to
             :func:`aioscraper.core.session.factory.get_sessionmaker`).
             Mutually exclusive with ``http_client``.
-        group_by (GroupBy | None): Maps a request to its rate limit group key and that group's
-            interval in seconds; ``None`` groups by hostname at
+        group_by (GroupBy | None): Maps a request to its rate limit group key, that group's
+            interval in seconds and its concurrency ceiling, as a
+            :class:`GroupPolicy <aioscraper.types.scraper.GroupPolicy>` or a plain tuple; ``None``
+            groups by hostname at
             :attr:`RateLimitConfig.default_interval <aioscraper.config.models.RateLimitConfig>`.
         should_retry (ShouldRetry | None): Decides a failure the retry config's
             ``statuses``/``exceptions`` cannot express, such as a marker in the error body;

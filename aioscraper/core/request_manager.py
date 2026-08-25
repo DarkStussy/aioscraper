@@ -192,7 +192,7 @@ class RequestManager:
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
         stats (RunStats | None): Counts attempts for the run's outcome.
         buffer_body (bool): Whether to read a body before the callback runs, unless the request says.
-        group_by (GroupBy | None): Maps a request to its rate limit group and interval.
+        group_by (GroupBy | None): Maps a request to its rate limit group, interval and ceiling.
         should_retry (ShouldRetry | None): Decides a failure the retry config cannot express.
     """
 
@@ -271,15 +271,28 @@ class RequestManager:
     def sender(self) -> ScheduleRequest:
         return self._request_sender
 
+    async def _run_attempt(self, attempt: Attempt):
+        """Run one attempt as a scheduler job.
+
+        Wraps the call rather than passing ``self._send_request(attempt)`` to
+        :func:`execute_coroutine` at the spawn: that builds the inner coroutine before the job is
+        accepted, and a job the scheduler never runs leaves it unawaited.
+        """
+        await execute_coroutine(
+            self._send_request(attempt),
+            on_error=partial(self._error_collector.record, "request"),
+        )
+
     async def _schedule(self, attempt: Attempt):
         "Hand an attempt to the scheduler and free the slot it held while queued."
+        job = self._run_attempt(attempt)
         try:
-            await self._scheduler.spawn(
-                execute_coroutine(
-                    self._send_request(attempt),
-                    on_error=partial(self._error_collector.record, "request"),
-                ),
-            )
+            await self._scheduler.spawn(job)
+        except BaseException:
+            # spawn rejects a closed scheduler before it wraps the coroutine in a job, so nothing
+            # will ever run it; closing it here keeps it from being reported unawaited
+            job.close()
+            raise
         finally:
             await self._pending_slots.release(attempt)
 
@@ -447,6 +460,10 @@ class RequestManager:
             self._stats.request_failed()
             logger.debug("Request exception: %s %s - %s: %s", request.method, url, type(exc).__name__, exc)
             await self._handle_exception(request, exc)
+        finally:
+            # Covers the same span as the scheduler slot, callback included, so that a group's
+            # ceiling means the same thing as its share of concurrent_requests.
+            attempt.release_permit()
 
     async def _callback(self, request: Request, response: Response):
         if request.callback is None:

@@ -6,12 +6,18 @@ import pytest
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import RateLimitManager, RequestGroup, default_group_by_factory
+from aioscraper.types import GroupPolicy
 from aioscraper.types.session import Attempt, Request
 
 
 @pytest.fixture
 def mock_schedule():
-    return AsyncMock()
+    "Stands in for the scheduler, with the request finishing at once and giving its permit back."
+
+    async def schedule(attempt: Attempt):
+        attempt.release_permit()
+
+    return AsyncMock(side_effect=schedule)
 
 
 @pytest.fixture
@@ -205,6 +211,207 @@ class TestRequestGroup:
         await group.close()
 
 
+class TestGroupConcurrency:
+    @staticmethod
+    def _held_schedule() -> tuple[AsyncMock, list[Attempt]]:
+        "A schedule that keeps every attempt in flight until the test finishes it by hand."
+        in_flight: list[Attempt] = []
+
+        async def schedule(attempt: Attempt):
+            in_flight.append(attempt)
+
+        return AsyncMock(side_effect=schedule), in_flight
+
+    @staticmethod
+    def _group(schedule, on_finished, concurrency: int, interval: float = 0.001) -> RequestGroup:
+        group = RequestGroup(
+            key="capped",
+            interval=interval,
+            cleanup_timeout=10.0,
+            schedule=schedule,
+            on_finished=on_finished,
+            concurrency=concurrency,
+        )
+        group.start_listening()
+        return group
+
+    @pytest.mark.asyncio
+    async def test_group_dispatches_no_more_than_its_ceiling(self, on_group_finished_factory):
+        """Test that a group hands off at most `concurrency` attempts before one finishes."""
+        schedule, in_flight = self._held_schedule()
+        group = self._group(schedule, on_group_finished_factory(), concurrency=2)
+
+        for priority in range(5):
+            await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 2
+
+        in_flight[0].release_permit()
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 3
+
+        in_flight[1].release_permit()
+        in_flight[2].release_permit()
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 5
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_group_without_ceiling_dispatches_everything(self, on_group_finished_factory):
+        """Test that concurrency=0 leaves the group unbounded."""
+        schedule, in_flight = self._held_schedule()
+        group = self._group(schedule, on_group_finished_factory(), concurrency=0)
+
+        for priority in range(5):
+            await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 5
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_permit_released_once_per_attempt(self, on_group_finished_factory):
+        """Test that releasing an attempt twice does not hand its group a permit out of thin air."""
+        schedule, in_flight = self._held_schedule()
+        group = self._group(schedule, on_group_finished_factory(), concurrency=1)
+
+        for priority in range(3):
+            await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 1
+
+        attempt = in_flight[0]
+        attempt.release_permit()
+        attempt.release_permit()
+        attempt.release_permit()
+
+        await asyncio.sleep(0.05)
+        # a permit per release would have let both remaining attempts through
+        assert len(in_flight) == 2
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_failed_schedule_gives_the_permit_back(self, on_group_finished_factory):
+        """Test that a schedule that raises does not cost the group a permit forever."""
+        scheduled: list[Attempt] = []
+
+        async def schedule(attempt: Attempt):
+            scheduled.append(attempt)
+            raise RuntimeError("spawn failed")
+
+        group = self._group(AsyncMock(side_effect=schedule), on_group_finished_factory(), concurrency=1)
+
+        for priority in range(3):
+            await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.1)
+
+        assert len(scheduled) == 3
+        assert group.in_flight == 0
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_group_stays_active_while_an_attempt_waits_for_a_permit(self, on_group_finished_factory):
+        """Test that a group holding a dispatched attempt is not idle, queue empty or not."""
+        schedule, in_flight = self._held_schedule()
+        group = self._group(schedule, on_group_finished_factory(), concurrency=1)
+
+        await group.put(Attempt(priority=1, request=Request(url="https://example.com/page")))
+        await group.put(Attempt(priority=2, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.05)
+
+        # one dispatched, one popped and waiting on the permit: nothing is left in the queue
+        assert group._queue.empty()
+        assert group.active
+
+        in_flight[0].release_permit()
+        await asyncio.sleep(0.05)
+        assert group.active
+
+        in_flight[1].release_permit()
+        await asyncio.sleep(0.05)
+        assert not group.active
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_idle_timeout_does_not_collect_a_group_in_flight(self):
+        """Test that a group is not retired while its requests are still running."""
+        finished: list[Hashable] = []
+        schedule, in_flight = self._held_schedule()
+
+        group = RequestGroup(
+            key="in-flight",
+            interval=0.001,
+            cleanup_timeout=0.05,
+            schedule=schedule,
+            on_finished=lambda key, _: finished.append(key),
+            concurrency=1,
+        )
+        group.start_listening()
+
+        await group.put(Attempt(priority=1, request=Request(url="https://example.com/page")))
+        await asyncio.sleep(0.2)
+
+        # well past the idle timeout, but the request has not come back yet
+        assert finished == []
+
+        in_flight[0].release_permit()
+        await asyncio.sleep(0.2)
+        # the idle branch and the worker's done callback both report it, and the manager dedupes
+        assert "in-flight" in finished
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_finished_attempts_let_the_next_ones_through(self, on_group_finished_factory):
+        """Test that released permits are handed straight to the attempts waiting behind them."""
+        schedule, in_flight = self._held_schedule()
+        group = self._group(schedule, on_group_finished_factory(), concurrency=2)
+
+        for priority in range(4):
+            await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 2
+
+        for attempt in tuple(in_flight):
+            attempt.release_permit()
+
+        await asyncio.sleep(0.05)
+        assert len(in_flight) == 4
+        assert group.in_flight == 2
+
+        await group.close()
+
+    @pytest.mark.asyncio
+    async def test_close_releases_what_the_group_still_holds(self, on_group_finished_factory):
+        """Test that close() reclaims the permits of attempts whose jobs never came back."""
+        schedule, in_flight = self._held_schedule()
+        group = self._group(schedule, on_group_finished_factory(), concurrency=2)
+
+        for priority in range(4):
+            await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
+
+        await asyncio.sleep(0.05)
+        # two dispatched and never finished, one held by the worker waiting for a permit
+        assert len(in_flight) == 2
+        assert group.in_flight == 3
+
+        await group.close()
+
+        assert group.in_flight == 0
+        assert group._permits is not None
+        assert group._permits._value == 2
+
+
 class TestRateLimitManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_groups_by_hostname(self, mock_schedule):
@@ -260,12 +467,12 @@ class TestRateLimitManager:
     async def test_rate_limiter_custom_group_by(self, mock_schedule):
         """Test rate limiter with custom group_by function."""
 
-        def custom_group_by(request: Request) -> tuple[Hashable, float]:
+        def custom_group_by(request: Request) -> GroupPolicy:
             # Group by path and use different intervals
             if "fast" in request.url:
-                return ("fast", 0.01)
+                return GroupPolicy("fast", 0.01)
 
-            return ("slow", 0.05)
+            return GroupPolicy("slow", 0.05)
 
         async with RateLimitManager(
             config=RateLimitConfig(per_group=True),
@@ -298,11 +505,11 @@ class TestRateLimitManager:
             call_times_by_group[group].append(asyncio.get_event_loop().time())
             await mock_schedule(attempt)
 
-        def custom_group_by(request: Request) -> tuple[Hashable, float]:
+        def custom_group_by(request: Request) -> GroupPolicy:
             if "fast" in request.url:
-                return ("fast", 0.02)
+                return GroupPolicy("fast", 0.02)
             else:
-                return ("slow", 0.1)
+                return GroupPolicy("slow", 0.1)
 
         async with RateLimitManager(
             config=RateLimitConfig(per_group=True),
@@ -387,11 +594,83 @@ class TestRateLimitManager:
         assert len(manager._groups) == 0
 
     @pytest.mark.asyncio
+    async def test_group_concurrency_comes_from_the_config(self, mock_schedule):
+        """Test that a group_by leaving concurrency unset takes the configured ceiling."""
+        async with RateLimitManager(
+            config=RateLimitConfig(per_group=True, default_interval=0.01, group_concurrency=4),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            await manager(Attempt(priority=1, request=Request(url="https://example.com/1")))
+
+            assert manager._groups["example.com"].concurrency == 4
+
+    @pytest.mark.asyncio
+    async def test_group_by_overrides_the_configured_concurrency(self, mock_schedule):
+        """Test that a policy naming its own concurrency wins over the config, zero included."""
+
+        def group_by(request: Request) -> GroupPolicy:
+            if "capped" in request.url:
+                return GroupPolicy("capped", 0.01, 2)
+
+            return GroupPolicy("uncapped", 0.01, 0)
+
+        async with RateLimitManager(
+            config=RateLimitConfig(per_group=True, group_concurrency=4),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+            group_by=group_by,
+        ) as manager:
+            await manager(Attempt(priority=1, request=Request(url="https://example.com/capped")))
+            await manager(Attempt(priority=2, request=Request(url="https://example.com/free")))
+
+            assert manager._groups["capped"].concurrency == 2
+            assert manager._groups["uncapped"].concurrency == 0
+
+    @pytest.mark.asyncio
+    async def test_invalid_concurrency_falls_back_to_the_config(self, mock_schedule, caplog):
+        """Test that a negative concurrency is reported and does not remove the ceiling."""
+
+        def group_by(request: Request) -> GroupPolicy:
+            return GroupPolicy("broken", 0.01, -5)
+
+        async with RateLimitManager(
+            config=RateLimitConfig(per_group=True, group_concurrency=4),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+            group_by=group_by,
+        ) as manager:
+            await manager(Attempt(priority=1, request=Request(url="https://example.com/1")))
+
+            assert manager._groups["broken"].concurrency == 4
+            assert "Invalid concurrency -5" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_concurrency_change_for_a_live_group_is_reported(self, mock_schedule, caplog):
+        """Test that a live group keeps its ceiling and says so."""
+        ceilings = iter((2, 8))
+
+        def group_by(request: Request) -> GroupPolicy:
+            return GroupPolicy("live", 0.01, next(ceilings))
+
+        async with RateLimitManager(
+            config=RateLimitConfig(per_group=True),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+            group_by=group_by,
+        ) as manager:
+            await manager(Attempt(priority=1, request=Request(url="https://example.com/1")))
+            await manager(Attempt(priority=2, request=Request(url="https://example.com/2")))
+
+            assert manager._groups["live"].concurrency == 2
+            assert "runs with concurrency=2" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_rate_limiter_zero_interval_adjusted_to_minimum(self, mock_schedule):
         """Test that zero or negative intervals are adjusted to minimum."""
 
-        def zero_interval_group_by(request: Request) -> tuple[Hashable, float]:
-            return ("zero", 0.0)
+        def zero_interval_group_by(request: Request) -> GroupPolicy:
+            return GroupPolicy("zero", 0.0)
 
         async with RateLimitManager(
             config=RateLimitConfig(per_group=True),
@@ -455,30 +734,33 @@ class TestDefaultGroupByFactory:
         group_by = default_group_by_factory(default_interval=0.3)
 
         request = Request(url="https://example.com/path?query=1")
-        key, interval = group_by(request)
+        key, interval, concurrency = group_by(request)
 
         assert key == "example.com"
         assert interval == 0.3
+        assert concurrency is None  # the default grouping defers to RateLimitConfig
 
     def test_default_group_by_handles_port_in_url(self):
         """Test that default group_by handles URLs with ports."""
         group_by = default_group_by_factory(default_interval=0.3)
 
         request = Request(url="https://example.com:8080/path")
-        key, interval = group_by(request)
+        key, interval, concurrency = group_by(request)
 
         assert key == "example.com"
         assert interval == 0.3
+        assert concurrency is None  # the default grouping defers to RateLimitConfig
 
     def test_default_group_by_handles_no_host(self):
         """Test that default group_by handles URLs without host."""
         group_by = default_group_by_factory(default_interval=0.3)
 
         request = Request(url="/relative/path")
-        key, interval = group_by(request)
+        key, interval, concurrency = group_by(request)
 
         assert key == "unknown"
         assert interval == 0.3
+        assert concurrency is None  # the default grouping defers to RateLimitConfig
 
     def test_default_group_by_groups_subdomains_separately(self):
         """Test that different subdomains create different groups."""
@@ -487,8 +769,8 @@ class TestDefaultGroupByFactory:
         request1 = Request(url="https://api.example.com/endpoint")
         request2 = Request(url="https://www.example.com/page")
 
-        key1, _ = group_by(request1)
-        key2, _ = group_by(request2)
+        key1, _, _ = group_by(request1)
+        key2, _, _ = group_by(request2)
 
         assert key1 == "api.example.com"
         assert key2 == "www.example.com"

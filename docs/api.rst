@@ -58,6 +58,7 @@ Session
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
 .. autoclass:: aioscraper.types.session.File
+.. autoclass:: aioscraper.types.scraper.GroupPolicy
 .. autodata:: aioscraper.types.scraper.GroupBy
 .. autodata:: aioscraper.types.scraper.ShouldRetry
 .. autofunction:: aioscraper.config.converters.parse_exception

@@ -63,6 +63,10 @@ class RateLimitConfig:
             An ``AIOScraper(group_by=...)`` of your own returns the interval itself, so this is not
             consulted; with ``per_group`` off it is the flat delay between all requests.
         cleanup_timeout (float): Idle time after which a group is dropped.
+        group_concurrency (int): Ceiling on one group's requests in flight, ``0`` for no ceiling.
+            Not a reservation: groups still compete for ``SchedulerConfig.concurrent_requests``.
+            Requires ``per_group``; an ``AIOScraper(group_by=...)`` of your own can override it
+            per group.
         adaptive (AdaptiveRateLimitConfig | None): Adjust the intervals from how the requests
             actually go; ``None`` keeps them fixed. Requires ``per_group``, since it paces a group
             at a time.
@@ -71,12 +75,18 @@ class RateLimitConfig:
     per_group: bool = False
     default_interval: float = field(default=0.0, validator=RangeValidator(min_value=0.0))
     cleanup_timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.1))
+    group_concurrency: int = field(default=0, validator=RangeValidator(min_value=0))
     adaptive: AdaptiveRateLimitConfig | None = None
 
     def __post_init__(self):
         if self.adaptive is not None and not self.per_group:
             raise ConfigValidationError(
                 "RateLimitConfig.adaptive: needs per_group, since it paces a group at a time",
+            )
+
+        if self.group_concurrency and not self.per_group:
+            raise ConfigValidationError(
+                "RateLimitConfig.group_concurrency: needs per_group, since it limits one group at a time",
             )
 
 

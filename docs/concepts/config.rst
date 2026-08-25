@@ -267,7 +267,9 @@ Set :class:`SessionConfig.rate_limit <aioscraper.config.models.RateLimitConfig>`
 
 Rate limiting groups requests by a key (by default, the URL hostname) and enforces a minimum interval between requests within each group. This helps avoid overwhelming target servers and getting blocked.
 
-A group paces its requests; it does not get a share of the concurrency. ``scheduler.concurrent_requests`` is a single global limit, so requests waiting on a slow host hold slots that every other group would otherwise use. Size the limit for the slowest target, or run a scraper per target, to keep them apart.
+``group_concurrency`` caps how many requests of one group are in flight at once. Without it ``scheduler.concurrent_requests`` is a single global limit, so requests waiting on a slow host hold slots every other group would otherwise use, and the limit has to be sized for the slowest target.
+
+It is a ceiling, not a reservation. Groups still draw from the same ``scheduler.concurrent_requests`` and none is guaranteed a share: the cap stops one group from taking everything, but a group that arrives late can still find the scheduler full. Run a scraper per target when a target needs capacity held for it.
 
 .. code-block:: python
 
@@ -277,6 +279,7 @@ A group paces its requests; it does not get a share of the concurrency. ``schedu
        per_group=True,
        default_interval=0.5,  # 500ms between requests per host
        cleanup_timeout=60.0,  # Clean up idle groups after 60 seconds
+       group_concurrency=8,  # At most 8 requests of one host in flight
    )
 
 **Configuration options:**
@@ -284,6 +287,7 @@ A group paces its requests; it does not get a share of the concurrency. ``schedu
 - ``per_group``: Pace each group separately rather than the run as a whole (default: ``False``).
 - ``default_interval``: Delay in seconds between requests - within each group, or across the whole run when ``per_group`` is off (default: ``0.0``).
 - ``cleanup_timeout``: Timeout in seconds for cleaning up inactive request groups (default: ``60.0``).
+- ``group_concurrency``: Ceiling on one group's requests in flight, ``0`` for no ceiling (default: ``0``). Requires ``per_group``.
 - ``adaptive``: Enable :ref:`adaptive rate limiting <adaptive-rate-limiting>` (default: ``None``). Requires ``per_group``.
 
 ``per_group`` is not an on/off switch: ``default_interval`` applies either way, as one delay for the
@@ -293,9 +297,9 @@ whole run or as one per group.
 Custom grouping
 ~~~~~~~~~~~~~~~
 
-``group_by`` maps a request to its group key and that group's interval, so different domains or
-endpoints can be paced differently. It is code rather than configuration, so it goes to
-:class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` and not to ``RateLimitConfig`` - see
+``group_by`` maps a request to its group key, that group's interval and its concurrency ceiling, so
+different domains or endpoints can be paced differently. It is code rather than configuration, so it
+goes to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` and not to ``RateLimitConfig`` - see
 :ref:`hooks <config-hooks>`:
 
 .. code-block:: python
@@ -303,23 +307,26 @@ endpoints can be paced differently. It is code rather than configuration, so it 
    from yarl import URL
    from aioscraper import AIOScraper
    from aioscraper.config import Config, RateLimitConfig, SessionConfig
+   from aioscraper.types import GroupPolicy
 
 
    def custom_group_by(request):
       """Group by domain with custom intervals."""
       host = URL(request.url).host
       if host == "api.example.com":
-         return (host, 0.1)  # 100ms for API
+         return GroupPolicy(host, 0.1, 16)  # 100ms for API, 16 in flight
       elif host == "www.example.com":
-         return (host, 1.0)  # 1 second for website
+         return GroupPolicy(host, 1.0)  # 1 second for website
 
-      return (host, 0.5)  # 500ms default
+      return GroupPolicy(host, 0.5)  # 500ms default
 
 
    scraper = AIOScraper(
        config=Config(session=SessionConfig(rate_limit=RateLimitConfig(per_group=True))),
        group_by=custom_group_by,
    )
+
+A policy that leaves ``concurrency`` unset takes ``group_concurrency`` from the config; ``0`` asks for no ceiling on that group.
 
 When ``per_group=False`` (default), ``group_by`` is not consulted and ``default_interval`` becomes a single delay between all requests.
 

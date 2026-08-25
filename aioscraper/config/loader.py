@@ -75,6 +75,10 @@ def load_config() -> Config:
                     "SESSION_RATE_LIMIT_CLEANUP_TIMEOUT",
                     default_config.session.rate_limit.cleanup_timeout,
                 ),
+                group_concurrency=env.parse(
+                    "SESSION_RATE_LIMIT_GROUP_CONCURRENCY",
+                    default_config.session.rate_limit.group_concurrency,
+                ),
                 adaptive=(
                     AdaptiveRateLimitConfig(
                         min_interval=env.parse(

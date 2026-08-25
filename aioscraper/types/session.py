@@ -156,12 +156,23 @@ class Attempt:
         request (Request): The request to send.
         holds_slot (bool): Whether this entry reserved a scheduler admission slot.
         retries (int): How many times this request was already re-admitted by the retry policy.
+        permit_release (Callable[[], None] | None): Gives back the concurrency permit of the rate
+            limit group that admitted this attempt, when the group has a ceiling.
     """
 
     priority: float
     request: Request = field(compare=False)
     holds_slot: bool = field(default=False, compare=False)
     retries: int = field(default=0, compare=False)
+    permit_release: Callable[[], None] | None = field(default=None, compare=False)
+
+    def release_permit(self):
+        "Give the group's permit back, at most once for this attempt."
+        if self.permit_release is None:
+            return
+
+        release, self.permit_release = self.permit_release, None
+        release()
 
 
 class Response:
