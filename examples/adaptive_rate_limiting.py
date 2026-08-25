@@ -18,7 +18,7 @@ from aioscraper.types import Request, Response, ScheduleRequest
 # Configure adaptive rate limiting
 scraper = AIOScraper(
     config=Config(
-        SessionConfig(
+        session=SessionConfig(
             rate_limit=RateLimitConfig(
                 enabled=True,
                 # Base interval between requests (starting point)
