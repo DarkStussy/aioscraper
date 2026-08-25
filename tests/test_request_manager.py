@@ -411,7 +411,7 @@ async def test_queue_processes_requests():
     """Test that queue processes requests correctly."""
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
-        rate_limit_config=RateLimitConfig(enabled=False, default_interval=0.05),
+        rate_limit_config=RateLimitConfig(per_group=False, default_interval=0.05),
         retry_config=NO_RETRIES,
         shutdown_check_interval=0.01,
         sessionmaker=FakeSession,
@@ -493,7 +493,7 @@ async def test_url_with_params_is_parsed():
 
 def _adaptive_rate_limit_config() -> RateLimitConfig:
     return RateLimitConfig(
-        enabled=True,
+        per_group=True,
         default_interval=0.05,
         adaptive=AdaptiveRateLimitConfig(min_interval=0.001, max_interval=1.0, increase_factor=2.0),
     )

@@ -374,11 +374,11 @@ class RateLimitManager:
         self._default_interval = config.default_interval
         self._cleanup_timeout = config.cleanup_timeout
         self._groups: dict[Hashable, RequestGroup] = {}
-        self._enabled = config.enabled
+        self._enabled = config.per_group
         self._stopped = False
 
         self._adaptive_strategy: AdaptiveStrategy | None = None
-        if config.enabled and config.adaptive:
+        if config.per_group and config.adaptive:
             trigger_statuses = config.adaptive.custom_trigger_statuses
             trigger_exceptions = config.adaptive.custom_trigger_exceptions
 
@@ -398,10 +398,10 @@ class RateLimitManager:
                 respect_retry_after=config.adaptive.respect_retry_after,
             )
 
-        if config.enabled:
+        if config.per_group:
             self._handle = self._handle_with_group
             logger.info(
-                "Rate limiting enabled: grouping=%s, default_interval=%0.10g, cleanup_timeout=%0.10g",
+                "Rate limiting per group: grouping=%s, default_interval=%0.10g, cleanup_timeout=%0.10g",
                 "custom" if group_by else "by hostname",
                 self._default_interval,
                 self._cleanup_timeout,
@@ -410,7 +410,7 @@ class RateLimitManager:
             self._handle = self._handle_without_group
             if self._default_interval > 0:
                 logger.info(
-                    "Rate limiting disabled (no grouping), but default_interval=%0.10g will be applied",
+                    "Rate limiting across the run: default_interval=%0.10g",
                     self._default_interval,
                 )
 

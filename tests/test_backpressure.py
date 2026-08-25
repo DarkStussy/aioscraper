@@ -124,7 +124,7 @@ async def test_rate_limited_group_does_not_bypass_the_limit():
     """The rate limiter group queue is unbounded, so the slot must be held until the
     request reaches the scheduler, not released when it leaves the ready queue."""
     # A long interval keeps the group holding requests instead of draining them.
-    manager = _manager(max_pending=1, rate_limit_config=RateLimitConfig(enabled=True, default_interval=5.0))
+    manager = _manager(max_pending=1, rate_limit_config=RateLimitConfig(per_group=True, default_interval=5.0))
     manager.start_listening()
 
     accepted = 0

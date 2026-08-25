@@ -27,7 +27,7 @@ Write aioscraper.toml next to this file:
     ]
 
     [session.rate_limit]
-    enabled = true
+    per_group = true
     default_interval = 0.25
 
     [session.rate_limit.adaptive]

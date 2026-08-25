@@ -267,17 +267,20 @@ A group paces its requests; it does not get a share of the concurrency. ``schedu
    from aioscraper.config import RateLimitConfig
 
    rate_limit_config = RateLimitConfig(
-       enabled=True,
+       per_group=True,
        default_interval=0.5,  # 500ms between requests per host
        cleanup_timeout=60.0,  # Clean up idle groups after 60 seconds
    )
 
 **Configuration options:**
 
-- ``enabled``: Toggle rate limiting on or off (default: ``False``).
-- ``default_interval``: Default delay in seconds between requests within each group (default: ``0.0``).
+- ``per_group``: Pace each group separately rather than the run as a whole (default: ``False``).
+- ``default_interval``: Delay in seconds between requests - within each group, or across the whole run when ``per_group`` is off (default: ``0.0``).
 - ``cleanup_timeout``: Timeout in seconds for cleaning up inactive request groups (default: ``60.0``).
-- ``adaptive``: Enable :ref:`adaptive rate limiting <adaptive-rate-limiting>` (default: ``None``).
+- ``adaptive``: Enable :ref:`adaptive rate limiting <adaptive-rate-limiting>` (default: ``None``). Requires ``per_group``.
+
+``per_group`` is not an on/off switch: ``default_interval`` applies either way, as one delay for the
+whole run or as one per group.
 
 
 Custom grouping
@@ -307,11 +310,11 @@ endpoints can be paced differently. It is code rather than configuration, so it 
 
 
    scraper = AIOScraper(
-       config=Config(session=SessionConfig(rate_limit=RateLimitConfig(enabled=True))),
+       config=Config(session=SessionConfig(rate_limit=RateLimitConfig(per_group=True))),
        group_by=custom_group_by,
    )
 
-When ``enabled=False`` (default), group-based rate limiting is bypassed. However, if ``default_interval`` is set, it will still apply a simple delay between all requests without grouping logic.
+When ``per_group=False`` (default), ``group_by`` is not consulted and ``default_interval`` becomes a single delay between all requests.
 
 .. _adaptive-rate-limiting:
 
@@ -332,7 +335,7 @@ How it works:
    from aioscraper.config import RateLimitConfig, AdaptiveRateLimitConfig
 
    rate_limit_config = RateLimitConfig(
-       enabled=True,
+       per_group=True,  # required: adaptive paces a group at a time
        default_interval=0.1,  # Starting interval: 100ms
        adaptive=AdaptiveRateLimitConfig(
            min_interval=0.001,        # Min: 1ms (won't go below)

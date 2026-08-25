@@ -66,7 +66,7 @@ def load_config() -> Config:
                 methods=env.parse_tuple("SESSION_RETRY_METHODS", default_retry.methods),
             ),
             rate_limit=RateLimitConfig(
-                enabled=env.parse("SESSION_RATE_LIMIT_ENABLED", default_config.session.rate_limit.enabled),
+                per_group=env.parse("SESSION_RATE_LIMIT_PER_GROUP", default_config.session.rate_limit.per_group),
                 default_interval=env.parse(
                     "SESSION_RATE_LIMIT_INTERVAL",
                     default_config.session.rate_limit.default_interval,

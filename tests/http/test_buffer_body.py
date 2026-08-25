@@ -136,7 +136,7 @@ async def test_a_buffered_body_failure_reaches_the_rate_limiter(
     _configure(
         mock_aioscraper,
         retry=RequestRetryConfig(enabled=False),
-        rate_limit=RateLimitConfig(enabled=True, adaptive=AdaptiveRateLimitConfig()),
+        rate_limit=RateLimitConfig(per_group=True, adaptive=AdaptiveRateLimitConfig()),
     )
 
     async with mock_aioscraper:

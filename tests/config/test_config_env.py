@@ -124,3 +124,25 @@ def test_load_config_raises_on_invalid_proxy_url(monkeypatch):
 
     with pytest.raises(ExceptionGroup):
         load_config()
+
+
+def test_load_config_reads_per_group(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("SESSION_RATE_LIMIT_PER_GROUP", "true")
+    monkeypatch.setenv("SESSION_RATE_LIMIT_INTERVAL", "0.25")
+
+    config = load_config()
+
+    assert config.session.rate_limit.per_group is True
+    assert config.session.rate_limit.default_interval == 0.25
+
+
+def test_load_config_rejects_adaptive_without_per_group(monkeypatch: pytest.MonkeyPatch):
+    """The variables alone used to build an adaptive config the rate limiter then ignored."""
+    monkeypatch.setenv("SESSION_RATE_LIMIT_ADAPTIVE_ENABLED", "true")
+
+    with pytest.raises(ConfigValidationError, match="adaptive: needs per_group"):
+        load_config()
+
+    monkeypatch.setenv("SESSION_RATE_LIMIT_PER_GROUP", "true")
+
+    assert load_config().session.rate_limit.adaptive is not None

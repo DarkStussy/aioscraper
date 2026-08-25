@@ -210,7 +210,7 @@ class TestRateLimitManager:
     async def test_rate_limiter_groups_by_hostname(self, mock_schedule):
         """Test that rate limiter groups requests by hostname when enabled."""
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, default_interval=0.05),
+            config=RateLimitConfig(per_group=True, default_interval=0.05),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
@@ -239,7 +239,7 @@ class TestRateLimitManager:
             await mock_schedule(attempt)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=False, default_interval=default_interval),
+            config=RateLimitConfig(per_group=False, default_interval=default_interval),
             retry_config=RequestRetryConfig(),
             schedule=schedule_with_timing,
         ) as manager:
@@ -268,7 +268,7 @@ class TestRateLimitManager:
             return ("slow", 0.05)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True),
+            config=RateLimitConfig(per_group=True),
             group_by=custom_group_by,
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -305,7 +305,7 @@ class TestRateLimitManager:
                 return ("slow", 0.1)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True),
+            config=RateLimitConfig(per_group=True),
             group_by=custom_group_by,
             retry_config=RequestRetryConfig(),
             schedule=schedule_with_timing,
@@ -337,7 +337,7 @@ class TestRateLimitManager:
     @pytest.mark.asyncio
     async def test_rate_limiter_group_cleanup_after_idle(self, mock_schedule):
         """Test that idle groups are automatically cleaned up."""
-        config = RateLimitConfig(enabled=True, default_interval=0.01, cleanup_timeout=0.1)
+        config = RateLimitConfig(per_group=True, default_interval=0.01, cleanup_timeout=0.1)
         async with RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule) as manager:
             attempt = Attempt(priority=1, request=Request(url="https://example.com/page"))
             await manager(attempt)
@@ -352,7 +352,7 @@ class TestRateLimitManager:
     async def test_rate_limiter_active_property(self, mock_schedule):
         """Test the active property of RateLimitManager."""
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, default_interval=0.05),
+            config=RateLimitConfig(per_group=True, default_interval=0.05),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
@@ -374,7 +374,7 @@ class TestRateLimitManager:
     async def test_rate_limiter_close_shuts_down_all_groups(self, mock_schedule):
         """Test that closing rate limiter shuts down all groups."""
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, default_interval=0.01),
+            config=RateLimitConfig(per_group=True, default_interval=0.01),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
@@ -394,7 +394,7 @@ class TestRateLimitManager:
             return ("zero", 0.0)
 
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True),
+            config=RateLimitConfig(per_group=True),
             group_by=zero_interval_group_by,
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
@@ -410,7 +410,7 @@ class TestRateLimitManager:
     async def test_rate_limiter_handles_url_without_host(self, mock_schedule):
         """Test that rate limiter handles URLs without a host."""
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, default_interval=0.01),
+            config=RateLimitConfig(per_group=True, default_interval=0.01),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:
@@ -427,7 +427,7 @@ class TestRateLimitManager:
     async def test_rate_limiter_reuses_existing_groups(self, mock_schedule):
         """Test that rate limiter reuses existing groups for same host."""
         async with RateLimitManager(
-            config=RateLimitConfig(enabled=True, default_interval=0.01),
+            config=RateLimitConfig(per_group=True, default_interval=0.01),
             retry_config=RequestRetryConfig(),
             schedule=mock_schedule,
         ) as manager:

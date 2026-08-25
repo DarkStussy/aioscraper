@@ -6,7 +6,7 @@ from enum import StrEnum, auto
 from http import HTTPMethod
 from typing import Callable
 
-from aioscraper.exceptions import ConnectionFailed, TransportTimeout
+from aioscraper.exceptions import ConfigValidationError, ConnectionFailed, TransportTimeout
 from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, DEFAULT_MAX_RESPONSE_BODY_SIZE
 
 from .field_validators import CustomValidator, ProxyValidator, RangeValidator
@@ -57,20 +57,27 @@ class RateLimitConfig:
     """How requests are spaced out, per group of related targets.
 
     Args:
-        enabled (bool): Group requests and pace each group separately. Off by default, in which
-            case ``default_interval`` still applies, but to the whole run rather than per group.
+        per_group (bool): Pace each group separately rather than the run as a whole. Off by default,
+            and ``default_interval`` applies in both cases.
         default_interval (float): Seconds between requests under the built-in hostname grouping.
             An ``AIOScraper(group_by=...)`` of your own returns the interval itself, so this is not
-            consulted; with ``enabled`` off it becomes a flat delay between all requests.
+            consulted; with ``per_group`` off it is the flat delay between all requests.
         cleanup_timeout (float): Idle time after which a group is dropped.
         adaptive (AdaptiveRateLimitConfig | None): Adjust the intervals from how the requests
-            actually go; ``None`` keeps them fixed.
+            actually go; ``None`` keeps them fixed. Requires ``per_group``, since it paces a group
+            at a time.
     """
 
-    enabled: bool = False
+    per_group: bool = False
     default_interval: float = field(default=0.0, validator=RangeValidator(min_value=0.0))
     cleanup_timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.1))
     adaptive: AdaptiveRateLimitConfig | None = None
+
+    def __post_init__(self):
+        if self.adaptive is not None and not self.per_group:
+            raise ConfigValidationError(
+                "RateLimitConfig.adaptive: needs per_group, since it paces a group at a time",
+            )
 
 
 class BackoffStrategy(StrEnum):

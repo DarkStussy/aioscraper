@@ -170,8 +170,8 @@ For production use, configure retries, rate limiting, and concurrency via enviro
    # Retries are on by default; tune or turn them off
    export SESSION_RETRY_ATTEMPTS=3
 
-   # Enable rate limiting
-   export SESSION_RATE_LIMIT_ENABLED=true
+   # Pace each host separately
+   export SESSION_RATE_LIMIT_PER_GROUP=true
    export SESSION_RATE_LIMIT_INTERVAL=1.0
 
    # Set concurrency

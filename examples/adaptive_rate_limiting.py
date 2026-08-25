@@ -20,7 +20,7 @@ scraper = AIOScraper(
     config=Config(
         session=SessionConfig(
             rate_limit=RateLimitConfig(
-                enabled=True,
+                per_group=True,
                 # Base interval between requests (starting point)
                 default_interval=0.5,
                 # Enable adaptive rate limiting

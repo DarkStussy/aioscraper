@@ -132,7 +132,7 @@ Retry behavior (:ref:`docs <retry-config>`).
 
 Rate limiting behavior (:ref:`docs <rate-limit-config>`).
 
-- ``SESSION_RATE_LIMIT_ENABLED`` → ``enabled``
+- ``SESSION_RATE_LIMIT_PER_GROUP`` → ``per_group``
 - ``SESSION_RATE_LIMIT_INTERVAL`` → ``default_interval``
 - ``SESSION_RATE_LIMIT_CLEANUP_TIMEOUT`` → ``cleanup_timeout``
 
@@ -141,7 +141,10 @@ Rate limiting behavior (:ref:`docs <rate-limit-config>`).
 
 Adaptive rate limiting (EWMA + AIMD) (:ref:`docs <adaptive-rate-limiting>`).
 
-Set ``SESSION_RATE_LIMIT_ADAPTIVE_ENABLED=true`` to enable and configure other parameters.
+Set ``SESSION_RATE_LIMIT_ADAPTIVE_ENABLED=true`` to enable and configure other parameters. It needs
+``SESSION_RATE_LIMIT_PER_GROUP=true`` as well, since adaptive paces a group at a time; without it
+:func:`load_config <aioscraper.config.loader.load_config>` raises
+:class:`ConfigValidationError <aioscraper.exceptions.ConfigValidationError>`.
 
 - ``SESSION_RATE_LIMIT_ADAPTIVE_MIN_INTERVAL`` → ``min_interval``
 - ``SESSION_RATE_LIMIT_ADAPTIVE_MAX_INTERVAL`` → ``max_interval``

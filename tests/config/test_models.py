@@ -226,7 +226,7 @@ class TestRateLimitConfig:
     def test_creates_with_defaults(self):
         config = RateLimitConfig()
 
-        assert config.enabled is False
+        assert config.per_group is False
         assert config.default_interval == 0.0
         assert config.cleanup_timeout == 60.0
         assert config.adaptive is None
@@ -241,9 +241,14 @@ class TestRateLimitConfig:
 
     def test_accepts_adaptive_config(self):
         adaptive = AdaptiveRateLimitConfig(min_interval=0.1)
-        config = RateLimitConfig(adaptive=adaptive)
+        config = RateLimitConfig(per_group=True, adaptive=adaptive)
 
         assert config.adaptive == adaptive
+
+    def test_rejects_adaptive_without_per_group(self):
+        """Without grouping there is nothing for it to pace, and it was ignored silently."""
+        with pytest.raises(ConfigValidationError, match="adaptive: needs per_group"):
+            RateLimitConfig(adaptive=AdaptiveRateLimitConfig())
 
 
 class TestSchedulerConfig:

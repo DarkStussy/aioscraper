@@ -259,7 +259,7 @@ class TestAdaptiveRateLimiterIntegration:
                 raise exc
 
         config = RateLimitConfig(
-            enabled=True,
+            per_group=True,
             default_interval=0.05,
             cleanup_timeout=2.0,
             adaptive=AdaptiveRateLimitConfig(
@@ -318,7 +318,7 @@ class TestAdaptiveRateLimiterIntegration:
                 raise exc
 
         config = RateLimitConfig(
-            enabled=True,
+            per_group=True,
             default_interval=0.01,
             adaptive=AdaptiveRateLimitConfig(respect_retry_after=True),
         )
@@ -350,7 +350,7 @@ class TestAdaptiveRateLimiterIntegration:
         )
 
         config = RateLimitConfig(
-            enabled=True,
+            per_group=True,
             default_interval=0.01,
             adaptive=AdaptiveRateLimitConfig(inherit_retry_triggers=True),
         )
@@ -373,7 +373,7 @@ class TestAdaptiveRateLimiterIntegration:
         async def mock_schedule(attempt: Attempt):
             call_times.append(asyncio.get_event_loop().time())
 
-        config = RateLimitConfig(enabled=True, default_interval=0.05)
+        config = RateLimitConfig(per_group=True, default_interval=0.05)
 
         manager = RateLimitManager(config, retry_config=RequestRetryConfig(), schedule=mock_schedule)
 
@@ -458,7 +458,7 @@ async def test_adaptive_rate_limiting_full_flow(mock_aioscraper: MockAIOScraper)
     mock_aioscraper.config = Config(
         session=SessionConfig(
             rate_limit=RateLimitConfig(
-                enabled=True,
+                per_group=True,
                 default_interval=0.05,  # Start with 50ms
                 adaptive=AdaptiveRateLimitConfig(
                     min_interval=0.01,
