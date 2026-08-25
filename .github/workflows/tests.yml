@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/tests.yml"
       - "aioscraper/**"
+      - "examples/**"
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -19,6 +20,7 @@ on:
     paths:
       - ".github/workflows/tests.yml"
       - "aioscraper/**"
+      - "examples/**"
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -27,7 +29,37 @@ on:
       - "pyrightconfig.json"
   workflow_call:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --python 3.11
+
+      - name: Lint code
+        run: |
+          uv run --python 3.11 --no-sync ruff check --output-format=github aioscraper examples tests
+          uv run --python 3.11 --no-sync ruff format --check --diff aioscraper tests
+
   tests:
     strategy:
       fail-fast: false
@@ -65,11 +97,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --python ${{ matrix.python-version }} --extra aiohttp --extra httpx --extra httpx2
 
-      - name: Lint code
-        run: |
-          uv run --python ${{ matrix.python-version }} ruff check --output-format=github aioscraper examples tests
-          uv run --python ${{ matrix.python-version }} basedpyright aioscraper tests
-          uv run --python ${{ matrix.python-version }} ruff format --check --diff aioscraper tests
+      - name: Type check
+        run: uv run --python ${{ matrix.python-version }} basedpyright aioscraper tests
 
       - name: Run tests
         run: uv run --python ${{ matrix.python-version }} pytest -v
