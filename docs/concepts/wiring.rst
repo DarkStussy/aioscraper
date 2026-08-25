@@ -120,7 +120,7 @@ Rules
 
 4. **Nothing matched**: an unmatched parameter is left out of the call, so give it a default unless you mean the call to fail.
 
-5. **Your name wins**: ``add_dependencies(pipeline=...)`` replaces the framework's for the whole run. Overriding ``config`` is the supported case; shadowing ``pipeline``, ``schedule_request`` or ``send_request`` is logged as a warning, since callbacks then get your value instead of the machinery.
+5. **Reserved names**: ``request``, ``response``, ``exc``, ``schedule_request``, ``send_request`` and ``pipeline`` are the framework's. ``add_dependencies`` raises ``ValueError`` on them, and so does a ``Request`` whose ``cb_kwargs`` takes one of the first three. ``config`` is the exception: registering it replaces the framework's for the whole run. Between the two that are yours to fill, ``cb_kwargs`` wins over a dependency of the same name, being the per-request one.
 
 Registering in a lifespan is what ties setup to teardown; see :doc:`lifespan`. In tests, ``add_dependencies`` is also how you swap a client for a fake:
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **BREAKING:** `add_dependencies` raises `ValueError` for a name the framework injects — `request`, `response`, `exc`, `schedule_request`, `send_request`, `pipeline` — instead of overriding it. `config` stays overridable. 0.15.0 gave the first three no warning at all and crashed each request with `TypeError: got multiple values for keyword argument`, since they are passed at the call site rather than merged in; the other three were logged and silently swapped the machinery out. The check also runs when the run starts, before anything is wired, for a name written straight into `AIOScraper.dependencies`.
+- **BREAKING:** `Request` raises `ValueError` when `cb_kwargs` takes `request`, `response` or `exc`. That entry never reached the callback and crashed the request instead.
+- A `cb_kwargs` entry named like a registered dependency now wins over it rather than raising `TypeError`. Callback arguments are built into one mapping instead of unpacked from three at the call, so the precedence is fixed: framework, then `cb_kwargs`, then dependencies.
+
 ## 0.15.0 (2026-08-25)
 
 ### Added

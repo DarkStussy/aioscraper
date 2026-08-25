@@ -6,6 +6,7 @@ from logging import getLogger
 from types import TracebackType
 from typing import Any, AsyncGenerator, Callable, Mapping, Self
 
+from aioscraper._helpers.deps import RESERVED_DEPENDENCIES, reject_reserved
 from aioscraper._helpers.log import get_log_name
 from aioscraper.config import Config, load_config
 from aioscraper.holders import MiddlewareHolder, PipelineHolder
@@ -119,7 +120,11 @@ class AIOScraper:
     def add_dependencies(self, **kwargs: Any):
         """Register objects injected by parameter name into scrapers, callbacks, errbacks and
         middleware factories. A pipeline gets what its own constructor was given, nothing more.
+
+        Raises:
+            ValueError: A name is one the framework injects. Only ``config`` may be replaced.
         """
+        reject_reserved(kwargs, RESERVED_DEPENDENCIES, "Dependency names")
         self.dependencies.update(kwargs)
 
     def lifespan(self, lifespan: Lifespan) -> Lifespan:
@@ -220,6 +225,8 @@ class AIOScraper:
         self._state = _State.RUNNING
 
     async def _run(self):
+        # before anything is wired: the pipeline middleware factories are handed the same mapping
+        reject_reserved(self.dependencies, RESERVED_DEPENDENCIES, "Dependency names")
         # built here rather than in __init__: the config can still be replaced until the run starts
         self._error_collector = ErrorCollector(self.config.execution.max_retained_errors)
         executor = ScraperExecutor(

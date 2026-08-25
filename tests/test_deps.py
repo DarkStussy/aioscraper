@@ -1,9 +1,8 @@
-import logging
-
 import pytest
 
+from aioscraper import AIOScraper
+from aioscraper._helpers.deps import CALLBACK_ARGUMENTS, RESERVED_DEPENDENCIES
 from aioscraper._helpers.func import compiled, get_func_kwargs
-from aioscraper.core.executor import merge_dependencies
 from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper
 
@@ -39,49 +38,71 @@ async def test_dependencies(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.assert_all_routes_handled()
 
 
+@pytest.mark.parametrize("name", sorted(RESERVED_DEPENDENCIES))
+def test_add_dependencies_rejects_a_reserved_name(name: str):
+    with pytest.raises(ValueError, match=f"Dependency names reserved by the framework: {name}"):
+        AIOScraper().add_dependencies(**{name: "registered"})
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name", ["schedule_request", "send_request", "config", "pipeline"])
-async def test_a_registered_dependency_shadows_the_framework_one(mock_aioscraper: MockAIOScraper, name: str):
-    """A reserved name must reach the entrypoint as the registered value, not crash the run."""
+async def test_config_stays_overridable(mock_aioscraper: MockAIOScraper):
     captured = {}
 
-    async def scraper(
-        schedule_request: object = None,
-        send_request: object = None,
-        config: object = None,
-        pipeline: object = None,
-    ):
-        captured.update(
-            schedule_request=schedule_request,
-            send_request=send_request,
-            config=config,
-            pipeline=pipeline,
+    async def scraper(config: object = None):
+        captured["config"] = config
+
+    mock_aioscraper(scraper)
+    async with mock_aioscraper:
+        mock_aioscraper.add_dependencies(config="registered")
+        await mock_aioscraper.wait()
+
+    assert captured["config"] == "registered"
+
+
+@pytest.mark.asyncio
+async def test_a_reserved_name_written_into_the_mapping_fails_the_start(mock_aioscraper: MockAIOScraper):
+    """add_dependencies is not the only way in: dependencies is a public attribute."""
+    mock_aioscraper.dependencies["pipeline"] = "registered"
+    seen = []
+
+    @mock_aioscraper.pipeline.global_middleware
+    def factory(pipeline: object):
+        seen.append(pipeline)
+        raise AssertionError("the factory must not run")
+
+    with pytest.raises(ValueError, match="Dependency names reserved by the framework: pipeline"):
+        async with mock_aioscraper:
+            await mock_aioscraper.wait()
+
+    # the factories are built before the executor, so the check cannot live there alone
+    assert not seen
+
+
+@pytest.mark.parametrize("name", sorted(CALLBACK_ARGUMENTS))
+def test_cb_kwargs_rejects_a_callback_argument(name: str):
+    with pytest.raises(ValueError, match=f"cb_kwargs names reserved by the framework: {name}"):
+        Request("https://api.test.com/deps", cb_kwargs={name: "mine"})
+
+
+@pytest.mark.asyncio
+async def test_cb_kwargs_wins_over_a_dependency(mock_aioscraper: MockAIOScraper):
+    mock_aioscraper.server.add("https://api.test.com/deps", handler=lambda _: {})
+    captured = {}
+
+    async def parse(dep: str):
+        captured["dep"] = dep
+
+    async def scraper(schedule_request: ScheduleRequest):
+        await schedule_request(
+            Request("https://api.test.com/deps", callback=parse, cb_kwargs={"dep": "per-request"}),
         )
 
     mock_aioscraper(scraper)
     async with mock_aioscraper:
-        mock_aioscraper.add_dependencies(**{name: "registered"})
+        mock_aioscraper.add_dependencies(dep="global")
         await mock_aioscraper.wait()
 
-    assert captured.pop(name) == "registered"
-    assert "registered" not in captured.values()
-
-
-def test_merge_dependencies_logs_a_shadowed_framework_name(caplog: pytest.LogCaptureFixture):
-    with caplog.at_level(logging.WARNING, logger="aioscraper.core.executor"):
-        merge_dependencies({"schedule_request": "framework", "config": "framework"}, {})
-        assert not caplog.records
-
-        merged = merge_dependencies(
-            {"schedule_request": "framework", "config": "framework"},
-            {"schedule_request": "registered", "config": "registered"},
-        )
-
-    assert merged == {"schedule_request": "registered", "config": "registered"}
-    # config is documented as overridable, so only the other name is reported
-    assert [record.getMessage() for record in caplog.records] == [
-        "Dependency 'schedule_request' shadows the one the framework provides",
-    ]
+    assert captured["dep"] == "per-request"
 
 
 def test_get_func_kwargs_picks_only_known_params():

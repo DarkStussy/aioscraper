@@ -453,44 +453,22 @@ class RequestManager:
         if request.callback is None:
             return
 
+        # built rather than unpacked at the call: duplicate keys across two ** is a TypeError,
+        # and cb_kwargs is free-form
+        kwargs = {**self._dependencies, **request.cb_kwargs, "request": request, "response": response}
         if hasattr(request.callback, "__compiled__"):
-            await request.callback(
-                request=request,
-                response=response,
-                **request.cb_kwargs,
-                **self._dependencies,
-            )
+            await request.callback(**kwargs)
         else:
-            await request.callback(
-                **get_func_kwargs(
-                    request.callback,
-                    request=request,
-                    response=response,
-                    **request.cb_kwargs,
-                    **self._dependencies,
-                ),
-            )
+            await request.callback(**get_func_kwargs(request.callback, **kwargs))
 
     async def _handle_exception(self, request: Request, exc: Exception):
         if request.errback is not None:
+            kwargs = {**self._dependencies, **request.cb_kwargs, "request": request, "exc": exc}
             try:
                 if hasattr(request.errback, "__compiled__"):
-                    await request.errback(
-                        request=request,
-                        exc=exc,
-                        **request.cb_kwargs,
-                        **self._dependencies,
-                    )
+                    await request.errback(**kwargs)
                 else:
-                    await request.errback(
-                        **get_func_kwargs(
-                            request.errback,
-                            request=request,
-                            exc=exc,
-                            **request.cb_kwargs,
-                            **self._dependencies,
-                        ),
-                    )
+                    await request.errback(**get_func_kwargs(request.errback, **kwargs))
             except Exception as errback_exc:
                 logger.exception(
                     "Errback failed for %s %s: original=%s, errback=%s",

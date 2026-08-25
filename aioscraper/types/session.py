@@ -15,6 +15,7 @@ from typing import (
 
 from multidict import MultiMapping
 
+from aioscraper._helpers.deps import CALLBACK_ARGUMENTS, reject_reserved
 from aioscraper.exceptions import ResponseTooLarge, StreamConsumed
 
 QueryParams = MutableMapping[str, str | int | float]
@@ -106,6 +107,10 @@ class Request:
             same way, with ``exc`` in place of ``response``
         state (dict[str, Any]): Free-form bag for middlewares and callbacks, shared by every send
             of this object. The framework never writes to it
+
+    Raises:
+        ValueError: ``cb_kwargs`` takes ``request``, ``response`` or ``exc``, which the framework
+            passes to the callback itself
     """
 
     url: str = field(kw_only=False)
@@ -133,6 +138,10 @@ class Request:
     cb_kwargs: dict[str, Any] = field(default_factory=dict)
     errback: Callable[..., Awaitable[Any]] | None = None
     state: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.cb_kwargs:
+            reject_reserved(self.cb_kwargs, CALLBACK_ARGUMENTS, "cb_kwargs names")
 
 
 @dataclass(slots=True, order=True)
