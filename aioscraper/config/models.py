@@ -14,7 +14,7 @@ from .field_validators import CustomValidator, ProxyValidator, RangeValidator
 from .model_validator import field, validate
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class AdaptiveRateLimitConfig:
     """Lets each rate limit group find its own pace instead of holding the configured one.
@@ -52,7 +52,7 @@ class AdaptiveRateLimitConfig:
     custom_trigger_exceptions: tuple[type[BaseException], ...] = ()
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class RateLimitConfig:
     """How requests are spaced out, per group of related targets.
@@ -94,7 +94,7 @@ class BackoffStrategy(StrEnum):
     EXPONENTIAL_JITTER = auto()
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class RequestRetryConfig:
     """Retry behavior applied by the dispatcher.
@@ -159,7 +159,7 @@ class HttpBackend(StrEnum):
     HTTPX2 = "httpx2"
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class SessionConfig:
     """HTTP session settings shared by every request.
@@ -173,10 +173,10 @@ class SessionConfig:
         max_response_body_size (int | None): Cap on a response body in bytes, 32 MiB by default;
             ``None`` disables it. Bounds memory at this value times ``scheduler.concurrent_requests``
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
-        retry (RequestRetryConfig): Controls built-in retry behavior
-        rate_limit (RateLimitConfig): Controls built-in rate limiting behavior
         buffer_body (bool): Whether to read a response body before the callback runs;
             ``Request.buffer_body`` overrides it per request
+        retry (RequestRetryConfig): Controls built-in retry behavior
+        rate_limit (RateLimitConfig): Controls built-in rate limiting behavior
     """
 
     timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.001))
@@ -191,12 +191,12 @@ class SessionConfig:
         default=DEFAULT_MAX_ERROR_BODY_SIZE,
         validator=RangeValidator(min_value=0),
     )
+    buffer_body: bool = False
     retry: RequestRetryConfig = RequestRetryConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
-    buffer_body: bool = False
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class SchedulerConfig:
     """Limits on the ``aiojobs`` scheduler that runs the requests.
@@ -232,7 +232,7 @@ class ErrorPolicy(StrEnum):
     FAIL = auto()
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class ExecutionConfig:
     """How long the run may take and how it is stopped.
@@ -261,7 +261,7 @@ class ExecutionConfig:
     )
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class PipelineConfig:
     """
@@ -273,7 +273,7 @@ class PipelineConfig:
     strict: bool = True
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class Config:
     "Everything a run is configured with. Build one directly, or from the environment with :func:`load_config`."

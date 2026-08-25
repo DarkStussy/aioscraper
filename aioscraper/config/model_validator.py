@@ -128,7 +128,7 @@ def field(
     hash_: Any = None,
     compare: bool = True,
     metadata: dict[Any, Any] | None = None,
-    kw_only: bool = False,
+    kw_only: Any = MISSING,
     validator: Validator | None = None,
     skip_validation: bool = False,
 ) -> Any:

@@ -10,6 +10,7 @@
 - A dependency registered under a name the framework provides no longer crashes the run. `add_dependencies(schedule_request=...)` — and `send_request` before this release — raised `TypeError: got multiple values for keyword argument` from the entrypoint call, even when no entrypoint asked for it, while `config` and `pipeline` were silently overridden. All four now follow one rule: the registered value wins, and shadowing anything but `config` is logged.
 
 ### Changed
+- **BREAKING:** every config dataclass is keyword-only: `Config`, `SessionConfig`, `SchedulerConfig`, `ExecutionConfig`, `PipelineConfig`, `RequestRetryConfig`, `RateLimitConfig` and `AdaptiveRateLimitConfig`. Their field order stops being API, the way `RunResult`'s did in 0.14.0: a positional build fails instead of shifting a value onto a field added later, which is exactly what `buffer_body` would have done to `retry`. Every documented example already passes keywords.
 - **DEPRECATED:** `send_request` is now `schedule_request`, and `SendRequest` is `ScheduleRequest`. The call never sent anything: it queues a request and returns as soon as it is accepted, which is what `Request.delay` and `Request.priority` act on. Both old names still resolve — the dependency is injected under either parameter name and `SendRequest` remains an alias — and are removed in 1.0.
 
 ## 0.14.0 (2026-08-25)
