@@ -1,4 +1,5 @@
 import logging
+from dataclasses import fields
 
 import pytest
 
@@ -383,3 +384,62 @@ class TestConfig:
 
         with pytest.raises(ConfigValidationError):
             Config(execution=ExecutionConfig(timeout=0.001))
+
+
+# a positional build binds these, so a new field goes at the end until the classes are keyword-only
+FIELD_ORDER = {
+    SessionConfig: (
+        "timeout",
+        "ssl",
+        "proxy",
+        "http_backend",
+        "max_response_body_size",
+        "max_error_body_size",
+        "retry",
+        "rate_limit",
+        "buffer_body",
+    ),
+    RequestRetryConfig: (
+        "enabled",
+        "attempts",
+        "backoff",
+        "base_delay",
+        "max_delay",
+        "max_retry_after",
+        "statuses",
+        "exceptions",
+        "methods",
+        "should_retry",
+    ),
+    RateLimitConfig: ("enabled", "group_by", "default_interval", "cleanup_timeout", "adaptive"),
+    AdaptiveRateLimitConfig: (
+        "min_interval",
+        "max_interval",
+        "increase_factor",
+        "decrease_step",
+        "success_threshold",
+        "ewma_alpha",
+        "respect_retry_after",
+        "inherit_retry_triggers",
+        "custom_trigger_statuses",
+        "custom_trigger_exceptions",
+    ),
+    SchedulerConfig: ("concurrent_requests", "pending_requests", "close_timeout", "ready_queue_max_size"),
+    ExecutionConfig: (
+        "timeout",
+        "shutdown_timeout",
+        "shutdown_check_interval",
+        "on_error",
+        "log_level",
+        "max_retained_errors",
+    ),
+    PipelineConfig: ("strict",),
+    Config: ("session", "scheduler", "execution", "pipeline"),
+}
+
+
+@pytest.mark.parametrize(
+    ("config_type", "names"), FIELD_ORDER.items(), ids=lambda value: getattr(value, "__name__", "")
+)
+def test_field_order_is_stable(config_type: type, names: tuple[str, ...]):
+    assert tuple(field.name for field in fields(config_type)) == names

@@ -174,6 +174,30 @@ bounds that product - 2 GiB with the defaults. Raise it for large downloads. The
 because an endpoint answering ``500`` with gigabytes of HTML would otherwise be buffered whole for an
 error message.
 
+.. _body-buffering:
+
+Body buffering
+--------------
+
+A response reaches its callback with the body still on the socket, so a connection that dies mid-body
+fails inside the callback - past the retry policy, which ends when the handler returns. The failure
+reaches the errback unretried, and the adaptive rate limiter has already recorded the request as a
+success at the latency of its headers.
+
+``buffer_body`` (``SESSION_BUFFER_BODY``) reads the body first, moving both inside the request: the read
+is retried like any other transport failure, and the recorded latency covers the whole response.
+
+.. code-block:: python
+
+    from aioscraper import Request
+
+    request = Request("https://api.example.com/data", buffer_body=True)
+
+:meth:`read() <aioscraper.types.session.Response.read>` and :meth:`iter_bytes()
+<aioscraper.types.session.Response.iter_bytes>` replay the buffer, and ``max_response_body_size`` still
+applies. It is off by default: a buffered body stays in memory for the whole callback, which a callback
+streaming a large download to disk does not want.
+
 See :ref:`reading the response body <response-body>` for the streaming contract these limits apply to.
 
 .. _proxy-config:

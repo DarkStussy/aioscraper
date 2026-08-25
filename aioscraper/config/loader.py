@@ -62,6 +62,7 @@ def load_config() -> Config:
                 default_config.session.max_error_body_size,
                 cast=int,
             ),
+            buffer_body=env.parse("SESSION_BUFFER_BODY", default_config.session.buffer_body),
             retry=RequestRetryConfig(
                 enabled=env.parse("SESSION_RETRY_ENABLED", default_retry.enabled),
                 attempts=env.parse("SESSION_RETRY_ATTEMPTS", default_retry.attempts),

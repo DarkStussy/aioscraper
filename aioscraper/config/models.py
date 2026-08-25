@@ -175,6 +175,8 @@ class SessionConfig:
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
         retry (RequestRetryConfig): Controls built-in retry behavior
         rate_limit (RateLimitConfig): Controls built-in rate limiting behavior
+        buffer_body (bool): Whether to read a response body before the callback runs;
+            ``Request.buffer_body`` overrides it per request
     """
 
     timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.001))
@@ -191,6 +193,7 @@ class SessionConfig:
     )
     retry: RequestRetryConfig = RequestRetryConfig()
     rate_limit: RateLimitConfig = RateLimitConfig()
+    buffer_body: bool = False
 
 
 @dataclass(slots=True, frozen=True)

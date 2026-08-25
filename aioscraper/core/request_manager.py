@@ -191,6 +191,7 @@ class RequestManager:
         error_collector (ErrorCollector | None): Records errors that are logged and dropped.
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message.
         stats (RunStats | None): Counts attempts for the run's outcome.
+        buffer_body (bool): Whether to read a body before the callback runs, unless the request says.
     """
 
     def __init__(
@@ -205,10 +206,13 @@ class RequestManager:
         error_collector: ErrorCollector | None = None,
         max_error_body_size: int = DEFAULT_MAX_ERROR_BODY_SIZE,
         stats: RunStats | None = None,
+        *,
+        buffer_body: bool = False,
     ):
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._stats = RunStats() if stats is None else stats
         self._max_error_body_size = max_error_body_size
+        self._buffer_body = buffer_body
         logger.info(
             "Creating scheduler: concurrent_requests=%s, pending_requests=%s, close_timeout=%s",
             scheduler_config.concurrent_requests,
@@ -308,6 +312,9 @@ class RequestManager:
                 response = await stack.enter_async_context(request_ctx)
                 status_code = response.status
                 await _raise_for_status(request, response, self._max_error_body_size)
+
+                if request.buffer_body is True or (request.buffer_body is None and self._buffer_body):
+                    await response.read()
             except Exception as exc:
                 exception_type = type(exc)
 

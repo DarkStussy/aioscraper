@@ -90,6 +90,9 @@ class Request:
             per-request value; on ``httpx`` the limit is the client's, so any value other than the
             default here is rejected
 
+        buffer_body (bool | None): Read the body before the callback runs, which puts a failure
+            reading it inside the retry policy; ``None`` uses :attr:`SessionConfig.buffer_body
+            <aioscraper.config.models.SessionConfig>`
         delay (float | None): Seconds to hold the request back before it becomes ready to send
         retryable (bool | None): Overrides the retry policy's method check; ``None`` defers to
             :attr:`RequestRetryConfig.methods <aioscraper.config.models.RequestRetryConfig.methods>`
@@ -122,6 +125,7 @@ class Request:
     max_redirects: int = DEFAULT_MAX_REDIRECTS
 
     # not http params
+    buffer_body: bool | None = None
     delay: float | None = None
     retryable: bool | None = None
     priority: int = 0
