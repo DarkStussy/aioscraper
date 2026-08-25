@@ -1,7 +1,9 @@
 import asyncio
+from dataclasses import replace
 from typing import Any
 
 import pytest
+from yarl import URL
 
 from aioscraper.config import (
     AdaptiveRateLimitConfig,
@@ -17,7 +19,7 @@ from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.core.session.httpx import HttpxSession
 from aioscraper.exceptions import HTTPException, InvalidRequestData, TransportTimeout, UnsupportedRequestOption
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import File, Request, RequestHandler, Response
+from aioscraper.types import File, GroupPolicy, Request, RequestHandler, Response
 from aioscraper.types.session import Attempt
 from tests.mocks import make_response
 
@@ -30,7 +32,12 @@ def _http_error(status: int = 503) -> HTTPException:
 
 def attempt(request: Request, *, retries: int = 0) -> Attempt:
     "Wrap a request the way the queue would before it reaches _send_request."
-    return Attempt(priority=request.priority, request=request, retries=retries)
+    return Attempt(
+        priority=request.priority,
+        request=request,
+        retries=retries,
+        group_key=URL(request.url).host,
+    )
 
 
 class FakeRequestContextManager(BaseRequestContextManager):
@@ -602,6 +609,61 @@ async def test_unsupported_option_reaches_errback_without_an_outcome():
 
     # Recording it would count as a success and shrink the interval for a request never sent.
     assert outcomes == []
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_outcome_goes_to_the_group_that_paced_the_request():
+    """A middleware rewriting the host must not move the outcome to another group."""
+
+    def rewrite_host():
+        async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
+            return await call_next(replace(request, url="https://rewritten.test.com/ok"))
+
+        return middleware
+
+    middleware_holder = MiddlewareHolder()
+    middleware_holder.add(rewrite_host)
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=_adaptive_rate_limit_config(),
+        retry_config=NO_RETRIES,
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=middleware_holder,
+    )
+    outcomes = _spy_on_outcomes(manager)
+
+    await manager._send_request(attempt(Request(url="https://api.test.com/ok")))
+
+    assert [outcome.group_key for outcome in outcomes] == ["api.test.com"]
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_none_is_a_group_key_like_any_other():
+    """None is Hashable, so a group_by may return it and its outcomes must still arrive."""
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=_adaptive_rate_limit_config(),
+        retry_config=NO_RETRIES,
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+        group_by=lambda request: GroupPolicy(None, 0.001),
+    )
+    outcomes = _spy_on_outcomes(manager)
+    manager.start_listening()
+
+    await manager.sender(Request(url="https://api.test.com/ok"))
+    await asyncio.wait_for(manager.wait(), timeout=5.0)
+
+    assert [outcome.group_key for outcome in outcomes] == [None]
 
     await manager.close()
 

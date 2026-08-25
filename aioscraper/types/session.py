@@ -7,6 +7,7 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Hashable,
     MutableMapping,
     NamedTuple,
     NotRequired,
@@ -158,6 +159,8 @@ class Attempt:
         retries (int): How many times this request was already re-admitted by the retry policy.
         permit_release (Callable[[], None] | None): Gives back the concurrency permit of the rate
             limit group that admitted this attempt, when the group has a ceiling.
+        group_key (Hashable | None): The rate limit group this attempt was routed to, kept because
+            a middleware can change the request it came from.
     """
 
     priority: float
@@ -165,6 +168,7 @@ class Attempt:
     holds_slot: bool = field(default=False, compare=False)
     retries: int = field(default=0, compare=False)
     permit_release: Callable[[], None] | None = field(default=None, compare=False)
+    group_key: Hashable | None = field(default=None, compare=False)
 
     def release_permit(self):
         "Give the group's permit back, at most once for this attempt."

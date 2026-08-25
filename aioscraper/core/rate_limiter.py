@@ -577,9 +577,6 @@ class RateLimitManager:
         for group in groups:
             await group.close()
 
-    def get_group_key(self, request: Request) -> Hashable:
-        return self._group_by(request)[0]
-
     def on_request_outcome(self, outcome: RequestOutcome):
         "Retune the group this request belongs to. A group already retired is left alone."
         if not self._adaptive_strategy:
@@ -633,6 +630,7 @@ class RateLimitManager:
 
             logger.debug("Queueing request to existing group %r (interval=%0.3fs)", group_key, group.interval)
 
+        attempt.group_key = group_key
         await group.put(attempt)
 
     def _resolve_concurrency(self, group_key: Hashable, concurrency: int | None) -> int:

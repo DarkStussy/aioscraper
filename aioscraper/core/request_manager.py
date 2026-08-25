@@ -313,7 +313,7 @@ class RequestManager:
 
         return middlewares
 
-    def _build_handler(self, stack: AsyncExitStack) -> RequestHandler:
+    def _build_handler(self, stack: AsyncExitStack, attempt: Attempt) -> RequestHandler:
         "Compose the middleware chain around the innermost dispatch."
 
         async def dispatch(request: Request) -> Response | None:
@@ -347,7 +347,7 @@ class RequestManager:
                 # Recorded here, not around the chain: a middleware or the retry decision above
                 # can swallow the failure before it gets there.
                 self._record_outcome(
-                    request,
+                    attempt,
                     latency=monotonic() - start_time,
                     status_code=status_code,
                     exception_type=exception_type,
@@ -395,20 +395,22 @@ class RequestManager:
 
     def _record_outcome(
         self,
-        request: Request,
+        attempt: Attempt,
         *,
         latency: float,
         status_code: int | None,
         exception_type: type[BaseException] | None,
         retry_after: float | None,
     ):
-        "Feed a transport-level request outcome to the adaptive rate limiter."
+        "Feed a transport outcome to the adaptive rate limiter, under the key it was routed with."
+        # not guarded on the key: adaptive needs per_group, which routes every attempt, and None
+        # is a group key like any other
         if not self._rate_limiter_manager.adaptive_strategy:
             return
 
         self._rate_limiter_manager.on_request_outcome(
             RequestOutcome(
-                group_key=self._rate_limiter_manager.get_group_key(request),
+                group_key=attempt.group_key,
                 latency=latency,
                 retry_after=retry_after,
                 status_code=status_code,
@@ -424,7 +426,7 @@ class RequestManager:
 
         try:
             async with AsyncExitStack() as stack:
-                handler = self._build_handler(stack)
+                handler = self._build_handler(stack, attempt)
 
                 logger.debug("Sending request: %s %s", request.method, url)
                 try:
