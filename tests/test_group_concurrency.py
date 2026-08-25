@@ -11,6 +11,7 @@ from aioscraper.core.stats import RunStats
 from aioscraper.exceptions import TransportTimeout
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import GroupPolicy, Request, Response
+from tests.helpers import wait_and_settle, wait_for
 from tests.mocks import make_response
 
 NO_RETRIES = RequestRetryConfig(enabled=False)
@@ -111,8 +112,7 @@ async def test_group_never_exceeds_its_ceiling():
     for i in range(10):
         await manager.sender(Request(url=f"https://api.test.com/{i}"))
 
-    await asyncio.sleep(0.2)
-    assert len(session.in_flight) == 3
+    await wait_and_settle(lambda: len(session.in_flight) == 3)
 
     session.release_all()
     await manager.wait()
@@ -138,9 +138,9 @@ async def test_a_capped_group_does_not_starve_another():
     for i in range(10):
         await manager.sender(Request(url=f"https://slow.test.com/{i}"))
 
-    await asyncio.sleep(0.1)
+    await wait_and_settle(lambda: len(session.in_flight) == 2)
     await manager.sender(Request(url="https://fast.test.com/1"))
-    await asyncio.sleep(0.1)
+    await wait_for(lambda: any("fast" in request.url for request in session.in_flight))
 
     hosts = [Request(url=request.url).url.split("/")[2] for request in session.in_flight]
     assert hosts.count("slow.test.com") == 2
@@ -168,13 +168,12 @@ async def test_a_group_holding_an_unqueued_attempt_counts_as_active():
     for i in range(2):
         await manager.sender(Request(url=f"https://api.test.com/{i}"))
 
-    await asyncio.sleep(0.1)
-    assert len(session.in_flight) == 1
+    await wait_and_settle(lambda: len(session.in_flight) == 1)
 
     listener = asyncio.ensure_future(manager.wait())
 
     session.release_next()
-    await asyncio.sleep(0.2)
+    await wait_and_settle(lambda: len(session.in_flight) == 2)
 
     assert not listener.done(), "the run completed with a request still to send"
     assert len(session.in_flight) == 2
@@ -198,8 +197,7 @@ async def test_shutdown_while_a_group_is_saturated():
     for i in range(5):
         await manager.sender(Request(url=f"https://api.test.com/{i}"))
 
-    await asyncio.sleep(0.1)
-    assert len(session.in_flight) == 1
+    await wait_for(lambda: len(session.in_flight) == 1)
 
     # the worker holds an attempt it can neither send nor put back
     await asyncio.wait_for(manager.close(), timeout=2.0)
@@ -226,12 +224,11 @@ async def test_per_group_ceilings_from_group_by():
         await manager.sender(Request(url=f"https://api.test.com/wide/{i}"))
         await manager.sender(Request(url=f"https://api.test.com/narrow/{i}"))
 
-    await asyncio.sleep(0.2)
+    def dispatched(group: str) -> list[Request]:
+        return [request for request in session.in_flight if group in request.url]
 
-    wide = [request for request in session.in_flight if "wide" in request.url]
-    narrow = [request for request in session.in_flight if "narrow" in request.url]
-    assert len(wide) == 3
-    assert len(narrow) == 1  # the group_by left it None, so it took the configured 1
+    # narrow's policy left concurrency None, so it took the configured 1
+    await wait_and_settle(lambda: len(dispatched("wide")) == 3 and len(dispatched("narrow")) == 1)
 
     session.release_all()
     await manager.wait()
@@ -298,9 +295,10 @@ async def test_close_gives_back_every_permit():
     for i in range(5):
         await manager.sender(Request(url=f"https://api.test.com/{i}"))
 
-    await asyncio.sleep(0.3)
-    group = manager._rate_limiter_manager._groups["api.test.com"]
-    assert group.in_flight == 3
+    groups = manager._rate_limiter_manager._groups
+    await wait_for(lambda: "api.test.com" in groups)
+    group = groups["api.test.com"]
+    await wait_and_settle(lambda: group.in_flight == 3)
     assert group._permits is not None
     assert group._permits._value == 0
 
@@ -324,9 +322,11 @@ async def test_close_frees_a_group_stuck_at_its_ceiling():
     for i in range(4):
         await manager.sender(Request(url=f"https://api.test.com/{i}"))
 
-    await asyncio.sleep(0.1)
-    group = manager._rate_limiter_manager._groups["api.test.com"]
-    assert group.in_flight == 2  # one dispatched, one the worker holds while waiting
+    groups = manager._rate_limiter_manager._groups
+    await wait_for(lambda: "api.test.com" in groups)
+    group = groups["api.test.com"]
+    # one dispatched, one the worker holds while waiting
+    await wait_and_settle(lambda: group.in_flight == 2)
 
     await asyncio.wait_for(manager.close(), timeout=2.0)
 

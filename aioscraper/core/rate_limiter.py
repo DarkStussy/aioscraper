@@ -607,7 +607,10 @@ class RateLimitManager:
 
         concurrency = self._resolve_concurrency(group_key, concurrency)
 
-        if (group := self._groups.get(group_key)) is None:
+        # a retired group outlives its worker: the done callback removes it a tick later, and an
+        # attempt queued in between would have nothing to read it
+        group = self._groups.get(group_key)
+        if group is None or not group.worker_alive:
             group = self._groups[group_key] = self._create_group(group_key, interval, concurrency)
             logger.debug(
                 "Created rate limit group %r: interval=%0.10g, cleanup_timeout=%0.10g, concurrency=%d",

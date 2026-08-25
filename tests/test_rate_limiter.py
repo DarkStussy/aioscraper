@@ -8,6 +8,7 @@ from aioscraper.config import RateLimitConfig, RequestRetryConfig
 from aioscraper.core.rate_limiter import RateLimitManager, RequestGroup, default_group_by_factory
 from aioscraper.types import GroupPolicy
 from aioscraper.types.session import Attempt, Request
+from tests.helpers import wait_and_settle, wait_for
 
 
 @pytest.fixture
@@ -244,17 +245,14 @@ class TestGroupConcurrency:
         for priority in range(5):
             await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 2
+        await wait_and_settle(lambda: len(in_flight) == 2)
 
         in_flight[0].release_permit()
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 3
+        await wait_and_settle(lambda: len(in_flight) == 3)
 
         in_flight[1].release_permit()
         in_flight[2].release_permit()
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 5
+        await wait_and_settle(lambda: len(in_flight) == 5)
 
         await group.close()
 
@@ -267,8 +265,7 @@ class TestGroupConcurrency:
         for priority in range(5):
             await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 5
+        await wait_for(lambda: len(in_flight) == 5)
 
         await group.close()
 
@@ -281,17 +278,15 @@ class TestGroupConcurrency:
         for priority in range(3):
             await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 1
+        await wait_and_settle(lambda: len(in_flight) == 1)
 
         attempt = in_flight[0]
         attempt.release_permit()
         attempt.release_permit()
         attempt.release_permit()
 
-        await asyncio.sleep(0.05)
         # a permit per release would have let both remaining attempts through
-        assert len(in_flight) == 2
+        await wait_and_settle(lambda: len(in_flight) == 2)
 
         await group.close()
 
@@ -309,10 +304,8 @@ class TestGroupConcurrency:
         for priority in range(3):
             await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.1)
-
-        assert len(scheduled) == 3
-        assert group.in_flight == 0
+        await wait_for(lambda: len(scheduled) == 3)
+        await wait_for(lambda: group.in_flight == 0)
 
         await group.close()
 
@@ -325,19 +318,16 @@ class TestGroupConcurrency:
         await group.put(Attempt(priority=1, request=Request(url="https://example.com/page")))
         await group.put(Attempt(priority=2, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.05)
-
         # one dispatched, one popped and waiting on the permit: nothing is left in the queue
-        assert group._queue.empty()
+        await wait_for(group._queue.empty)
         assert group.active
 
         in_flight[0].release_permit()
-        await asyncio.sleep(0.05)
+        await wait_for(lambda: len(in_flight) == 2)
         assert group.active
 
         in_flight[1].release_permit()
-        await asyncio.sleep(0.05)
-        assert not group.active
+        await wait_for(lambda: not group.active)
 
         await group.close()
 
@@ -358,14 +348,14 @@ class TestGroupConcurrency:
         group.start_listening()
 
         await group.put(Attempt(priority=1, request=Request(url="https://example.com/page")))
-        await asyncio.sleep(0.2)
+        await wait_for(lambda: len(in_flight) == 1)
 
         # well past the idle timeout, but the request has not come back yet
+        await asyncio.sleep(0.3)
         assert finished == []
 
         in_flight[0].release_permit()
-        await asyncio.sleep(0.2)
-        assert finished == ["in-flight"]
+        await wait_for(lambda: finished == ["in-flight"])
 
         await group.close()
 
@@ -378,14 +368,12 @@ class TestGroupConcurrency:
         for priority in range(4):
             await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 2
+        await wait_and_settle(lambda: len(in_flight) == 2)
 
         for attempt in tuple(in_flight):
             attempt.release_permit()
 
-        await asyncio.sleep(0.05)
-        assert len(in_flight) == 4
+        await wait_and_settle(lambda: len(in_flight) == 4)
         assert group.in_flight == 2
 
         await group.close()
@@ -399,10 +387,9 @@ class TestGroupConcurrency:
         for priority in range(4):
             await group.put(Attempt(priority=priority, request=Request(url="https://example.com/page")))
 
-        await asyncio.sleep(0.05)
         # two dispatched and never finished, one held by the worker waiting for a permit
+        await wait_for(lambda: group.in_flight == 3)
         assert len(in_flight) == 2
-        assert group.in_flight == 3
 
         await group.close()
 
@@ -591,6 +578,31 @@ class TestRateLimitManager:
             assert len(manager._groups) == 3
 
         assert len(manager._groups) == 0
+
+    @pytest.mark.asyncio
+    async def test_a_group_whose_worker_is_gone_is_replaced(self, mock_schedule):
+        """Test that a request never lands in a group with nothing left to read its queue.
+
+        close() reproduces the window: it kills the worker and, the task being canceled rather
+        than finished, reports nothing.
+        """
+        async with RateLimitManager(
+            config=RateLimitConfig(per_group=True, default_interval=0.001),
+            retry_config=RequestRetryConfig(),
+            schedule=mock_schedule,
+        ) as manager:
+            await manager(Attempt(priority=1, request=Request(url="https://example.com/1")))
+            await wait_for(lambda: mock_schedule.call_count == 1)
+
+            retired = manager._groups["example.com"]
+            await retired.close()
+            assert not retired.worker_alive
+            assert manager._groups["example.com"] is retired
+
+            await manager(Attempt(priority=2, request=Request(url="https://example.com/2")))
+
+            await wait_for(lambda: mock_schedule.call_count == 2)
+            assert manager._groups["example.com"] is not retired
 
     @pytest.mark.asyncio
     async def test_group_concurrency_comes_from_the_config(self, mock_schedule):
