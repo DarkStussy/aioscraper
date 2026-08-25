@@ -46,17 +46,21 @@ EXPECTED: dict[str, type[ClientException] | None] = {
     "untranslated": None,
 }
 
-_KEY = ConnectionKey(
-    host="api.test.com",
-    port=443,
-    is_ssl=True,
-    ssl=True,
-    proxy=None,
-    proxy_auth=None,
-    proxy_headers_hash=None,
-    server_hostname=None,
+
+def _named_tuple(cls: Any, **values: Any) -> Any:
+    "Fill whichever fields this aiohttp declares: they differ between the versions we support."
+    return cls(**{name: values.get(name) for name in cls._fields})
+
+
+_URL = URL("https://api.test.com/x")
+_KEY = _named_tuple(ConnectionKey, host="api.test.com", port=443, is_ssl=True, ssl=True)
+_REQUEST_INFO = _named_tuple(
+    RequestInfo,
+    url=_URL,
+    method="GET",
+    headers=CIMultiDictProxy(CIMultiDict()),
+    real_url=_URL,
 )
-_REQUEST_INFO = RequestInfo(URL("https://api.test.com/x"), "GET", CIMultiDictProxy(CIMultiDict()))
 
 
 def _aiohttp_failure(category: str) -> BaseException:
