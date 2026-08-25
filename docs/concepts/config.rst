@@ -201,6 +201,12 @@ bounds that product - 2 GiB with the defaults. Raise it for large downloads. The
 because an endpoint answering ``500`` with gigabytes of HTML would otherwise be buffered whole for an
 error message.
 
+That product is what a run holds, not what it peaks at. Assembling a body into ``bytes`` needs about twice
+its size while the copy is made, and :meth:`text() <aioscraper.types.session.Response.text>` and
+:meth:`json() <aioscraper.types.session.Response.json>` hold the decoded string alongside it. Size a
+memory limit above the product, or stream with :meth:`iter_bytes()
+<aioscraper.types.session.Response.iter_bytes>`, which buffers nothing.
+
 .. _body-buffering:
 
 Body buffering

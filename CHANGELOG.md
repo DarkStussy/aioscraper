@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- The body-limit docs no longer present `concurrent_requests × max_response_body_size` as a peak. It bounds what a run holds; assembling a body into `bytes` transiently needs about twice its size, and `text()`/`json()` hold the decoded string on top.
 - `AIOScraper.wait(timeout=0)` checks without waiting instead of falling back to `execution.timeout`, which is `None` by default and would have waited forever. Only an explicit `0` was affected: the config validators reject it for both `timeout` and `shutdown_timeout`.
 
 ### Changed
