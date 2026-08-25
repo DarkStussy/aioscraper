@@ -314,7 +314,7 @@ class RequestGroup:
     async def close(self):
         """Cancel the worker and settle what it was admitting. Anything still queued is dropped.
 
-        A closed group holds no permits, including for a job the scheduler accepted but cancelled
+        A closed group holds no permits, including for a job the scheduler accepted but canceled
         before it could run.
         """
         if self._task is None:
@@ -330,7 +330,7 @@ class RequestGroup:
             attempt.release_permit()
 
     async def _settle_admission(self):
-        "Finish the hand-off the cancelled worker left running, so no coroutine is left unawaited."
+        "Finish the hand-off the canceled worker left running, so no coroutine is left unawaited."
         admission, self._admission = self._admission, None
         if admission is None:
             return
@@ -358,7 +358,7 @@ class RequestGroup:
                 if not self._queue.empty() or self._in_flight:
                     continue
 
-                self._on_finished(self._key, self)
+                # the worker's done callback reports it: breaking here is not a cancellation
                 break
 
             # the sentinel RateLimitManager.shutdown() queues behind the real work
@@ -367,7 +367,7 @@ class RequestGroup:
 
             await self._acquire_permit(attempt)
 
-            # kept on the group: the shield leaves it running when the worker is cancelled, and
+            # kept on the group: the shield leaves it running when the worker is canceled, and
             # close() has to settle it
             admission = asyncio.ensure_future(self._schedule(attempt))
             self._admission = admission
@@ -380,7 +380,7 @@ class RequestGroup:
                 # the job never started, so nothing downstream will give the permit back
                 attempt.release_permit()
 
-            # skipped when the worker is cancelled, leaving close() the admission to settle
+            # skipped when the worker is canceled, leaving close() the admission to settle
             self._admission = None
 
             await asyncio.sleep(self._interval)

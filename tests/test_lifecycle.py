@@ -229,7 +229,7 @@ async def test_timeout_stays_on_the_result_after_close():
     assert result.ok is False
 
 
-async def test_wait_in_flight_is_not_cancelled_by_close():
+async def test_wait_in_flight_is_not_canceled_by_close():
     teardown_started = asyncio.Event()
     release_teardown = asyncio.Event()
 

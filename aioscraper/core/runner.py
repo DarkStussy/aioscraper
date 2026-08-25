@@ -106,7 +106,7 @@ async def _run_scraper(
     # done and records errors of its own.
     #
     # The handlers turn SIGINT/SIGTERM into an event, so KeyboardInterrupt never reaches the
-    # caller: without this flag a signalled run is indistinguishable from a clean one.
+    # caller: without this flag a signaled run is indistinguishable from a clean one.
     return replace(scraper.result, interrupted=shutdown.is_set())
 
 

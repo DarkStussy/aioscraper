@@ -87,7 +87,7 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 This gives you the same signal handling and graceful shutdown behavior as the CLI.
 ``run_scraper`` expects ``scraper.config`` to be set ahead of time, which is why the example passes ``config=load_config()`` to the constructor.
 
-:func:`run_scraper <aioscraper.core.runner.run_scraper>` returns a :class:`RunResult <aioscraper.core.errors.RunResult>` and never acts on it: turning the outcome into an exit code is the caller's decision, and the CLI is one implementation of it. The handlers turn SIGINT/SIGTERM into an event, so ``KeyboardInterrupt`` never reaches the caller — ``result.interrupted`` is how a signalled run is told apart from a clean one.
+:func:`run_scraper <aioscraper.core.runner.run_scraper>` returns a :class:`RunResult <aioscraper.core.errors.RunResult>` and never acts on it: turning the outcome into an exit code is the caller's decision, and the CLI is one implementation of it. The handlers turn SIGINT/SIGTERM into an event, so ``KeyboardInterrupt`` never reaches the caller — ``result.interrupted`` is how a signaled run is told apart from a clean one.
 
 .. _cli-configuration:
 

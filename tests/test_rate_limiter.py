@@ -104,8 +104,8 @@ class TestRequestGroup:
 
         await asyncio.sleep(cleanup_timeout + 0.1)
 
-        # on_finished should be called
-        assert ("finished", "idle-group") in calls
+        # exactly once: the idle exit is reported by the worker's done callback and nothing else
+        assert calls == [("finished", "idle-group")]
         assert "idle-group" in captured_groups
 
         await group.close()
@@ -365,8 +365,7 @@ class TestGroupConcurrency:
 
         in_flight[0].release_permit()
         await asyncio.sleep(0.2)
-        # the idle branch and the worker's done callback both report it, and the manager dedupes
-        assert "in-flight" in finished
+        assert finished == ["in-flight"]
 
         await group.close()
 
