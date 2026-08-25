@@ -283,8 +283,8 @@ class AIOScraper:
         than canceling the caller.
 
         Args:
-            timeout (float | None): Overrides ``execution.timeout`` for this call. It bounds the
-                run, not teardown.
+            timeout (float | None): Overrides ``execution.timeout`` for this call; ``None`` takes
+                it, and ``0`` checks without waiting. It bounds the run, not teardown.
 
         Returns:
             RunResult: What the run recorded, including whether the timeout expired.
@@ -297,7 +297,8 @@ class AIOScraper:
             return await self._closed_result()
 
         log_level = self.config.execution.log_level
-        timeout = timeout or self.config.execution.timeout
+        if timeout is None:
+            timeout = self.config.execution.timeout
 
         logger.debug("Waiting for scraper to finish (timeout=%ss)", timeout)
         # watching the task rather than awaiting it: a close() that cancels the run must not

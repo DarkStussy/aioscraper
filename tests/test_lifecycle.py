@@ -259,6 +259,22 @@ async def test_wait_in_flight_is_not_cancelled_by_close():
     assert result.ok is False
 
 
+async def test_wait_with_zero_does_not_take_the_configured_timeout():
+    """0 means check now; the config timeout is None by default, so it would never return."""
+
+    async def run():
+        await asyncio.Event().wait()
+
+    scraper = _scraper(run)
+    scraper.start()
+    await asyncio.sleep(0)
+
+    result = await asyncio.wait_for(scraper.wait(timeout=0), timeout=5.0)
+
+    assert result.timed_out is True
+    await scraper.close()
+
+
 async def test_wait_propagates_what_the_run_failed_with():
     async def run():
         raise ValueError("run failed")

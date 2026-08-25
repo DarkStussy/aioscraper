@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- `AIOScraper.wait(timeout=0)` checks without waiting instead of falling back to `execution.timeout`, which is `None` by default and would have waited forever. Only an explicit `0` was affected: the config validators reject it for both `timeout` and `shutdown_timeout`.
+
 ### Changed
 - **BREAKING:** `add_dependencies` raises `ValueError` for a name the framework injects — `request`, `response`, `exc`, `schedule_request`, `send_request`, `pipeline` — instead of overriding it. `config` stays overridable. 0.15.0 gave the first three no warning at all and crashed each request with `TypeError: got multiple values for keyword argument`, since they are passed at the call site rather than merged in; the other three were logged and silently swapped the machinery out. The check also runs when the run starts, before anything is wired, for a name written straight into `AIOScraper.dependencies`.
 - **BREAKING:** `Request` raises `ValueError` when `cb_kwargs` takes `request`, `response` or `exc`. That entry never reached the callback and crashed the request instead.
