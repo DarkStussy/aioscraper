@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import logging
+from dataclasses import replace
 from typing import Sequence
 
 from aioscraper.config import ErrorPolicy
@@ -43,10 +44,18 @@ async def _run(
             concurrent_requests or "default",
             pending_requests or "default",
         )
-        if concurrent_requests:
-            object.__setattr__(scraper.config.scheduler, "concurrent_requests", concurrent_requests)
-        if pending_requests:
-            object.__setattr__(scraper.config.scheduler, "pending_requests", pending_requests)
+        overrides = {
+            name: value
+            for name, value in (
+                ("concurrent_requests", concurrent_requests),
+                ("pending_requests", pending_requests),
+            )
+            if value is not None
+        }
+        scraper.config = replace(
+            scraper.config,
+            scheduler=replace(scraper.config.scheduler, **overrides),
+        )
 
     logger.info("Starting scraper from entrypoint: %s", entrypoint)
     result = await run_scraper(scraper)

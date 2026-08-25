@@ -7,6 +7,7 @@
 - `Request.url` is positional, so `Request("https://example.com", callback=parse)` works. Every other field stays keyword-only, and `Request(url=...)` is unchanged.
 
 ### Fixed
+- `--concurrent-requests` and `--pending-requests` rebuild the config with `dataclasses.replace` instead of writing into the frozen one with `object.__setattr__`, so the field validators run on the override too — only the CLI's own argument parsing stood between an invalid value and the config before. A `0` is no longer dropped as falsy either: `None` is what means "not given".
 - A dependency registered under a name the framework provides no longer crashes the run. `add_dependencies(schedule_request=...)` — and `send_request` before this release — raised `TypeError: got multiple values for keyword argument` from the entrypoint call, even when no entrypoint asked for it, while `config` and `pipeline` were silently overridden. All four now follow one rule: the registered value wins, and shadowing anything but `config` is logged.
 
 ### Changed

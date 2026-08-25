@@ -76,7 +76,8 @@ resolve, with the underlying failure chained.
 
 :func:`load_config <aioscraper.config.loader.load_config>` reads the environment through the same two
 functions, so a file and a variable resolve identically. ``examples/third_party_config.py`` wires
-this up end to end.
+this up end to end. Under the CLI, build it in a :ref:`factory entrypoint <cli-entrypoint-timing>`:
+a module-level ``AIOScraper()`` resolves its configuration while the module is being imported.
 
 Graceful shutdown
 -----------------

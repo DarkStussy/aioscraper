@@ -34,6 +34,27 @@ Examples
 
 For resource setup/teardown around the same scraper instance, attach a ``lifespan(scraper)`` when constructing the scraper in code (see :doc:`/concepts/lifespan`).
 
+.. _cli-entrypoint-timing:
+
+Instance or factory
+~~~~~~~~~~~~~~~~~~~
+
+The two forms differ in *when* the scraper is built. A module-level instance is built while the CLI
+imports the module, so its configuration is resolved at import time; a factory runs afterwards, once
+the arguments are parsed.
+
+That is what makes the factory the place for a configuration loader of your own:
+
+.. code-block:: python
+
+   from aioscraper import AIOScraper
+
+
+   def make() -> AIOScraper:
+       return AIOScraper(scrape, config=load_my_config())
+
+``examples/third_party_config.py`` is a runnable version.
+
 Running without the CLI
 -----------------------
 
