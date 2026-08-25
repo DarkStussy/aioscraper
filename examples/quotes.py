@@ -39,7 +39,7 @@ class CollectQuotes:
     async def put_item(self, item: Quote) -> Quote:
         self.counter += 1
         tag_list = ", ".join(item.tags) if item.tags else "no tags"
-        print(f"“{item.text}” - {item.author} [{tag_list}]")
+        print(f"{item.text} - {item.author} [{tag_list}]")
         return item
 
     async def close(self):
@@ -48,7 +48,7 @@ class CollectQuotes:
 
 @scraper
 async def scrape(schedule_request: ScheduleRequest):
-    await schedule_request(Request(url=START_URL, callback=parse))
+    await schedule_request(Request(START_URL, callback=parse))
 
 
 async def parse(response: Response, schedule_request: ScheduleRequest, pipeline: Pipeline, page: int = 1):
@@ -65,6 +65,6 @@ async def parse(response: Response, schedule_request: ScheduleRequest, pipeline:
         await pipeline(Quote(text=text_el.get_text(strip=True), author=author_el.get_text(strip=True), tags=tags))
 
     next_link = soup.select_one("li.next a")
-    if next_link and page < MAX_PAGE:  # follow a couple of pages as an example
+    if next_link and page < MAX_PAGE:
         next_url = urljoin(response.url, str(next_link.get("href") or ""))
-        await schedule_request(Request(url=next_url, callback=parse, cb_kwargs={"page": page + 1}))
+        await schedule_request(Request(next_url, callback=parse, cb_kwargs={"page": page + 1}))

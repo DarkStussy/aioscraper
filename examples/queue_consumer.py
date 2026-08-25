@@ -1,27 +1,24 @@
 """
-AIOScraper as a queue consumer with FastStream and Redis.
+AIOScraper as a queue consumer: Redis Pub/Sub -> aioscraper -> fetched pages.
 
-This example demonstrates how aioscraper can act as a message queue consumer,
-receiving scraping requests from Redis Pub/Sub and processing them asynchronously.
+The entrypoint runs for the life of the process, taking URLs off a channel. Requests are
+acknowledged in the callback, and SCHEDULER_READY_QUEUE_MAX_SIZE keeps the consumer from
+reading faster than the scraper drains.
 
-Architecture:
-    Producer (any service) -> Redis Channel -> aioscraper (consumer) -> Process URLs
+Requires faststream and a Redis:
 
-Prerequisites:
-    $ pip install aioscraper[aiohttp] faststream[redis]
-
-    # Start Redis (using Docker):
+    $ pip install "aioscraper[aiohttp]" "faststream[redis]"
     $ docker run -d -p 6379:6379 --name redis redis:latest
 
-Run the example:
+Run it:
+
     $ export SCHEDULER_READY_QUEUE_MAX_SIZE=100
     $ aioscraper queue_consumer
 
-Send tasks from another service (example using redis-cli):
+Send it work from anywhere:
+
     $ docker exec -it redis redis-cli
-    redis> SELECT 1
     redis> PUBLISH test-channel "https://example.com"
-    redis> PUBLISH test-channel "https://httpbin.org/html"
     redis> PUBLISH test-channel "https://www.python.org"
 """
 
@@ -38,14 +35,7 @@ scraper = AIOScraper()
 
 @dataclass(slots=True)
 class Task:
-    """
-    Scraping task received from the message queue.
-
-    Attributes:
-        id: Unique task identifier from Redis message
-        url: URL to scrape
-        message: Original Redis message for acknowledgment
-    """
+    "A URL to fetch, with the message it came from so the callback can acknowledge it."
 
     id: str
     url: str
@@ -53,23 +43,17 @@ class Task:
 
     @classmethod
     def from_msg(cls, message: RedisChannelMessage) -> Self:
-        """Create a Task from a Redis channel message."""
         return cls(id=message.message_id, url=message.body.decode(), message=message)
 
 
 @scraper
 async def scrape(schedule_request: ScheduleRequest, subscriber: ChannelSubscriber):
-    """
-    Main consumer loop that listens to the Redis channel.
-
-    This function continuously receives messages from the Redis channel,
-    parses them into scraping tasks, and sends HTTP requests via aioscraper.
-    """
+    "Runs until shutdown: every message becomes a request, and the loop blocks when the queue is full."
     async for msg in subscriber:
         task = Task.from_msg(msg)
         await schedule_request(
             Request(
-                url=task.url,
+                task.url,
                 callback=callback,
                 errback=errback,
                 cb_kwargs={"task": task},
@@ -79,32 +63,18 @@ async def scrape(schedule_request: ScheduleRequest, subscriber: ChannelSubscribe
 
 @compiled
 async def callback(response: Response, task: Task):
-    """
-    Success callback for processing scraped pages.
-
-    Extracts the page title and acknowledges the message in Redis.
-    """
     print(f"[page] {task.id}: {response.url} - {response.status}")
     await task.message.ack()
 
 
 @compiled
 async def errback(exc: Exception, task: Task):
-    """Error callback for handling scraping failures."""
     print(f"[error] {task.id}: {task.url} - {exc}")
 
 
 @scraper.lifespan
 async def lifespan(scraper: AIOScraper):
-    """
-    Lifespan manager for setting up and tearing down resources.
-
-    This function:
-    1. Connects to Redis broker
-    2. Creates a channel subscriber
-    3. Injects subscriber as dependency into scraper callbacks
-    4. Cleans up resources on shutdown
-    """
+    "The subscriber outlives the run and is injected by name, so the entrypoint can ask for it."
     async with RedisBroker("redis://localhost:6379") as broker:
         subscriber = broker.subscriber("test-channel", persistent=False)
         scraper.add_dependencies(subscriber=subscriber)

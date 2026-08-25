@@ -1,13 +1,12 @@
 """
-Adaptive rate limiting example using EWMA + AIMD algorithm.
+Adaptive rate limiting: each group finds its own pace instead of holding the configured one.
 
-Demonstrates:
-- Automatic backoff when server returns 429/503 (rate limit errors)
-- Gradual increase of request rate on sustained success
-- Per-domain adaptive throttling
-- Retry-After header respect
+The interval starts at default_interval and moves from what the responses look like - multiplied on
+pushback, stepped back down after a run of successes. Every field below is at its default except
+the intervals; see docs/concepts/config.rst for what each one does.
 
-Run with:
+Run it:
+
     $ aioscraper adaptive_rate_limiting
 """
 
@@ -15,34 +14,20 @@ from aioscraper import AIOScraper
 from aioscraper.config import AdaptiveRateLimitConfig, Config, RateLimitConfig, SessionConfig
 from aioscraper.types import Request, Response, ScheduleRequest
 
-# Configure adaptive rate limiting
 scraper = AIOScraper(
     config=Config(
         session=SessionConfig(
             rate_limit=RateLimitConfig(
-                per_group=True,
-                # Base interval between requests (starting point)
+                per_group=True,  # required: adaptive paces a group at a time
                 default_interval=0.5,
-                # Enable adaptive rate limiting
                 adaptive=AdaptiveRateLimitConfig(
-                    # Minimum interval (won't go below this)
                     min_interval=0.1,
-                    # Maximum interval (won't go above this)
                     max_interval=10.0,
-                    # Multiplicative increase on failure (429, 503, timeout)
-                    # New interval = current_interval * increase_factor
                     increase_factor=2.0,
-                    # Additive decrease on sustained success
-                    # New interval = current_interval - decrease_step
                     decrease_step=0.05,
-                    # Number of successes before decreasing interval
                     success_threshold=5,
-                    # EWMA alpha for latency smoothing (0.0-1.0)
-                    # Higher = more weight on recent latencies
                     ewma_alpha=0.3,
-                    # Respect Retry-After header from server
                     respect_retry_after=True,
-                    # Use same triggers as retry config (429, 503, timeouts)
                     inherit_retry_triggers=True,
                 ),
             ),
@@ -53,37 +38,17 @@ scraper = AIOScraper(
 
 @scraper
 async def scrape(schedule_request: ScheduleRequest):
-    """
-    Send multiple requests to demonstrate adaptive throttling.
-
-    The rate limiter will:
-    1. Start with 0.5s interval
-    2. If server returns 429/503 -> multiply interval by 2.0 (backoff)
-    3. After 5 consecutive successes -> decrease interval by 0.05 (probe for capacity)
-    4. Respect Retry-After header if present
-    """
-    api_url = "https://api.github.com"
-
-    # Send 20 requests to the same domain
-    # Watch how interval adapts to server responses
+    "Enough requests to one host that the interval has room to move."
     for i in range(20):
         await schedule_request(
             Request(
-                url=f"{api_url}/users/octocat",
+                "https://api.github.com/users/octocat",
                 callback=handle_response,
-                # Store request number in context for tracking
                 cb_kwargs={"request_num": i + 1},
             ),
         )
 
 
 async def handle_response(response: Response, request_num: int):
-    """Handle API response and track adaptive behavior."""
-    print(f"✅ Request #{request_num}: {response.status} - {response.url}")
-
-    # Note: The adaptive rate limiter automatically tracks:
-    # - Response latency (EWMA smoothing)
-    # - Success/failure (based on status codes)
-    # - Server backoff signals (Retry-After header)
-    #
-    # You don't need to do anything in the callback!
+    # the callback does nothing for the rate limiter: latency and status are recorded for it
+    print(f"Request #{request_num}: {response.status} - {response.url}")

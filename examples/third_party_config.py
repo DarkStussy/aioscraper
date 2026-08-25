@@ -69,11 +69,8 @@ def load() -> Config:
     """Read the TOML file, then let AIOSCRAPER_-prefixed variables override it.
 
     dature nests with a double underscore, so AIOSCRAPER_SESSION__RETRY__ATTEMPTS=9 sets
-    ``session.retry.attempts``. The names load_config() reads are unrelated and are not consulted
-    here.
-
-    Returns:
-        Config: The resolved configuration; the field validators run as usual.
+    session.retry.attempts. The names load_config() reads are unrelated and are not consulted here.
+    The field validators run either way.
     """
     return dature.load(
         dature.Toml11Source(file="aioscraper.toml"),
