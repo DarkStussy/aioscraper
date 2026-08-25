@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from aioscraper.config import Config, SchedulerConfig
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -11,9 +11,9 @@ class PriorityScraper:
     def __init__(self):
         self.order: list[int] = []
 
-    async def __call__(self, send_request: SendRequest):
+    async def __call__(self, schedule_request: ScheduleRequest):
         for priority in range(1, 4):
-            await send_request(Request(url="https://api.test.com/v1", callback=self.parse, priority=priority))
+            await schedule_request(Request(url="https://api.test.com/v1", callback=self.parse, priority=priority))
 
     async def parse(self, response: Response, request: Request):
         self.order.append(request.priority)

@@ -17,6 +17,18 @@ from .stats import RunStats
 
 logger = getLogger(__name__)
 
+# documented as overridable, so it shadows quietly
+_OVERRIDABLE_DEPENDENCY = "config"
+
+
+def merge_dependencies(provided: dict[str, Any], registered: dict[str, Any]) -> dict[str, Any]:
+    "Merge framework dependencies with registered ones; a registered one wins, and is logged."
+    for name in sorted(provided.keys() & registered.keys()):
+        if name != _OVERRIDABLE_DEPENDENCY:
+            logger.warning("Dependency %r shadows the one the framework provides", name)
+
+    return {**provided, **registered}
+
 
 class ScraperExecutor:
     "Runs the scraper callables and owns the request manager they send through."
@@ -35,7 +47,10 @@ class ScraperExecutor:
         self._error_collector = ErrorCollector() if error_collector is None else error_collector
         self._config = config
         self._scrapers = scrapers
-        self._dependencies = {"config": config, "pipeline": pipeline_dispatcher.put_item, **dependencies}
+        self._dependencies = merge_dependencies(
+            {"config": config, "pipeline": pipeline_dispatcher.put_item},
+            dependencies,
+        )
         self._pipeline_dispatcher = pipeline_dispatcher
         self._request_manager = RequestManager(
             scheduler_config=self._config.scheduler,
@@ -49,6 +64,14 @@ class ScraperExecutor:
             error_collector=self._error_collector,
             stats=stats,
         )
+        # the entrypoint sender waits for a free admission slot; the callbacks' does not
+        self._scraper_dependencies = merge_dependencies(
+            {
+                "schedule_request": self._request_manager.sender,
+                "send_request": self._request_manager.sender,
+            },
+            self._dependencies,
+        )
 
     async def run(self):
         "Run every scraper at once, then wait for the requests they scheduled, retries included."
@@ -56,16 +79,7 @@ class ScraperExecutor:
         try:
             logger.debug("Running %d scraper(s) concurrently", len(self._scrapers))
             await asyncio.gather(
-                *[
-                    scraper(
-                        **get_func_kwargs(
-                            scraper,
-                            send_request=self._request_manager.sender,
-                            **self._dependencies,
-                        ),
-                    )
-                    for scraper in self._scrapers
-                ],
+                *[scraper(**get_func_kwargs(scraper, **self._scraper_dependencies)) for scraper in self._scrapers],
             )
             logger.debug("Waiting for pending requests")
             await self._request_manager.wait()

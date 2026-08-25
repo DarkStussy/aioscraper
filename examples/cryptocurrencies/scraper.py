@@ -12,7 +12,7 @@ from json import JSONDecodeError
 from database import CryptoCurrencyDatabase
 from models import Task, TaskStatus
 
-from aioscraper import Request, Response, SendRequest, compiled
+from aioscraper import Request, Response, ScheduleRequest, compiled
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class CryptocurrencyPriceScraper:
     def __init__(self, cmc_api_key: str):
         self._cmc_api_key = cmc_api_key
 
-    async def __call__(self, send_request: SendRequest, queue: asyncio.Queue[Task]):
+    async def __call__(self, schedule_request: ScheduleRequest, queue: asyncio.Queue[Task]):
         """
         Main task processing loop.
 
@@ -42,14 +42,14 @@ class CryptocurrencyPriceScraper:
         to CoinMarketCap API to fetch cryptocurrency quotes.
 
         Args:
-            send_request (SendRequest): Function for sending HTTP requests (provided by AIOScraper)
+            schedule_request (ScheduleRequest): Function for queueing HTTP requests (provided by AIOScraper)
             queue (asyncio.Queue[Task]): Task queue to process
         """
         while True:
             task = await queue.get()
 
             # Build and send request to CoinMarketCap API
-            await send_request(
+            await schedule_request(
                 Request(
                     url="https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest",
                     params={"symbol": task.cryptocurrency.name, "convert": CONVERT_CURRENCY},

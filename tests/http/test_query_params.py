@@ -1,6 +1,6 @@
 import pytest
 
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper
 
 
@@ -8,8 +8,8 @@ class Scraper:
     def __init__(self):
         self.seen: dict[str, str] | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/params?static=1",
                 method="GET",
@@ -47,8 +47,8 @@ async def test_params_extend_a_query_the_url_already_has(mock_aioscraper: MockAI
     )
 
     @mock_aioscraper
-    async def scraper(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/params?tag=old", params={"tag": "new"}))
+    async def scraper(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/params?tag=old", params={"tag": "new"}))
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()

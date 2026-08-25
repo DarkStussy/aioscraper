@@ -13,7 +13,7 @@ from aioscraper.core.rate_limiter import (
     RequestOutcome,
 )
 from aioscraper.exceptions import HTTPException
-from aioscraper.types import Response, SendRequest
+from aioscraper.types import Response, ScheduleRequest
 from aioscraper.types.session import Attempt, Request
 from tests.mocks import MockAIOScraper, MockResponse
 
@@ -401,9 +401,9 @@ class AdaptiveRateLimitScraper:
         self.responses = []
         self.errors = []
 
-    async def __call__(self, send_request: SendRequest):
+    async def __call__(self, schedule_request: ScheduleRequest):
         for i in range(self.num_requests):
-            await send_request(
+            await schedule_request(
                 Request(
                     url=f"https://api.example.com/item/{i}",
                     callback=self.handle_response,

@@ -13,7 +13,7 @@ Run with:
 
 from aioscraper import AIOScraper
 from aioscraper.config import AdaptiveRateLimitConfig, Config, RateLimitConfig, SessionConfig
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 
 # Configure adaptive rate limiting
 scraper = AIOScraper(
@@ -52,7 +52,7 @@ scraper = AIOScraper(
 
 
 @scraper
-async def scrape(send_request: SendRequest):
+async def scrape(schedule_request: ScheduleRequest):
     """
     Send multiple requests to demonstrate adaptive throttling.
 
@@ -67,7 +67,7 @@ async def scrape(send_request: SendRequest):
     # Send 20 requests to the same domain
     # Watch how interval adapts to server responses
     for i in range(20):
-        await send_request(
+        await schedule_request(
             Request(
                 url=f"{api_url}/users/octocat",
                 callback=handle_response,

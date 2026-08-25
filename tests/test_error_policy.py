@@ -129,8 +129,8 @@ async def test_scraper_exposes_unhandled_errors(mock_aioscraper: MockAIOScraper)
     )
 
     @mock_aioscraper
-    async def scraper(send_request):
-        await send_request(Request(url="https://api.test.com/broken"))
+    async def scraper(schedule_request):
+        await schedule_request(Request(url="https://api.test.com/broken"))
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()
@@ -143,8 +143,8 @@ async def test_scraper_without_errors_is_clean(mock_aioscraper: MockAIOScraper):
     mock_aioscraper.server.add("https://api.test.com/ok", handler=lambda _: {"status": "ok"})
 
     @mock_aioscraper
-    async def scraper(send_request):
-        await send_request(Request(url="https://api.test.com/ok"))
+    async def scraper(schedule_request):
+        await schedule_request(Request(url="https://api.test.com/ok"))
 
     async with mock_aioscraper:
         await mock_aioscraper.wait()
@@ -164,8 +164,8 @@ def _entrypoint(tmp_path: Path, policy: ErrorPolicy | None = None) -> Path:
         scraper = AIOScraper(config=Config({session}{execution}))
 
         @scraper
-        async def run(send_request):
-            await send_request(Request(url="http://127.0.0.1:1/unreachable"))
+        async def run(schedule_request):
+            await schedule_request(Request(url="http://127.0.0.1:1/unreachable"))
         """),
     )
     return path
@@ -205,7 +205,7 @@ def _slow_entrypoint(tmp_path: Path) -> Path:
         scraper = AIOScraper(config=Config(execution=ExecutionConfig(timeout=0.05)))
 
         @scraper
-        async def run(send_request):
+        async def run(schedule_request):
             await asyncio.sleep(30)
         """),
     )
@@ -290,7 +290,7 @@ async def test_run_scraper_reports_timeout():
     scraper = AIOScraper(config=Config(execution=ExecutionConfig(timeout=0.05)))
 
     @scraper
-    async def run(send_request):
+    async def run(schedule_request):
         await asyncio.sleep(30)
 
     result = await _run_scraper(scraper, install_signal_handlers=False)
@@ -305,8 +305,8 @@ async def test_run_scraper_returns_recorded_errors():
     scraper = AIOScraper(config=_no_retries())
 
     @scraper
-    async def run(send_request):
-        await send_request(Request(url="http://127.0.0.1:1/unreachable"))
+    async def run(schedule_request):
+        await schedule_request(Request(url="http://127.0.0.1:1/unreachable"))
 
     result = await _run_scraper(scraper, install_signal_handlers=False)
 
@@ -320,8 +320,8 @@ async def test_wait_returns_the_outcome():
     scraper = AIOScraper(config=_no_retries())
 
     @scraper
-    async def run(send_request):
-        await send_request(Request(url="http://127.0.0.1:1/unreachable"))
+    async def run(schedule_request):
+        await schedule_request(Request(url="http://127.0.0.1:1/unreachable"))
 
     async with scraper:
         result = await scraper.wait()
@@ -352,9 +352,9 @@ async def test_the_retained_error_cap_is_configurable(mock_aioscraper: MockAIOSc
     mock_aioscraper.config = Config(execution=ExecutionConfig(max_retained_errors=1))
 
     @mock_aioscraper
-    async def scraper(send_request):
+    async def scraper(schedule_request):
         for index in range(3):
-            await send_request(Request(url=f"https://api.test.com/broken/{index}"))
+            await schedule_request(Request(url=f"https://api.test.com/broken/{index}"))
 
     async with mock_aioscraper:
         result = await mock_aioscraper.wait()

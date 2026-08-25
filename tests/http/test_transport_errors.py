@@ -29,7 +29,7 @@ from aioscraper.core.session.factory import get_sessionmaker
 from aioscraper.exceptions import ClientException, ConnectionFailed, DNSError, ProxyError, TLSError, TransportTimeout
 from aioscraper.exceptions import InvalidURL as AioscraperInvalidURL
 from aioscraper.exceptions import TooManyRedirects as AioscraperTooManyRedirects
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper
 
 # what each backend raises for the same failure, and what it must become
@@ -165,8 +165,8 @@ class _StreamScraper:
         self._url = url
         self.error: Exception | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url=self._url, callback=self.parse, errback=self.on_error))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(Request(url=self._url, callback=self.parse, errback=self.on_error))
 
     async def parse(self, response: Response):
         await response.read()

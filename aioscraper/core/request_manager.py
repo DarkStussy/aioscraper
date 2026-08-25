@@ -17,7 +17,7 @@ from aioscraper.config import RateLimitConfig, RequestRetryConfig, SchedulerConf
 from aioscraper.exceptions import AIOScraperException, HTTPException, InvalidRequestData, InvalidURL
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import RequestHandler, RequestMiddleware, Response
-from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, Attempt, Request, SendRequest
+from aioscraper.types.session import DEFAULT_MAX_ERROR_BODY_SIZE, Attempt, Request, ScheduleRequest
 
 from .errors import ErrorCollector
 from .rate_limiter import RateLimitManager, RequestOutcome
@@ -159,7 +159,7 @@ def _get_request_sender(
     slots: _PendingSlots,
     *,
     wait_for_slot: bool,
-) -> SendRequest:
+) -> ScheduleRequest:
     "Creates a request sender. Only the entrypoint variant waits for a free slot."
 
     async def sender(request: Request) -> Request:
@@ -171,7 +171,7 @@ def _get_request_sender(
 
 
 class RequestManager:
-    """Carries a request from ``send_request`` to its callback.
+    """Carries a request from ``schedule_request`` to its callback.
 
     Accepted requests wait in a priority queue, or on a heap when they were given a delay. A
     listener task moves them through the rate limiter to the scheduler, which runs the middleware
@@ -239,7 +239,13 @@ class RequestManager:
             self._pending_slots,
             wait_for_slot=False,
         )
-        self._dependencies: dict[str, Any] = {"send_request": self._job_sender, **dependencies}
+        # a registered dependency wins, as for the entrypoints; the executor already warned
+        self._dependencies: dict[str, Any] = {
+            "schedule_request": self._job_sender,
+            # deprecated alias of schedule_request, removed in 1.0
+            "send_request": self._job_sender,
+            **dependencies,
+        }
         self._middleware_holder = middleware_holder
         self._rate_limiter_manager = RateLimitManager(
             rate_limit_config,
@@ -254,7 +260,7 @@ class RequestManager:
         self._task: asyncio.Task[None] | None = None
 
     @property
-    def sender(self) -> SendRequest:
+    def sender(self) -> ScheduleRequest:
         return self._request_sender
 
     async def _schedule(self, attempt: Attempt):

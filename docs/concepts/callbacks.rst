@@ -9,7 +9,7 @@ A callback handles a successful response; an errback handles a terminal failure,
 - ``errback`` handles statuses ``>=400``, transport failures, and anything a callback or middleware raised.
 - Neither runs when the attempt was retried, when a middleware returned ``None``, or when the request set no handler for what happened.
 - A failure with no ``errback`` is logged and recorded in :ref:`RunResult <unhandled-errors>` instead.
-- Both receive ``Request.cb_kwargs`` and the run's dependencies (``send_request``, ``pipeline``, ...), matched by parameter name.
+- Both receive ``Request.cb_kwargs`` and the run's dependencies (``schedule_request``, ``pipeline``, ...), matched by parameter name.
 - An ``errback`` that raises turns both exceptions into an ``ExceptionGroup``, which is then recorded.
 
 
@@ -17,15 +17,15 @@ A callback handles a successful response; an errback handles a terminal failure,
 
     import logging
 
-    from aioscraper import AIOScraper, Request, Response, SendRequest, Pipeline
+    from aioscraper import AIOScraper, Request, Response, ScheduleRequest, Pipeline
     from aioscraper.exceptions import HTTPException
 
     scraper = AIOScraper()
 
 
     @scraper
-    async def scrape(send_request: SendRequest):
-        await send_request(
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://example.com/api/article",
                 callback=handle_response,
@@ -93,18 +93,18 @@ Deciding what to pass a callback means inspecting its signature, which by defaul
 
 .. code-block:: python
 
-    from aioscraper import AIOScraper, Request, Response, SendRequest, compiled
+    from aioscraper import AIOScraper, Request, Response, ScheduleRequest, compiled
 
     scraper = AIOScraper()
 
 
     @scraper
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.example.com/data", callback=parse))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.example.com/data", callback=parse))
 
 
     @compiled
-    async def parse(response: Response, send_request: SendRequest):
+    async def parse(response: Response, schedule_request: ScheduleRequest):
         data = await response.json()
         # process data...
 

@@ -31,7 +31,7 @@ from typing import Self
 from faststream.redis import RedisBroker, RedisChannelMessage
 from faststream.redis.subscriber.usecases import ChannelSubscriber
 
-from aioscraper import AIOScraper, Request, Response, SendRequest, compiled
+from aioscraper import AIOScraper, Request, Response, ScheduleRequest, compiled
 
 scraper = AIOScraper()
 
@@ -58,7 +58,7 @@ class Task:
 
 
 @scraper
-async def scrape(send_request: SendRequest, subscriber: ChannelSubscriber):
+async def scrape(schedule_request: ScheduleRequest, subscriber: ChannelSubscriber):
     """
     Main consumer loop that listens to the Redis channel.
 
@@ -67,7 +67,7 @@ async def scrape(send_request: SendRequest, subscriber: ChannelSubscriber):
     """
     async for msg in subscriber:
         task = Task.from_msg(msg)
-        await send_request(
+        await schedule_request(
             Request(
                 url=task.url,
                 callback=callback,

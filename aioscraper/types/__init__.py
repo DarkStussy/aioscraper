@@ -18,6 +18,7 @@ from .session import (
     RequestFiles,
     RequestHeaders,
     Response,
+    ScheduleRequest,
     SendRequest,
 )
 
@@ -40,6 +41,7 @@ __all__ = (
     "RequestMiddleware",
     "RequestMiddlewareFactory",
     "Response",
+    "ScheduleRequest",
     "Scraper",
     "SendRequest",
 )

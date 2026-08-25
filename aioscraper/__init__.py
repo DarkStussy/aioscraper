@@ -6,7 +6,7 @@ __copyright__ = f"Copyright (c) 2025 {__author__}"
 
 from ._helpers import compiled
 from .core import AIOScraper, RunResult, run_scraper
-from .types import File, Pipeline, Request, Response, SendRequest
+from .types import File, Pipeline, Request, Response, ScheduleRequest, SendRequest
 
 __all__ = (
     "AIOScraper",
@@ -15,6 +15,7 @@ __all__ = (
     "Request",
     "Response",
     "RunResult",
+    "ScheduleRequest",
     "SendRequest",
     "compiled",
     "run_scraper",

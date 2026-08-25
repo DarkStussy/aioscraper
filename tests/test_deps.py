@@ -1,7 +1,10 @@
+import logging
+
 import pytest
 
 from aioscraper._helpers.func import compiled, get_func_kwargs
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.core.executor import merge_dependencies
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper
 
 
@@ -9,9 +12,9 @@ class Scraper:
     def __init__(self):
         self.results = {}
 
-    async def __call__(self, send_request: SendRequest, dep: str):
+    async def __call__(self, schedule_request: ScheduleRequest, dep: str):
         self.results["scraper_dep"] = dep
-        await send_request(Request(url="https://api.test.com/deps", callback=self.parse))
+        await schedule_request(Request(url="https://api.test.com/deps", callback=self.parse))
 
     async def parse(self, response: Response, dep: str):
         self.results["response_dep"] = dep
@@ -34,6 +37,51 @@ async def test_dependencies(mock_aioscraper: MockAIOScraper):
     assert scraper.results["response_dep"] == "injected"
     assert scraper.results["payload"] == response_data
     mock_aioscraper.server.assert_all_routes_handled()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["schedule_request", "send_request", "config", "pipeline"])
+async def test_a_registered_dependency_shadows_the_framework_one(mock_aioscraper: MockAIOScraper, name: str):
+    """A reserved name must reach the entrypoint as the registered value, not crash the run."""
+    captured = {}
+
+    async def scraper(
+        schedule_request: object = None,
+        send_request: object = None,
+        config: object = None,
+        pipeline: object = None,
+    ):
+        captured.update(
+            schedule_request=schedule_request,
+            send_request=send_request,
+            config=config,
+            pipeline=pipeline,
+        )
+
+    mock_aioscraper(scraper)
+    async with mock_aioscraper:
+        mock_aioscraper.add_dependencies(**{name: "registered"})
+        await mock_aioscraper.wait()
+
+    assert captured.pop(name) == "registered"
+    assert "registered" not in captured.values()
+
+
+def test_merge_dependencies_logs_a_shadowed_framework_name(caplog: pytest.LogCaptureFixture):
+    with caplog.at_level(logging.WARNING, logger="aioscraper.core.executor"):
+        merge_dependencies({"schedule_request": "framework", "config": "framework"}, {})
+        assert not caplog.records
+
+        merged = merge_dependencies(
+            {"schedule_request": "framework", "config": "framework"},
+            {"schedule_request": "registered", "config": "registered"},
+        )
+
+    assert merged == {"schedule_request": "registered", "config": "registered"}
+    # config is documented as overridable, so only the other name is reported
+    assert [record.getMessage() for record in caplog.records] == [
+        "Dependency 'schedule_request' shadows the one the framework provides",
+    ]
 
 
 def test_get_func_kwargs_picks_only_known_params():
@@ -79,8 +127,8 @@ async def test_compiled_decorator_with_scraper(mock_aioscraper: MockAIOScraper):
         def __init__(self):
             self.results = {}
 
-        async def __call__(self, send_request: SendRequest):
-            await send_request(Request(url="https://api.test.com/compiled", callback=self.parse))
+        async def __call__(self, schedule_request: ScheduleRequest):
+            await schedule_request(Request(url="https://api.test.com/compiled", callback=self.parse))
 
         @compiled
         async def parse(self, response: Response, dep: str):

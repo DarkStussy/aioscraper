@@ -25,7 +25,9 @@ RequestFiles = MutableMapping[str, "File"]
 # repeated header and ``getall()`` gives all of them
 ResponseHeaders = MultiMapping[str]
 
-SendRequest = Callable[["Request"], Awaitable["Request"]]
+ScheduleRequest = Callable[["Request"], Awaitable["Request"]]
+# deprecated alias of ScheduleRequest, removed in 1.0
+SendRequest = ScheduleRequest
 
 DEFAULT_MAX_REDIRECTS = 10
 DEFAULT_CHUNK_SIZE = 65536
@@ -103,7 +105,7 @@ class Request:
             of this object. The framework never writes to it
     """
 
-    url: str
+    url: str = field(kw_only=False)
     method: str = HTTPMethod.GET
     params: QueryParams | None = None
     data: Any = None

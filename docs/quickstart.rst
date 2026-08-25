@@ -13,7 +13,7 @@ Save this as ``scraper.py``:
 .. code-block:: python
 
    import logging
-   from aioscraper import AIOScraper, Request, Response, SendRequest, Pipeline
+   from aioscraper import AIOScraper, Request, Response, ScheduleRequest, Pipeline
    from dataclasses import dataclass
 
    logger = logging.getLogger("github_repos")
@@ -44,9 +44,9 @@ Save this as ``scraper.py``:
            logger.info("Total stars collected: %s", self.total_stars)
 
 
-   # registers an entry point; send_request is injected by parameter name
+   # registers an entry point; schedule_request is injected by parameter name
    @scraper
-   async def get_repos(send_request: SendRequest):
+   async def get_repos(schedule_request: ScheduleRequest):
        repos = (
            "django/django",
            "fastapi/fastapi",
@@ -56,7 +56,7 @@ Save this as ``scraper.py``:
        )
 
        for repo in repos:
-           await send_request(
+           await schedule_request(
                Request(
                    url=f"https://api.github.com/repos/{repo}",
                    callback=parse_repo,  # runs on a response with a status below 400
@@ -97,7 +97,7 @@ What happens when it runs
 -------------------------
 
 1. The ``aioscraper`` command imports ``scraper.py`` and takes the ``scraper`` attribute from it.
-2. ``get_repos()`` runs and queues 5 requests. ``send_request()`` returns as soon as a request is accepted - it does not wait for the response.
+2. ``get_repos()`` runs and queues 5 requests. ``schedule_request()`` returns as soon as a request is accepted - it does not wait for the response.
 3. The framework dispatches them, up to ``--concurrent-requests`` at a time, so responses arrive in no particular order.
 4. ``parse_repo()`` runs for each response, ``on_failure()`` for each failure that retries did not recover from.
 5. ``StatsPipeline.put_item()`` runs for every ``RepoStats`` handed to ``pipeline()``. Callbacks run concurrently, so their calls into the pipeline can overlap - what runs in order is the chain within one call.
@@ -111,7 +111,7 @@ Customize for your use case
 
    .. code-block:: python
 
-      await send_request(
+      await schedule_request(
           Request(
               url="https://api.example.com/products",
               callback=parse_product,
@@ -147,12 +147,12 @@ Customize for your use case
 
    .. code-block:: python
 
-      async def parse_page(response: Response, send_request: SendRequest, page: int):
+      async def parse_page(response: Response, schedule_request: ScheduleRequest, page: int):
           data = await response.json()
           # Process items...
 
           if data.get("next_page"):
-              await send_request(
+              await schedule_request(
                   Request(
                       url=data["next_page"],
                       callback=parse_page,

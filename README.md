@@ -84,7 +84,7 @@ pip install "aioscraper[aiohttp,httpx,httpx2]"
 Create `scraper.py`:
 ```python
 import logging
-from aioscraper import AIOScraper, Request, Response, SendRequest, Pipeline
+from aioscraper import AIOScraper, Request, Response, ScheduleRequest, Pipeline
 from dataclasses import dataclass
 
 logger = logging.getLogger("github_repos")
@@ -115,9 +115,9 @@ class StatsPipeline:
         logger.info("Total stars collected: %s", self.total_stars)
 
 
-# registers an entry point; send_request is injected by parameter name
+# registers an entry point; schedule_request is injected by parameter name
 @scraper
-async def get_repos(send_request: SendRequest):
+async def get_repos(schedule_request: ScheduleRequest):
     repos = (
         "django/django",
         "fastapi/fastapi",
@@ -127,7 +127,7 @@ async def get_repos(send_request: SendRequest):
     )
 
     for repo in repos:
-        await send_request(
+        await schedule_request(
             Request(
                 url=f"https://api.github.com/repos/{repo}",
                 callback=parse_repo,  # runs on a response with a status below 400
@@ -162,7 +162,7 @@ aioscraper scraper
 What's happening?
 
 1. `@scraper` registers the entry point; `@scraper.pipeline` registers a pipeline for `RepoStats`
-2. `send_request()` queues a request and returns; the framework dispatches it when a slot frees up
+2. `schedule_request()` queues a request and returns; the framework dispatches it when a slot frees up
 3. Requests run concurrently up to the limit, so responses arrive in no particular order
 4. `parse_repo` handles each response, `on_failure` handles each failure that was not retried
 5. `StatsPipeline.close()` runs once at the end, after every request has finished

@@ -7,7 +7,7 @@ from aioscraper.config import BackoffStrategy, RateLimitConfig, RequestRetryConf
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseSession
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import Request, SendRequest
+from aioscraper.types import Request, ScheduleRequest
 from tests.test_request_manager import FakeSession, FixedStatusSession
 
 
@@ -172,12 +172,12 @@ async def test_send_from_inside_a_job_does_not_wait_for_a_slot():
     sent = 0
     finished = asyncio.Event()
 
-    async def callback(send_request: SendRequest):
+    async def callback(schedule_request: ScheduleRequest):
         nonlocal sent
         # More follow-ups than the scheduler can take, so the listener stops releasing
         # slots partway through and a waiting sender would never resume.
         for i in range(5):
-            await send_request(Request(url=f"https://api.test.com/followup-{i}"))
+            await schedule_request(Request(url=f"https://api.test.com/followup-{i}"))
             sent += 1
 
         finished.set()

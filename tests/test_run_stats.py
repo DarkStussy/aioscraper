@@ -5,7 +5,7 @@ import pytest
 from aioscraper.config import Config, RequestRetryConfig, SessionConfig
 from aioscraper.core import AIOScraper
 from aioscraper.core.errors import RunResult
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -31,9 +31,9 @@ async def test_a_successful_run_counts_its_requests_and_items(mock_aioscraper: M
     mock_aioscraper.pipeline.add(Item, CollectPipeline())
 
     @mock_aioscraper
-    async def scraper(send_request: SendRequest):
+    async def scraper(schedule_request: ScheduleRequest):
         for path in ("one", "two"):
-            await send_request(Request(url=f"https://api.test.com/{path}", callback=callback))
+            await schedule_request(Request(url=f"https://api.test.com/{path}", callback=callback))
 
     async def callback(response: Response, pipeline):
         await pipeline(Item(value=(await response.json())["value"]))
@@ -57,8 +57,8 @@ async def test_a_failing_request_counts_as_failed(mock_aioscraper: MockAIOScrape
     )
 
     @mock_aioscraper
-    async def scraper(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/broken"))
+    async def scraper(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/broken"))
 
     async with mock_aioscraper:
         result = await mock_aioscraper.wait()
@@ -77,8 +77,8 @@ async def test_a_handled_failure_counts_as_failed_but_is_not_an_error(mock_aiosc
     handled: list[Exception] = []
 
     @mock_aioscraper
-    async def scraper(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/broken", errback=errback))
+    async def scraper(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/broken", errback=errback))
 
     async def errback(exc: Exception):
         handled.append(exc)
@@ -105,8 +105,8 @@ async def test_a_retried_request_starts_once_per_attempt(mock_aioscraper: MockAI
     )
 
     @mock_aioscraper
-    async def scraper(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/flaky", callback=callback))
+    async def scraper(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/flaky", callback=callback))
 
     async def callback(response: Response): ...
 

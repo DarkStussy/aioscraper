@@ -13,7 +13,7 @@ from aioscraper.config import (
 from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.session import BaseSession
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from aioscraper.types.session import Attempt
 from tests.mocks import MockAIOScraper, MockResponse
 from tests.test_request_manager import FixedStatusSession
@@ -146,9 +146,9 @@ class RetryScraper:
         self.errbacks = 0
         self.request = Request(url=url, callback=self.handle_response, errback=self.handle_error)
 
-    async def __call__(self, send_request: SendRequest):
+    async def __call__(self, schedule_request: ScheduleRequest):
         for _ in range(self.sends):
-            await send_request(self.request)
+            await schedule_request(self.request)
 
     async def handle_response(self, response: Response):
         self.callbacks += 1

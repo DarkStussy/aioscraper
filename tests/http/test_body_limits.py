@@ -3,7 +3,7 @@ from aiohttp import web
 
 from aioscraper.config import Config, SessionConfig
 from aioscraper.exceptions import HTTPException, ResponseTooLarge
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 BODY_SIZE = 256 * 1024
@@ -17,9 +17,9 @@ class BodyScraper:
         self.bodies: list[bytes] = []
         self.errors: list[Exception] = []
 
-    async def __call__(self, send_request: SendRequest):
+    async def __call__(self, schedule_request: ScheduleRequest):
         for url in self.urls:
-            await send_request(Request(url=url, callback=self.parse, errback=self.on_error))
+            await schedule_request(Request(url=url, callback=self.parse, errback=self.on_error))
 
     async def parse(self, response: Response):
         self.bodies.append(await response.read())
@@ -39,15 +39,15 @@ class StreamingScraper:
         self.follow_up: bytes | None = None
         self.errors: list[Exception] = []
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url=self._stream_url, callback=self.stream, errback=self.on_error))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(Request(url=self._stream_url, callback=self.stream, errback=self.on_error))
 
-    async def stream(self, response: Response, send_request: SendRequest):
+    async def stream(self, response: Response, schedule_request: ScheduleRequest):
         async for chunk in response.iter_bytes(self._chunk_size):
             self.first_chunk = chunk
             break
 
-        await send_request(Request(url=self._follow_up_url, callback=self.parse_follow_up, errback=self.on_error))
+        await schedule_request(Request(url=self._follow_up_url, callback=self.parse_follow_up, errback=self.on_error))
 
     async def parse_follow_up(self, response: Response):
         self.follow_up = await response.read()

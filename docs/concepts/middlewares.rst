@@ -1,7 +1,7 @@
 Middlewares
 ===========
 
-Middlewares wrap the entire request lifecycle with a flexible ``call_next`` chain. Each middleware is a factory that receives any dependencies registered on the scraper (e.g. ``send_request``) and returns the actual middleware callable.
+Middlewares wrap the entire request lifecycle with a flexible ``call_next`` chain. Each middleware is a factory that receives any dependencies registered on the scraper (e.g. ``schedule_request``) and returns the actual middleware callable.
 
 The middleware signature is ``async def middleware(call_next, request) -> Response | None``:
 
@@ -14,7 +14,7 @@ The middleware signature is ``async def middleware(call_next, request) -> Respon
 
     from aioscraper import AIOScraper, Request, Response
     from aioscraper.exceptions import HTTPException
-    from aioscraper.types import RequestHandler, RequestMiddleware, SendRequest
+    from aioscraper.types import RequestHandler, RequestMiddleware, ScheduleRequest
 
     scraper = AIOScraper()
 
@@ -43,7 +43,7 @@ The middleware signature is ``async def middleware(call_next, request) -> Respon
 
         return middleware
 
-Factories receive injected dependencies via parameter names (same convention as callbacks and pipeline global middlewares). ``send_request`` is always available; user-registered ``scraper.add_dependencies(...)`` values are matched by parameter name.
+Factories receive injected dependencies via parameter names (same convention as callbacks and pipeline global middlewares). ``schedule_request`` is always available; user-registered ``scraper.add_dependencies(...)`` values are matched by parameter name.
 
 Flow
 ----

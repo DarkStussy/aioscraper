@@ -1,7 +1,7 @@
 import pytest
 
 from aioscraper.exceptions import HTTPException
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -11,8 +11,8 @@ class Scraper:
         self.seen_error: HTTPException | None = None
         self.seen_response: Response | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url=f"https://api.test.com/{self.status}",
                 method="GET",

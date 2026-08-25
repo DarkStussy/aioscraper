@@ -26,7 +26,7 @@ Example
 .. code-block:: python
 
     from dataclasses import dataclass
-    from aioscraper import AIOScraper, Request, SendRequest
+    from aioscraper import AIOScraper, Request, ScheduleRequest
 
 
     scraper = AIOScraper()
@@ -55,9 +55,9 @@ Example
 
     # Entry point: receives injected config dependency
     @scraper
-    async def scrape(send_request: SendRequest, config: Config):
+    async def scrape(schedule_request: ScheduleRequest, config: Config):
         """Scraper entry point with injected config"""
-        await send_request(
+        await schedule_request(
             Request(
                 url=f"{config.api_base_url}/repos/python/cpython",
                 headers={"Authorization": f"token {config.github_token}"},
@@ -108,13 +108,19 @@ Rules
 
 2. **Always available**: three dependencies are registered by the framework itself:
 
-   - ``send_request: SendRequest`` - schedule further requests
+   - ``schedule_request: ScheduleRequest`` - schedule further requests
    - ``pipeline: Pipeline`` - send items into the pipelines
    - ``config: Config`` - the run's configuration, unless you registered your own ``config``
+
+   ``schedule_request`` was called ``send_request`` before, and ``ScheduleRequest`` was
+   ``SendRequest``. Both old names still work - the same dependency is injected under either
+   parameter name - and are removed in 1.0.
 
 3. **Callbacks also get the request**: ``response`` and ``request`` reach a callback, ``exc`` and ``request`` an errback, alongside anything in ``Request.cb_kwargs``.
 
 4. **Nothing matched**: an unmatched parameter is left out of the call, so give it a default unless you mean the call to fail.
+
+5. **Your name wins**: ``add_dependencies(pipeline=...)`` replaces the framework's for the whole run. Overriding ``config`` is the supported case; shadowing ``pipeline``, ``schedule_request`` or ``send_request`` is logged as a warning, since callbacks then get your value instead of the machinery.
 
 Registering in a lifespan is what ties setup to teardown; see :doc:`lifespan`. In tests, ``add_dependencies`` is also how you swap a client for a fake:
 

@@ -13,7 +13,7 @@ What it does
 .. code-block:: python
 
     from typing import Iterable, Self
-    from aioscraper import AIOScraper, Request, SendRequest, Response
+    from aioscraper import AIOScraper, Request, ScheduleRequest, Response
 
     scraper = AIOScraper()
 
@@ -31,9 +31,9 @@ What it does
 
 
     @scraper
-    async def scrape(send_request: SendRequest, db_client: DbClient):
+    async def scrape(schedule_request: ScheduleRequest, db_client: DbClient):
         for i in await db_client.get():
-            await send_request(Request(url=f"https://example.com/?i={i}", callback=handle_response))
+            await schedule_request(Request(url=f"https://example.com/?i={i}", callback=handle_response))
 
 
     async def handle_response(response: Response):

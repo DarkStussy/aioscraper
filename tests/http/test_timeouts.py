@@ -5,7 +5,7 @@ from aiohttp import web
 
 from aioscraper.config import Config, SessionConfig
 from aioscraper.exceptions import InvalidRequestData, TransportTimeout
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -15,8 +15,8 @@ class Scraper:
         self.result: str | None = None
         self.error: Exception | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/slow",
                 method="GET",
@@ -94,8 +94,8 @@ class _StreamScraper:
         self.error: Exception | None = None
         self.body: bytes | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(url=self._url, timeout=self._timeout, callback=self.parse, errback=self.on_error),
         )
 
@@ -159,11 +159,11 @@ async def test_a_non_positive_timeout_is_rejected(mock_aioscraper: MockAIOScrape
     sent: list[Request] = []
 
     @mock_aioscraper
-    async def scraper(send_request: SendRequest):
+    async def scraper(schedule_request: ScheduleRequest):
         with pytest.raises(InvalidRequestData, match="positive"):
-            await send_request(Request(url="https://api.test.com/slow", timeout=timeout))
+            await schedule_request(Request(url="https://api.test.com/slow", timeout=timeout))
 
-        sent.append(await send_request(Request(url="https://api.test.com/slow", timeout=1.0)))
+        sent.append(await schedule_request(Request(url="https://api.test.com/slow", timeout=1.0)))
 
     mock_aioscraper.server.add("https://api.test.com/slow", handler=lambda _: MockResponse(text="ok"))
 

@@ -449,12 +449,12 @@ single request — ``True`` retries it, ``False`` never does, ``None`` (the defa
 
    from uuid import uuid4
 
-   from aioscraper.types import Request, SendRequest
+   from aioscraper.types import Request, ScheduleRequest
 
 
-   async def scraper(send_request: SendRequest):
+   async def scraper(schedule_request: ScheduleRequest):
        # safe to replay: the server deduplicates by Idempotency-Key
-       await send_request(
+       await schedule_request(
            Request(
                url="https://api.example.com/payments",
                method="POST",

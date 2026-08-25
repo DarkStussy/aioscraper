@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper
 
 
@@ -11,8 +11,8 @@ class Scraper:
         self.payload = payload
         self.response_data: dict[str, Any] | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/binary",
                 method="POST",

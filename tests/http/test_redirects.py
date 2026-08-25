@@ -1,7 +1,7 @@
 import pytest
 
 from aioscraper.exceptions import TooManyRedirects
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -11,8 +11,8 @@ class Scraper:
         self.final_url: str | None = None
         self.status: int | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/redirect",
                 method="GET",
@@ -70,8 +70,8 @@ class _LoopScraper:
         self._url = url
         self.error: Exception | None = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url=self._url, errback=self.on_error))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(Request(url=self._url, errback=self.on_error))
 
     async def on_error(self, exc: Exception):
         self.error = exc

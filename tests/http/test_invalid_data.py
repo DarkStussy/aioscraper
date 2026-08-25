@@ -3,7 +3,7 @@ import json
 import pytest
 
 from aioscraper.exceptions import InvalidURL
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -12,8 +12,8 @@ class Scraper:
         self.error: Exception | None = None
         self.parsed_ok = False
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/bad-json",
                 method="GET",
@@ -55,10 +55,10 @@ class _BadUrlScraper:
         self.sent_error: Exception | None = None
         self.error: Exception | None = None
 
-    async def __call__(self, send_request: SendRequest):
+    async def __call__(self, schedule_request: ScheduleRequest):
         url = "https://api.test.com/ok" if self._via_middleware else self._url
         try:
-            await send_request(Request(url=url, errback=self.on_error))
+            await schedule_request(Request(url=url, errback=self.on_error))
         except Exception as exc:
             self.sent_error = exc
 

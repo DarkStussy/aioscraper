@@ -7,7 +7,7 @@ from aiohttp.web import BaseRequest
 from httpx import AsyncClient
 from httpx2 import AsyncClient as AsyncClient2
 
-from aioscraper import AIOScraper, Request, Response, SendRequest
+from aioscraper import AIOScraper, Request, Response, ScheduleRequest
 from aioscraper.config import Config, HttpBackend, SessionConfig
 from aioscraper.core.session import BaseSession, get_sessionmaker
 from aioscraper.core.session.aiohttp import AiohttpSession
@@ -48,8 +48,8 @@ def _route(server: MockServer, seen: list[str | None]):
 
 async def _scrape(scraper: AIOScraper, bodies: list[dict]):
     @scraper
-    async def run(send_request: SendRequest):
-        await send_request(Request(url=URL, callback=callback))
+    async def run(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url=URL, callback=callback))
 
     async def callback(response: Response):
         bodies.append(await response.json())

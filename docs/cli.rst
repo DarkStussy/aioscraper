@@ -42,12 +42,12 @@ You can run the same scraper programmatically using :func:`run_scraper <aioscrap
 .. code-block:: python
 
     import asyncio
-    from aioscraper import AIOScraper, Request, SendRequest, run_scraper
+    from aioscraper import AIOScraper, Request, ScheduleRequest, run_scraper
     from aioscraper.config import load_config
 
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://example.com"))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://example.com"))
 
 
     async def main() -> int:

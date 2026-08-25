@@ -10,7 +10,7 @@ from aioscraper.types import (
     RequestMiddleware,
     RequestMiddlewareFactory,
     Response,
-    SendRequest,
+    ScheduleRequest,
 )
 from tests.mocks import MockAIOScraper, MockResponse
 
@@ -22,9 +22,9 @@ class MiddlewareScraper:
         self.after_flag: bool | None = None
         self.exception_seen: bool = False
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=self.parse))
-        await send_request(Request(url="https://api.test.com/error", errback=self.handle_error))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=self.parse))
+        await schedule_request(Request(url="https://api.test.com/error", errback=self.handle_error))
 
     async def parse(self, response: Response, request: Request, before: bool):
         self.response = await response.json()
@@ -120,8 +120,8 @@ async def test_middleware_registration_order_controls_wrapping(mock_aioscraper: 
     mock_aioscraper.middleware.add(outer_factory)
     mock_aioscraper.middleware.add(inner_factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=handle))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=handle))
 
     async def handle():
         return None
@@ -150,8 +150,8 @@ async def test_middleware_short_circuit_skips_dispatch_and_callback(mock_aioscra
 
     mock_aioscraper.middleware.add(factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=callback))
 
     async def callback():
         calls.append("callback")
@@ -183,8 +183,8 @@ async def test_middleware_catches_exception_skips_errback(mock_aioscraper: MockA
 
     mock_aioscraper.middleware.add(factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/error", errback=errback))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/error", errback=errback))
 
     async def errback(exc: Exception):
         calls.append("errback")
@@ -223,8 +223,8 @@ async def test_middleware_reads_response_body_lazily_after_call_next(mock_aioscr
 
     mock_aioscraper.middleware.add(factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=callback))
 
     async def callback(): ...
 
@@ -269,8 +269,8 @@ async def test_outer_middleware_catches_inner_exception(mock_aioscraper: MockAIO
     mock_aioscraper.middleware.add(outer_factory)
     mock_aioscraper.middleware.add(inner_factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/error", errback=errback))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/error", errback=errback))
 
     async def errback(exc: Exception):
         calls.append("errback")
@@ -313,8 +313,8 @@ async def test_inner_middleware_short_circuit_propagates_none_to_outer(mock_aios
     mock_aioscraper.middleware.add(outer_factory)
     mock_aioscraper.middleware.add(inner_factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=callback))
 
     async def callback():
         calls.append("callback")
@@ -335,9 +335,9 @@ async def test_middleware_factory_receives_dependencies(mock_aioscraper: MockAIO
 
     captured: dict = {}
 
-    def factory(send_request: SendRequest, custom_dep: str) -> RequestMiddleware:
+    def factory(schedule_request: ScheduleRequest, custom_dep: str) -> RequestMiddleware:
         captured["custom_dep"] = custom_dep
-        captured["send_request"] = send_request
+        captured["schedule_request"] = schedule_request
 
         async def middleware(call_next: RequestHandler, request: Request) -> Response | None:
             return await call_next(request)
@@ -347,8 +347,8 @@ async def test_middleware_factory_receives_dependencies(mock_aioscraper: MockAIO
     mock_aioscraper.add_dependencies(custom_dep="injected")
     mock_aioscraper.middleware.add(factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=callback))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=callback))
 
     async def callback(): ...
 
@@ -358,7 +358,7 @@ async def test_middleware_factory_receives_dependencies(mock_aioscraper: MockAIO
         await mock_aioscraper.wait()
 
     assert captured["custom_dep"] == "injected"
-    assert callable(captured["send_request"])
+    assert callable(captured["schedule_request"])
 
 
 def _retry_everything(attempts: int = 1) -> Config:
@@ -400,8 +400,8 @@ async def test_middleware_failure_reaches_the_retry_policy(mock_aioscraper: Mock
 
     mock_aioscraper.middleware.add(factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
 
     async def callback(): ...
 
@@ -432,8 +432,8 @@ async def test_callback_failure_is_not_retried(mock_aioscraper: MockAIOScraper):
         calls += 1
         raise RuntimeError("bad payload")
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", callback=callback, errback=on_error))
 
     mock_aioscraper(scrape)
     mock_aioscraper.config = _retry_everything()
@@ -467,8 +467,8 @@ async def test_middleware_can_swallow_a_failure_before_the_retry_policy(mock_aio
 
     mock_aioscraper.middleware.add(factory)
 
-    async def scrape(send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/error", errback=on_error))
+    async def scrape(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/error", errback=on_error))
 
     mock_aioscraper(scrape)
     mock_aioscraper.config = _retry_everything(attempts=3)

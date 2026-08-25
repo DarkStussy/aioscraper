@@ -15,7 +15,7 @@ Core
 .. code-block:: python
 
     from dataclasses import dataclass
-    from aioscraper import AIOScraper, Request, SendRequest, Response, Pipeline, ItemHandler
+    from aioscraper import AIOScraper, Request, ScheduleRequest, Response, Pipeline, ItemHandler
 
     scraper = AIOScraper()
 
@@ -82,9 +82,9 @@ Core
 
     # Entry point: schedule requests to fetch articles
     @scraper
-    async def get_article(send_request: SendRequest):
+    async def get_article(schedule_request: ScheduleRequest):
         """Scraper entry point - sends request to article API"""
-        await send_request(Request(url="https://api.article.com", callback=callback))
+        await schedule_request(Request(url="https://api.article.com", callback=callback))
 
 
     async def callback(response: Response, pipeline: Pipeline):

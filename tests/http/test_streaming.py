@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from aiohttp import web
 
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -11,8 +11,8 @@ class Scraper:
     def __init__(self):
         self.bodies: dict[str, bytes] = {}
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/chunked",
                 method="GET",
@@ -20,7 +20,7 @@ class Scraper:
                 cb_kwargs={"key": "chunked"},
             ),
         )
-        await send_request(
+        await schedule_request(
             Request(
                 url="https://api.test.com/large",
                 method="GET",

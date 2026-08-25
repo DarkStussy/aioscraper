@@ -58,7 +58,11 @@ Session
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
 .. autoclass:: aioscraper.types.session.File
+.. autodata:: aioscraper.types.session.ScheduleRequest
 .. autodata:: aioscraper.types.session.SendRequest
+
+   Deprecated alias of :data:`~aioscraper.types.session.ScheduleRequest`, removed in 1.0.
+
 .. autodata:: aioscraper.types.session.QueryParams
 .. autodata:: aioscraper.types.session.RequestCookies
 .. autodata:: aioscraper.types.session.RequestHeaders

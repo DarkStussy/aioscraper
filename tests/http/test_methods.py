@@ -1,6 +1,6 @@
 import pytest
 
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper
 
 
@@ -8,8 +8,8 @@ class Scraper:
     def __init__(self):
         self.results: dict[str, dict] = {}
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
             Request(
                 url="https://api.test.com/get",
                 method="GET",
@@ -17,7 +17,7 @@ class Scraper:
                 cb_kwargs={"expect": "GET"},
             ),
         )
-        await send_request(
+        await schedule_request(
             Request(
                 url="https://api.test.com/post",
                 method="POST",
@@ -26,7 +26,7 @@ class Scraper:
                 cb_kwargs={"expect": "POST"},
             ),
         )
-        await send_request(
+        await schedule_request(
             Request(
                 url="https://api.test.com/put",
                 method="PUT",
@@ -35,7 +35,7 @@ class Scraper:
                 cb_kwargs={"expect": "PUT"},
             ),
         )
-        await send_request(
+        await schedule_request(
             Request(
                 url="https://api.test.com/delete",
                 method="DELETE",
@@ -43,7 +43,7 @@ class Scraper:
                 cb_kwargs={"expect": "DELETE"},
             ),
         )
-        await send_request(
+        await schedule_request(
             Request(
                 url="https://api.test.com/patch",
                 method="PATCH",

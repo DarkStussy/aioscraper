@@ -1,7 +1,7 @@
 import pytest
 
 from aioscraper.exceptions import ClientException, HTTPException
-from aioscraper.types import Request, Response, SendRequest
+from aioscraper.types import Request, Response, ScheduleRequest
 from tests.mocks import MockAIOScraper, MockResponse
 
 
@@ -10,8 +10,8 @@ class Scraper:
         self.status = None
         self.response_data = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v1", errback=self.errback))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v1", errback=self.errback))
 
     async def errback(self, exc: ClientException):
         if isinstance(exc, HTTPException):
@@ -42,8 +42,8 @@ class CallbackErrorScraper:
         self.exc_message = None
         self.request_url = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v2", callback=self.parse, errback=self.errback))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/v2", callback=self.parse, errback=self.errback))
 
     async def parse(self, response: Response):
         raise RuntimeError("parse failed")
@@ -72,8 +72,10 @@ class ErrbackKwargsScraper:
         self.status = None
         self.meta = None
 
-    async def __call__(self, send_request: SendRequest):
-        await send_request(Request(url="https://api.test.com/v3", errback=self.errback, cb_kwargs={"meta": "value"}))
+    async def __call__(self, schedule_request: ScheduleRequest):
+        await schedule_request(
+            Request(url="https://api.test.com/v3", errback=self.errback, cb_kwargs={"meta": "value"})
+        )
 
     async def errback(self, exc: ClientException, meta: str):
         if isinstance(exc, HTTPException):
