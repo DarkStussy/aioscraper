@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 (2026-08-25)
 
 ### Added
 - `SessionConfig.buffer_body` (`SESSION_BUFFER_BODY`) and `Request.buffer_body`, which read a response body before the callback runs. Without it the body is read inside the callback, past the retry policy: a connection dying mid-body reached the errback unretried, and the adaptive rate limiter had already recorded the request as a success at the latency of its headers. Off by default, since it holds every body in memory for the whole callback.
