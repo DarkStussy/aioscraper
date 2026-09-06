@@ -1,40 +1,33 @@
 aioscraper
 ==========
 
-**High-performance asynchronous Python framework for large-scale API data collection.**
+**An async Python framework for collecting data from APIs.**
 
 .. warning::
-   Beta status: APIs and behavior may change, so pin versions and expect occasional breakage while things stabilize.
+   Beta status: APIs and behavior still change between releases, so pin the version.
 
-What is aioscraper?
--------------------
+You write requests and response handlers. aioscraper queues the requests, limits concurrency, and
+retries failed attempts. It has no selectors and no crawling engine - parse the response however you
+like, with BeautifulSoup or anything else.
 
-aioscraper is an async Python framework designed for **mass data collection from APIs** and external services at scale.
+It is worth reaching for when one process has to keep hundreds or thousands of requests in flight
+and you would otherwise be writing that machinery yourself. For a handful of requests, use
+``aiohttp`` or ``httpx`` directly.
 
-**Built for:**
-
-- Fetching data from hundreds/thousands of REST API endpoints concurrently
-- Integrating multiple external services (payment gateways, analytics APIs, etc.)
-- Building data aggregation pipelines from heterogeneous API sources
-- Queue-based scraping workers consuming tasks from Redis/RabbitMQ
-- Microservice fan-out requests with automatic rate limiting and retries
-
-**NOT built for:**
-
-- Parsing HTML/CSS (but nothing stops you from using BeautifulSoup if you want)
-- Single API requests (use httpx or aiohttp directly)
-- GraphQL or WebSocket scraping (different paradigm)
-
-**Think:** "I need to fetch data from 10,000 product API endpoints" or "I need to poll 50 microservices every minute" → aioscraper is for you.
-
-Key Features
+What you get
 ------------
 
-- **Async-first** core with pluggable HTTP backends (``aiohttp``/``httpx``/``httpx2``) and ``aiojobs`` scheduling
-- **Declarative flow**: requests → callbacks → pipelines, with middleware hooks at each stage
-- **Priority queueing** with backpressure, a global concurrency limit and per-group rate limits
-- **Adaptive rate limiting** with EWMA + AIMD algorithm - automatically backs off on server overload
-- **Small, explicit API** that is easy to test and compose with existing async applications
+- Plain asyncio on top of a pluggable HTTP client (``aiohttp``, ``httpx`` or ``httpx2``), so a
+  scraper can also run inside an async service you already have
+- Callbacks handle responses and can pass extracted items to pipelines for processing or storage;
+  middleware runs around each stage
+- A priority queue with a global concurrency limit, and a queue size that blocks the entrypoint once
+  too many requests are waiting
+- Retries with configurable backoff, and a configurable delay between requests, applied per group of
+  targets (by hostname, or by a key of your own)
+- Optional adaptive rate limiting: the delay grows after configured errors and shrinks after
+  consecutive successful requests
+- A small API that stays testable: explicit dependencies, no global state
 
 
 .. toctree::
