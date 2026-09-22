@@ -1,7 +1,7 @@
 Middlewares
 ===========
 
-Middlewares wrap the entire request lifecycle with a flexible ``call_next`` chain. Each middleware is a factory that receives any dependencies registered on the scraper (e.g. ``schedule_request``) and returns the actual middleware callable.
+Middlewares wrap the whole request lifecycle as a chain of ``call_next`` calls. Each middleware is a factory that receives any dependencies registered on the scraper (e.g. ``schedule_request``) and returns the actual middleware callable.
 
 The middleware signature is ``async def middleware(call_next, request) -> Response | None``:
 
@@ -50,7 +50,7 @@ Flow
 
 Middlewares are composed in *registration order*: the first registered factory becomes the outermost wrapper, the last registered becomes the innermost (closest to dispatch). If you need one middleware to wrap another, register it first.
 
-Picture the chain as nested wrappers (matryoshka style): each registered middleware is one shell around the innermost dispatch. If you have used FastAPI middleware, it is the same shape — a wrapper receives ``call_next`` and must ``await call_next(request)`` to keep the request moving.
+Each middleware wraps the next one, and the innermost one wraps dispatch. A middleware receives ``call_next`` and must ``await call_next(request)`` for the request to be sent at all.
 
 .. code-block:: text
 
@@ -66,7 +66,7 @@ Picture the chain as nested wrappers (matryoshka style): each registered middlew
 When a queued request is dispatched:
 
 - Middlewares run outer-to-inner. Each can mutate the request before awaiting ``call_next``.
-- Dispatch issues the HTTP request. On a non-2xx response it raises :class:`HTTPException <aioscraper.exceptions.HTTPException>`.
+- Dispatch issues the HTTP request. On a status of ``400`` or above it raises :class:`HTTPException <aioscraper.exceptions.HTTPException>`.
 - The chain unwinds back outer-ward; each middleware can inspect the returned ``Response`` (or ``None``) or catch the propagating exception.
 - The request's ``callback`` runs on a non-``None`` ``Response``; ``errback`` runs if an exception reaches the top. Returning ``None`` from a middleware signals the request was handled internally — neither callback nor errback fires.
 - The response body stays readable through the entire chain and the callback, so any layer can lazily call ``await response.json()`` / ``.text()`` / ``.read()``.

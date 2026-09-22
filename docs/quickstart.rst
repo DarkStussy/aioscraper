@@ -103,8 +103,8 @@ What happens when it runs
 5. ``StatsPipeline.put_item()`` runs for every ``RepoStats`` handed to ``pipeline()``. Callbacks run concurrently, so their calls into the pipeline can overlap - what runs in order is the chain within one call.
 6. Once every request has finished, ``StatsPipeline.close()`` runs and the process exits.
 
-Customize for your use case
-----------------------------
+Common adjustments
+------------------
 
 **Change the API**
    Replace GitHub API with your target API:

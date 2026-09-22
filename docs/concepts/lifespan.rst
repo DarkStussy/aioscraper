@@ -72,6 +72,14 @@ An :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` instance runs once. 
 
 A failed start is not a run: if the lifespan raises, it is unwound and the instance can still be started.
 
-:meth:`wait() <aioscraper.core.scraper.AIOScraper.wait>` and :meth:`shutdown() <aioscraper.core.scraper.AIOScraper.shutdown>` stay usable once the run is over: they return the recorded :class:`RunResult <aioscraper.core.errors.RunResult>` when the scraper is closed, and raise ``RuntimeError`` when it was never started — closing an unstarted scraper does not make them report a clean run. The result describes the run rather than the call: ``timed_out`` stays set on every later result, and both wait for teardown before reporting, so the errors recorded while the executor closed are included. A ``close()`` landing while ``wait()`` is in flight is reported that way too, instead of canceling it.
+:meth:`wait() <aioscraper.core.scraper.AIOScraper.wait>` and :meth:`shutdown() <aioscraper.core.scraper.AIOScraper.shutdown>` stay usable once the run is over:
 
-:meth:`close() <aioscraper.core.scraper.AIOScraper.close>` can be called any number of times and from several tasks at once. The later calls wait for the teardown the first one started, and a call landing while the scraper is still starting waits for the startup to settle instead of closing an instance whose resources are half set up.
+- On a closed scraper they return the recorded :class:`RunResult <aioscraper.core.errors.RunResult>`; on one that was never started they raise ``RuntimeError``, rather than reporting a clean run.
+- Both wait for teardown before reporting, so errors recorded while the executor closed are included.
+- The result describes the run, not the call: ``timed_out`` stays set on every later result.
+- A ``close()`` landing while ``wait()`` is in flight is reported the same way instead of canceling the call.
+
+:meth:`close() <aioscraper.core.scraper.AIOScraper.close>` can be called any number of times and from several tasks at once:
+
+- Later calls wait for the teardown the first one started.
+- A call landing while the scraper is still starting waits for startup to settle, so it never closes an instance whose resources are half set up.

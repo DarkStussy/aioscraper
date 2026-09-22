@@ -35,7 +35,8 @@ pip install "aioscraper[aiohttp]"  # or [httpx], or [httpx2] - the Pydantic fork
 
 With one installed it is picked up automatically. Install several
 (`"aioscraper[aiohttp,httpx]"`) and `SESSION_HTTP_BACKEND` chooses between them - otherwise
-`aiohttp` wins.
+`aiohttp` wins. `[aiohttp-speedups]` is the same backend plus aiohttp's own speedups extra:
+`aiodns`, `Brotli` and `backports.zstd`.
 
 ## Quick Start
 

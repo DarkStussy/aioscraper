@@ -1,9 +1,9 @@
 """
-Adaptive rate limiting: each group finds its own pace instead of holding the configured one.
+Adaptive rate limiting: each group's interval follows how its own requests end.
 
-The interval starts at default_interval and moves from what the responses look like - multiplied on
-pushback, stepped back down after a run of successes. Every field below is at its default except
-the intervals; see docs/concepts/config.rst for what each one does.
+The interval starts at default_interval, is multiplied on a pushback status or exception, and comes
+down by decrease_step per success once success_threshold successes in a row have landed. Every field
+below is at its default except the intervals; see docs/concepts/config.rst for what each one does.
 
 Run it:
 

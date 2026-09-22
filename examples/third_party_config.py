@@ -65,7 +65,7 @@ def group_by(request: Request) -> GroupPolicy:
 
 
 def should_retry(request: Request, exc: Exception, retries: int) -> bool | None:
-    "Retry a teapot, which no status list covers; None defers to the configured match."
+    "A hook rather than a config field: it sees the request and the attempt count too. None defers."
     return True if getattr(exc, "status_code", None) == TEAPOT else None
 
 

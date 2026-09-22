@@ -9,23 +9,24 @@ Requirements
 
 Install with an HTTP backend
 ----------------------------
-``aioscraper`` ships without an HTTP client. Pick one of the extras so requests work out of the box:
+``aioscraper`` ships without an HTTP client, so install one of the extras - without it, no request can be sent:
 
 .. code-block:: bash
 
-   # Option 1: Use aiohttp with speedups (recommended for most cases)
+   # aiohttp with its own speedups extra: aiodns for DNS resolution,
+   # Brotli and backports.zstd for decoding those response encodings
    pip install "aioscraper[aiohttp-speedups]"
 
-   # Option 2: Use aiohttp without speedups (minimal dependencies)
+   # aiohttp with none of those
    pip install "aioscraper[aiohttp]"
 
-   # Option 3: Use httpx (if you prefer httpx ecosystem)
+   # httpx
    pip install "aioscraper[httpx]"
 
-   # Option 4: Use httpx2, the Pydantic-maintained fork of httpx
+   # httpx2, the Pydantic-maintained fork of httpx
    pip install "aioscraper[httpx2]"
 
-   # Option 5: Install several backends for flexibility
+   # several at once, to choose between them per run
    pip install "aioscraper[aiohttp-speedups,httpx]"
 
 At runtime ``aioscraper`` will use ``aiohttp`` when available, then ``httpx``, then ``httpx2``.

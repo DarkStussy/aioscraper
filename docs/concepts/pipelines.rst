@@ -20,18 +20,15 @@ Core
     scraper = AIOScraper()
 
 
-    # Mock database client (replace with real DB client in production)
+    # stands in for a real database client
     class DatabaseClient:
         async def connect(self):
-            """Establish database connection"""
             print("Connected to database")
 
         async def save_article(self, title: str, url: str):
-            """Save article to database"""
             print(f"Saved: {title} -> {url}")
 
         async def close(self):
-            """Close database connection"""
             print("Closed database connection")
 
 
@@ -42,8 +39,6 @@ Core
 
 
     class SaveArticlePipeline:
-        """Save articles to database using DB client"""
-
         def __init__(self, db: DatabaseClient):
             self.db = db
 
@@ -52,49 +47,32 @@ Core
             return item
 
         async def close(self):
-            """Cleanup when scraper shuts down"""
+            # the lifespan owns the client, so there is nothing to close here
             pass
 
 
-    # Lifespan: setup and teardown for resources
     @scraper.lifespan
     async def lifespan(scraper: AIOScraper):
-        """
-        Manage resources lifecycle.
-
-        Setup phase: create DB client, connect, register as dependency.
-        Teardown phase: close connections.
-        """
         db = DatabaseClient()
         await db.connect()
 
-        # Register db as dependency - it will be injected into callbacks/errbacks/middlewares
+        # injected into callbacks/errbacks/middlewares under the name "db"
         scraper.add_dependencies(db=db)
-
-        # Register pipeline for Article type - will handle all Article items
         scraper.pipeline.add(Article, SaveArticlePipeline(db))
 
-        yield  # Scraper runs here
+        try:
+            yield  # the scraper runs here
+        finally:
+            await db.close()
 
-        # Cleanup
-        await db.close()
 
-
-    # Entry point: schedule requests to fetch articles
     @scraper
     async def get_article(schedule_request: ScheduleRequest):
-        """Scraper entry point - sends request to article API"""
         await schedule_request(Request(url="https://api.article.com", callback=callback))
 
 
     async def callback(response: Response, pipeline: Pipeline):
-        """
-        Process article response and send to pipeline.
-
-        The pipeline dependency is automatically injected by aioscraper.
-        """
         data = await response.json()
-        # Send item to pipeline - it will be saved to DB via SaveArticlePipeline
         await pipeline(Article(title=data["title"], url=response.url))
 
 
@@ -104,49 +82,70 @@ Middlewares around pipelines
 Pipeline middlewares let you step in before the first pipeline sees an item and after the last one finishes.
 Use ``@scraper.pipeline.middleware("pre", ItemType)`` to normalize or enrich items on the way in, and ``@scraper.pipeline.middleware("post", ItemType)`` to finalize, log, or fan out results on the way out.
 
-Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type; they work like FastAPI-style wrappers that accept injected dependencies and must ``await handler(item)`` to keep the item moving.
+Global middlewares registered via ``@scraper.pipeline.global_middleware`` wrap the entire chain for every item type. Such a middleware is a factory that receives injected dependencies and returns a wrapper, which must ``await handler(item)`` for the rest of the chain to run.
 
 If you need to bail out of a pre/post stage, raise :class:`StopMiddlewareProcessing <aioscraper.exceptions.StopMiddlewareProcessing>` to skip the remaining middlewares in that stage but continue the rest of the flow, or raise :class:`StopItemProcessing <aioscraper.exceptions.StopItemProcessing>` to stop processing the current item altogether.
 
 .. code-block:: python
 
+   import logging
+   from time import monotonic
+
+   logger = logging.getLogger(__name__)
+
+
    @scraper.pipeline.middleware("pre", Article)
-   async def pre_process(item: Article) -> Article:
-       ...
+   async def strip_title(item: Article) -> Article:
+       item.title = item.title.strip()
+       return item
 
    @scraper.pipeline.middleware("post", Article)
-   async def post_process(item: Article) -> Article:
-       ...
+   async def log_saved(item: Article) -> Article:
+       logger.info("saved %s", item.url)
+       return item
 
    @scraper.pipeline.global_middleware
-   def wrap_pipeline(db: DatabaseClient):
+   def time_items():
        async def middleware(handler: ItemHandler, item: Article) -> Article:
-           db.log("start")
-           item = await handler(item)
-           db.log("end")
-           return item
+           started = monotonic()
+           try:
+               return await handler(item)
+           finally:
+               logger.info("%s took %.3fs", type(item).__name__, monotonic() - started)
 
        return middleware
 
+Every middleware here returns the item: whatever a pre-middleware returns is what the pipelines
+receive, and whatever the chain returns is what ``await pipeline(item)`` gives back. Returning
+``None`` replaces the item with ``None`` for everything downstream.
+
 Flow
 -------------------
-Picture the flow as nested wrappers (matryoshka style): global middlewares form the outer shells around the per-type chain. If you’ve used FastAPI middleware, it’s the same shape: a wrapper receives ``handler`` and must ``await handler(item)`` to keep the item moving.
+Global middlewares wrap everything, the innermost of them wrapping the per-type chain. They are
+composed in registration order, so the **last** registered one ends up outermost - the opposite of
+:doc:`request middlewares <middlewares>`, where the first is. A wrapper receives ``handler`` and must
+``await handler(item)`` for the chain inside it to run.
 
 .. code-block:: text
 
-   global mw 1
+   global mw 3 (registered last)
       global mw 2
-        global mw 3
+        global mw 1 (registered first)
           pre middlewares -> pipelines -> post middlewares
-        global mw 3
+        global mw 1
       global mw 2
-   global mw 1
+   global mw 3
 
 When you call ``await pipeline(item)``:
 
-- The dispatcher picks the container by ``type(item)``; if none is registered it raises or warns depending on ``PipelineConfig.strict``.
-- Global middlewares run outer-to-inner. Each wrapper does its work and awaits ``handler(item)`` to keep going; the final result bubbles back out through them in reverse order.
+- Global middlewares run outer-to-inner, before the item's type is looked at. A middleware that
+  never awaits ``handler(item)`` keeps the type lookup from happening at all, and one that wraps the
+  call in ``try/except`` also catches what that lookup raises.
+- The dispatcher then picks the container by ``type(item)``; if none is registered it raises
+  :class:`PipelineException <aioscraper.exceptions.PipelineException>` or warns and returns the item,
+  depending on ``PipelineConfig.strict``.
 - Inside the core chain: run all pre-middlewares in registration order (each can mutate/replace the item).
 - Run each pipeline instance in order; each must return the (possibly mutated) item for the next step.
 - Run all post-middlewares in registration order.
-- The returned item is whatever the last post-middleware (or pipeline, if no posts) produced.
+- The result travels back out through the global middlewares in reverse order. What ``pipeline()``
+  returns is whatever the outermost one produced.

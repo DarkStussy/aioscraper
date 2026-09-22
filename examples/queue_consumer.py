@@ -1,9 +1,14 @@
 """
 AIOScraper as a queue consumer: Redis Pub/Sub -> aioscraper -> fetched pages.
 
-The entrypoint runs for the life of the process, taking URLs off a channel. Requests are
-acknowledged in the callback, and SCHEDULER_READY_QUEUE_MAX_SIZE keeps the consumer from
-reading faster than the scraper drains.
+The entrypoint runs for the life of the process, taking URLs off a channel, and
+SCHEDULER_READY_QUEUE_MAX_SIZE keeps the consumer from reading faster than the scraper drains.
+
+Redis Pub/Sub delivers at most once and has no acknowledgements: a message published while this
+process is down, or in flight when it dies, is gone. The ack() in the callback marks the message
+handled inside FastStream - Redis is told nothing and redelivers nothing. Where a lost URL matters,
+consume from Redis Streams or a broker with real acknowledgements, and ack after the work is done
+rather than at the same point.
 
 Requires faststream and a Redis:
 
@@ -35,7 +40,7 @@ scraper = AIOScraper()
 
 @dataclass(slots=True)
 class Task:
-    "A URL to fetch, with the message it came from so the callback can acknowledge it."
+    "A URL to fetch, with the message it came from."
 
     id: str
     url: str
@@ -64,6 +69,7 @@ async def scrape(schedule_request: ScheduleRequest, subscriber: ChannelSubscribe
 @compiled
 async def callback(response: Response, task: Task):
     print(f"[page] {task.id}: {response.url} - {response.status}")
+    # local bookkeeping only: a Pub/Sub message is never redelivered
     await task.message.ack()
 
 
@@ -80,6 +86,7 @@ async def lifespan(scraper: AIOScraper):
         scraper.add_dependencies(subscriber=subscriber)
         await subscriber.start()
 
-        yield
-
-        await subscriber.stop()
+        try:
+            yield
+        finally:
+            await subscriber.stop()

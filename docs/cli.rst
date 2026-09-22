@@ -6,7 +6,7 @@ Run scrapers from the command line without wiring up the event loop yourself.
 
 .. code-block:: bash
 
-   pip install aioscraper
+   pip install "aioscraper[aiohttp]"
    aioscraper scraper
 
 See the minimal code in :doc:`/quickstart`.
@@ -165,7 +165,7 @@ raises :class:`ConfigValidationError <aioscraper.exceptions.ConfigValidationErro
 :class:`AdaptiveRateLimitConfig <aioscraper.config.models.AdaptiveRateLimitConfig>`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Adaptive rate limiting (EWMA + AIMD) (:ref:`docs <adaptive-rate-limiting>`).
+Adaptive rate limiting (:ref:`docs <adaptive-rate-limiting>`).
 
 Set ``SESSION_RATE_LIMIT_ADAPTIVE_ENABLED=true`` to enable and configure other parameters. It needs
 ``SESSION_RATE_LIMIT_PER_GROUP=true`` as well, since adaptive paces a group at a time; without it

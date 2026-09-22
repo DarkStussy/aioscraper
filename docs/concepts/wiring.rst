@@ -39,8 +39,6 @@ Example
 
 
     class MetricsClient:
-        """Send metrics to monitoring system"""
-
         async def counter(self, metric: str, value: float = 1.0):
             print(f"Metric: {metric} = {value}")
 
@@ -53,10 +51,8 @@ Example
         stars: int
 
 
-    # Entry point: receives injected config dependency
     @scraper
     async def scrape(schedule_request: ScheduleRequest, config: Config):
-        """Scraper entry point with injected config"""
         await schedule_request(
             Request(
                 url=f"{config.api_base_url}/repos/python/cpython",
@@ -81,24 +77,18 @@ Example
         return middleware
 
 
-    # Lifespan: setup dependencies and cleanup
     @scraper.lifespan
     async def lifespan(scraper: AIOScraper):
-        """
-        Setup phase: create and register dependencies.
-        Teardown phase: cleanup resources.
-        """
-        # Create resources
         config = Config(github_token="ghp_xxxx", api_base_url="https://api.github.com")
         metrics = MetricsClient()
 
-        # Register dependencies - will be injected by parameter names
+        # injected by these parameter names
         scraper.add_dependencies(config=config, metrics=metrics)
 
-        yield  # Scraper runs here
-
-        # Cleanup
-        await metrics.close()
+        try:
+            yield  # the scraper runs here
+        finally:
+            await metrics.close()
 
 
 Rules

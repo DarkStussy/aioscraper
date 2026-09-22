@@ -82,10 +82,18 @@ a module-level ``AIOScraper()`` resolves its configuration while the module is b
 Graceful shutdown
 -----------------
 
-- ``execution.timeout`` - overall budget (``None`` by default, i.e. no total limit); on expiry the runner logs at ``execution.log_level`` and cancels all tasks.
-- ``execution.shutdown_timeout`` - grace period after SIGINT/SIGTERM/timeout before in-flight work is canceled outright.
-- ``execution.shutdown_check_interval`` - pause between drain checks while waiting for the scheduler/queue to empty.
-- Signals: first SIGINT/SIGTERM initiates shutdown, second triggers force-exit. Lifespan is shielded so cleanup still runs.
+Three things end a run early, and they do not share a grace period:
+
+- **``execution.timeout`` expires** - the budget for the whole run (``None`` by default, i.e. no
+  limit). The run is logged at ``execution.log_level`` and canceled immediately;
+  ``shutdown_timeout`` is not added to it, and the result comes back with ``timed_out`` set.
+- **SIGINT/SIGTERM** - in-flight work gets ``execution.shutdown_timeout`` to finish, and is canceled
+  if it does not. A second signal forces the exit without waiting out the rest of that period.
+- **``shutdown()`` called in code** - waits ``execution.shutdown_timeout`` for the run to finish,
+  then closes the scraper either way.
+
+``execution.shutdown_check_interval`` is the pause between drain checks while waiting for the
+scheduler and the queue to empty. The lifespan is shielded in every case, so teardown runs.
 
 .. _unhandled-errors:
 
@@ -246,7 +254,7 @@ Proxies
 
 .. warning::
 
-   ``httpx`` only supports client-scoped proxies, so per-request overrides are ignored. ``aiohttp`` does the opposite: a proxy passed directly in ``Request(..., proxy=...)`` takes precedence over ``config.session.proxy``.
+   ``httpx`` and ``httpx2`` resolve proxies per transport, so a ``Request`` carrying ``proxy``, ``proxy_auth`` or ``proxy_headers`` raises :class:`UnsupportedRequestOption <aioscraper.exceptions.UnsupportedRequestOption>` rather than being sent without them - set ``SessionConfig.proxy`` instead, with the credentials in its URL. ``aiohttp`` takes all three per request, and ``Request(..., proxy=...)`` takes precedence over ``config.session.proxy``.
 
 Authentication
 ~~~~~~~~~~~~~~
@@ -335,14 +343,19 @@ When ``per_group=False`` (default), ``group_by`` is not consulted and ``default_
 Adaptive Rate Limiting
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Adaptive rate limiting lets each group find its own pace instead of holding the one you configured, on the **AIMD (Additive Increase Multiplicative Decrease)** pattern TCP congestion control uses. **EWMA (Exponentially Weighted Moving Average)** smooths the latency it tracks alongside.
+Adaptive rate limiting adjusts each group's interval from how its requests end, starting at
+``default_interval``. Every request the limiter paced is folded into the interval its group is
+paced by next:
 
-How it works:
+- A **trigger outcome** - a status or exception the config counts as pushback - multiplies the
+  interval by ``increase_factor``. One is enough.
+- A **``Retry-After``** on such an outcome replaces the interval with what the server asked for,
+  when ``respect_retry_after`` is on.
+- Anything else counts as a success. From the ``success_threshold``-th consecutive one on, every
+  further success subtracts ``decrease_step``, until a trigger outcome resets the streak.
+- The result is clamped between ``min_interval`` and ``max_interval``, the ``Retry-After`` included.
 
-- Pushback (429, 503, timeouts) multiplies the interval at once - one bad response is enough to back off
-- A run of successes takes a small step off it - capacity is reclaimed slowly, and given up quickly
-- A ``Retry-After`` overrides both: what the server asked for beats anything inferred
-- Every group adapts on its own history, so a slow host does not throttle a fast one
+Each group keeps its own interval and its own streaks, so a host pushing back does not slow the rest.
 
 .. code-block:: python
 
@@ -350,65 +363,56 @@ How it works:
 
    rate_limit_config = RateLimitConfig(
        per_group=True,  # required: adaptive paces a group at a time
-       default_interval=0.1,  # Starting interval: 100ms
+       default_interval=0.1,  # the interval each group starts at
        adaptive=AdaptiveRateLimitConfig(
-           min_interval=0.001,        # Min: 1ms (won't go below)
-           max_interval=5.0,          # Max: 5s (won't exceed)
-           increase_factor=2.0,       # Double interval on failure
-           decrease_step=0.01,        # Subtract 10ms on success
-           success_threshold=5,       # Decrease after 5 consecutive successes
-           ewma_alpha=0.3,            # Latency smoothing factor
-           respect_retry_after=True,  # Honor server Retry-After headers
+           min_interval=0.001,
+           max_interval=5.0,
+           increase_factor=2.0,
+           decrease_step=0.01,
+           success_threshold=5,
+           ewma_alpha=0.3,
+           respect_retry_after=True,
        ),
    )
 
 **Configuration options:**
 
-- ``min_interval``: Minimum allowed interval in seconds (default: ``0.001``)
-- ``max_interval``: Maximum allowed interval in seconds (default: ``5.0``)
-- ``increase_factor``: Multiplicative factor for interval increase on failure (default: ``2.0``)
-- ``decrease_step``: Additive step for interval decrease on success in seconds (default: ``0.01``)
-- ``success_threshold``: Number of consecutive successes before decreasing interval (default: ``5``)
-- ``ewma_alpha``: Smoothing factor for latency EWMA, between 0 and 1 (default: ``0.3``)
-- ``respect_retry_after``: Use ``Retry-After`` header as override (default: ``True``)
-- ``inherit_retry_triggers``: Inherit trigger statuses/exceptions from :ref:`retry config <retry-config>` (default: ``True``)
+- ``min_interval``: Floor for the interval in seconds (default: ``0.001``)
+- ``max_interval``: Ceiling for the interval in seconds (default: ``5.0``)
+- ``increase_factor``: What the interval is multiplied by on a trigger outcome (default: ``2.0``)
+- ``decrease_step``: Seconds subtracted per success once the streak is long enough (default: ``0.01``)
+- ``success_threshold``: Successes in a row before the interval starts coming down (default: ``5``)
+- ``ewma_alpha``: Weight of the newest latency sample in the smoothed latency the limiter tracks,
+  between 0 and 1 (default: ``0.3``). The latency is recorded, not acted on: the interval follows
+  the rules above.
+- ``respect_retry_after``: Let a ``Retry-After`` on a trigger outcome set the interval (default: ``True``)
+- ``inherit_retry_triggers``: Treat what :ref:`retries <retry-config>` retry as pushback too
+  (default: ``True``)
+- ``custom_trigger_statuses`` / ``custom_trigger_exceptions``: Statuses and exception types that
+  count as pushback on top of those (default: empty)
 
-**Behavior:**
+The triggers are the union of the two custom tuples and, with ``inherit_retry_triggers``, the retry
+config's ``statuses`` and ``exceptions``. Turning the inheritance off without listing custom triggers
+leaves nothing to trigger on: every outcome then reads as a success and the interval only comes down.
 
-When a request fails with a trigger status (429, 500, 502, 503, 504, etc.) or exception (timeout):
-
-1. If ``Retry-After`` header present and ``respect_retry_after=True`` → use that value
-2. Otherwise, multiply current interval by ``increase_factor`` (e.g., 0.1s → 0.2s → 0.4s)
-
-When requests succeed consistently:
-
-1. After ``success_threshold`` consecutive successes, subtract ``decrease_step`` from interval
-2. This gradually probes for increased capacity (e.g., 0.4s → 0.39s → 0.38s)
-
-**Example scenario:**
+**Example**, at ``default_interval=0.1``, ``increase_factor=2.0``, ``decrease_step=0.01``,
+``success_threshold=5``:
 
 .. code-block:: text
 
-   Time    Event                  Interval
-   ----    -----                  --------
-   0.0s    Start                  0.100s (default)
-   0.1s    Request #1 → 429       0.100s → 0.200s (×2)
-   0.3s    Request #2 → 503       0.200s → 0.400s (×2)
-   0.7s    Request #3 → 200 OK    0.400s (no change, count=1)
-   1.1s    Request #4 → 200 OK    0.400s (no change, count=2)
-   ...     (3 more successes)     ...
-   2.7s    Request #8 → 200 OK    0.400s → 0.390s (count≥5, -0.01)
-   3.1s    Request #9 → 200 OK    0.390s (no change, count=1)
+   Request   Outcome    Streak   Interval
+   -------   -------    ------   --------
+   #1        429        -        0.100s → 0.200s (×2)
+   #2        503        -        0.200s → 0.400s (×2)
+   #3        200        1        0.400s (below the threshold)
+   #4-#6     200        2-4      0.400s
+   #7        200        5        0.400s → 0.390s (-0.01)
+   #8        200        6        0.390s → 0.380s (-0.01)
+   #9        503        -        0.380s → 0.760s (×2), streak back to 0
 
-**Integration with retries:**
-
-When both adaptive rate limiting and :ref:`retries <retry-config>` are enabled:
-
-- **Retries** handle the repeat itself (attempts, backoff)
-- **Adaptive rate limiter** adjusts the *sending rate* to prevent future failures
-- Trigger statuses/exceptions are shared when ``inherit_retry_triggers=True``
-
-This prevents the system from repeatedly hammering an overloaded server while retries are ongoing.
+Retries and adaptive rate limiting act on the same failures from different sides: retries repeat the
+request itself, while the limiter slows down what the group sends next, so a run does not keep
+arriving at an overloaded server at full rate.
 
 .. _retry-config:
 

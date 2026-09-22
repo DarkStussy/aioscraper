@@ -52,8 +52,11 @@ Reading the response body
 -------------------------
 
 The body is streamed from the open connection, which the backend closes once the middleware chain and
-the callback return. **The body must be consumed inside the callback**: a :class:`Response
-<aioscraper.types.session.Response>` read after that has no connection left to read from.
+the callback return. **Reading from the connection has to happen inside the callback**: a
+:class:`Response <aioscraper.types.session.Response>` whose body was never read has nothing left to
+read from afterwards. A body already buffered - by :meth:`read() <aioscraper.types.session.Response.read>`
+in the callback, or before it under :ref:`buffer_body <body-buffering>` - stays on the response and
+can be read again at any time, connection or no connection.
 
 - :meth:`read() <aioscraper.types.session.Response.read>` buffers the whole body, so ``read()``,
   :meth:`text() <aioscraper.types.session.Response.text>` and

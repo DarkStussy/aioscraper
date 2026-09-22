@@ -89,10 +89,11 @@ class RequestOutcome:
 
 
 class AdaptiveStrategy:
-    """Picks a group's interval from how the last requests went, EWMA + AIMD.
+    """Picks a group's interval from how the last requests went, on the AIMD rule.
 
     Backing off is multiplicative and immediate, recovering is additive and slow: pushback costs
-    one failure, capacity is probed a step at a time.
+    one failure, capacity is probed a step at a time. The EWMA latency is tracked alongside and
+    does not enter the decision.
 
     Args:
         min_interval (float): Floor for the interval, in seconds.

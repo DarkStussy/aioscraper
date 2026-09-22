@@ -111,7 +111,8 @@ class PipelineHolder:
 
     def add_global_middlewares(self, *factories: GlobalPipelineMiddlewareFactory[PipelineItemType]):
         """
-        Register global pipeline middleware factories, outermost first.
+        Register global pipeline middleware factories. Each one wraps those registered before it,
+        so the last registered ends up outermost.
 
         A factory takes the dependencies it names as parameters and returns the middleware itself,
         ``async def mw(handler, item): ...``, which wraps the chain of every item type. Factories

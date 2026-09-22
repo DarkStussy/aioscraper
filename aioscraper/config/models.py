@@ -16,7 +16,7 @@ from .model_validator import field, validate
 @dataclass(slots=True, frozen=True, kw_only=True)
 @validate
 class AdaptiveRateLimitConfig:
-    """Lets each rate limit group find its own pace instead of holding the configured one.
+    """Adjusts each rate limit group's interval from how its requests end.
 
     The interval is multiplied on server pushback and stepped back down after a run of successes,
     per group. Setting this leaves ``default_interval`` as the starting point.

@@ -32,14 +32,18 @@ Request fields
      - Sent to the client, which applies it to each of connect, read, write and pool separately, and enforced by the framework as a total budget on top. Falls back to ``session.timeout``, and only ``None`` does: a value is sent as it is.
    * - ``auth``
      - Credentials are encoded with ``BasicAuth.encoding``, Latin-1 by default.
-     - Credentials are encoded as UTF-8; an ``encoding`` that means anything else raises ``UnsupportedRequestOption`` rather than being ignored. A name no codec answers to is rejected before any backend sees it, as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>`, whether the request carried it from the start or a middleware set it.
+     - Credentials are encoded as UTF-8; an ``encoding`` that means anything else raises ``UnsupportedRequestOption`` rather than being ignored. An unknown encoding name is rejected before any backend sees it, as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>`, whether the request carried it from the start or a middleware set it.
    * - ``allow_redirects``, ``params``, ``headers``, ``cookies``, ``data``, ``json_data``, ``files``
      - Applied per request.
      - Same.
 
 .. _timeout-budget:
 
-The effective timeout - ``Request.timeout``, or ``session.timeout`` without one - is a wall-clock budget for the whole response, enforced by the framework on every backend: httpx times each phase, so a body arriving chunk by chunk would otherwise never reach a limit. The read that crosses the deadline raises :class:`TransportTimeout <aioscraper.exceptions.TransportTimeout>`, and time a callback spends between chunks counts against it. A long download needs its own ``Request.timeout``; a client passed as ``http_client`` gets a budget from ``Request.timeout`` alone, except an ``aiohttp`` one, whose ``ClientTimeout.total`` is used when it is positive.
+The effective timeout - ``Request.timeout``, or ``session.timeout`` without one - is a wall-clock budget for the whole response, enforced by the framework on every backend, because httpx times each phase and a body arriving chunk by chunk would otherwise never reach a limit.
+
+- The read that crosses the deadline raises :class:`TransportTimeout <aioscraper.exceptions.TransportTimeout>`.
+- Time a callback spends between chunks counts against the budget, so a long download needs its own ``Request.timeout``.
+- A client passed as ``http_client`` gets its budget from ``Request.timeout`` alone. The exception is an ``aiohttp`` client, whose ``ClientTimeout.total`` is used when it is positive.
 
 ``Request.timeout`` must be a positive number of seconds. ``0``, a negative value, ``inf`` and ``NaN`` are rejected as :class:`InvalidRequestData <aioscraper.exceptions.InvalidRequestData>` before dispatch, rather than left for each client to interpret its own way.
 
