@@ -102,15 +102,11 @@ Rules
    - ``pipeline: Pipeline`` - send items into the pipelines
    - ``config: Config`` - the run's configuration, unless you registered your own ``config``
 
-   ``schedule_request`` was called ``send_request`` before, and ``ScheduleRequest`` was
-   ``SendRequest``. Both old names still work - the same dependency is injected under either
-   parameter name - and are removed in 1.0.
-
 3. **Callbacks also get the request**: ``response`` and ``request`` reach a callback, ``exc`` and ``request`` an errback, alongside anything in ``Request.cb_kwargs``.
 
 4. **Nothing matched**: an unmatched parameter is left out of the call, so give it a default unless you mean the call to fail.
 
-5. **Reserved names**: ``request``, ``response``, ``exc``, ``schedule_request``, ``send_request`` and ``pipeline`` are the framework's. ``add_dependencies`` raises ``ValueError`` on them, and so does a ``Request`` whose ``cb_kwargs`` takes one of the first three. ``config`` is the exception: registering it replaces the framework's for the whole run. Precedence, highest to lowest: framework callback arguments, ``cb_kwargs``, injected dependencies.
+5. **Reserved names**: ``request``, ``response``, ``exc``, ``schedule_request`` and ``pipeline`` are the framework's. ``add_dependencies`` raises ``ValueError`` on them, and so does a ``Request`` whose ``cb_kwargs`` takes one of the first three. ``config`` is the exception: registering it replaces the framework's for the whole run. Precedence, highest to lowest: framework callback arguments, ``cb_kwargs``, injected dependencies.
 
 Registering in a lifespan is what ties setup to teardown; see :doc:`lifespan`. In tests, ``add_dependencies`` is also how you swap a client for a fake:
 

@@ -3,12 +3,16 @@
 ## Unreleased
 
 ### Added
+- `run_scraper(install_signal_handlers=False)` leaves signals to the embedding application.
 - `SessionConfig.trust_env` (`SESSION_TRUST_ENV`), passed to every backend: proxy environment variables everywhere, plus `.netrc` on `aiohttp` and `SSL_CERT_FILE`/`SSL_CERT_DIR` on `httpx`/`httpx2`.
 
 ### Changed
+- **BREAKING:** the deprecated `SendRequest` type and `send_request` dependency are removed; use `ScheduleRequest` and `schedule_request`. `send_request` is no longer a reserved dependency name.
+- **BREAKING:** `ScraperExecutor`, `RequestManager`, `RateLimitManager`, `RequestGroup`, `AdaptiveStrategy`, `RequestOutcome`, `AdaptiveMetrics`, `PipelineDispatcher` and the backend request context managers are no longer public API: they are dropped from the API reference and may change in any release.
 - **BREAKING:** `httpx` and `httpx2` no longer read proxy environment variables, `SSL_CERT_FILE` and `SSL_CERT_DIR` by default, matching `aiohttp`; set `trust_env=True` for the old behavior. With `ALL_PROXY=socks5h://...` in the environment and no `socksio` installed, the httpx session failed to build.
 
 ### Fixed
+- `run_scraper` restores the SIGINT/SIGTERM handlers it replaced once the last run on the loop ends. It left its own installed, bound to the finished run. Overlapping runs share the handlers, and a signal reaches each of them; before, only the latest run got it.
 - A per-scheme proxy mapping on `httpx`/`httpx2` honors `SessionConfig.ssl`. Its transports were built with default verification.
 - A failed startup closes what it already built: the HTTP session is created after the request middleware factories, and the pipelines are closed when anything before the run fails.
 - A pipeline registered for several item types is closed once.

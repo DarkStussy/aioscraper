@@ -19,7 +19,6 @@ from .session import (
     RequestHeaders,
     Response,
     ScheduleRequest,
-    SendRequest,
 )
 
 __all__ = (
@@ -45,6 +44,5 @@ __all__ = (
     "Response",
     "ScheduleRequest",
     "Scraper",
-    "SendRequest",
     "ShouldRetry",
 )

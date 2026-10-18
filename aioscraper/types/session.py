@@ -28,8 +28,6 @@ RequestFiles = MutableMapping[str, "File"]
 ResponseHeaders = MultiMapping[str]
 
 ScheduleRequest = Callable[["Request"], Awaitable["Request"]]
-# deprecated alias of ScheduleRequest, removed in 1.0
-SendRequest = ScheduleRequest
 
 DEFAULT_MAX_REDIRECTS = 10
 DEFAULT_CHUNK_SIZE = 65536

@@ -252,8 +252,6 @@ class RequestManager:
         )
         self._dependencies: dict[str, Any] = {
             "schedule_request": self._job_sender,
-            # deprecated alias of schedule_request, removed in 1.0
-            "send_request": self._job_sender,
             **dependencies,
         }
         self._middleware_holder = middleware_holder

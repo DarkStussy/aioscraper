@@ -390,13 +390,12 @@ async def test_dependencies_injected_into_middleware():
 
 @pytest.mark.asyncio
 async def test_schedule_request_available_in_dependencies():
-    """Test that schedule_request is available in dependencies, under its deprecated name too."""
+    """Test that schedule_request is available in dependencies."""
     captured = {}
 
-    async def callback(response: Response, schedule_request, send_request):
+    async def callback(response: Response, schedule_request):
         captured["response"] = response
         captured["schedule_request"] = schedule_request
-        captured["send_request"] = send_request
 
     manager = RequestManager(
         scheduler_config=SchedulerConfig(),
@@ -415,7 +414,6 @@ async def test_schedule_request_available_in_dependencies():
     # Callbacks get the job sender, which skips the pending limit; manager.sender waits on it.
     assert captured["schedule_request"] is manager._job_sender
     assert captured["schedule_request"] is not manager.sender
-    assert captured["send_request"] is captured["schedule_request"]
 
     await manager.close()
 

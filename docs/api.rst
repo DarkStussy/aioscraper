@@ -45,15 +45,12 @@ Session
    :special-members: __aenter__, __aexit__
 .. autoclass:: aioscraper.core.session.base.BaseSession
 .. autoclass:: aioscraper.core.session.aiohttp.AiohttpSession
-.. autoclass:: aioscraper.core.session.aiohttp.AiohttpRequestContextManager
-   :special-members: __aenter__, __aexit__
 .. autoclass:: aioscraper.core.session.httpx.HttpxSession
-.. autoclass:: aioscraper.core.session.httpx.HttpxRequestContextManager
-   :special-members: __aenter__, __aexit__
 .. autoclass:: aioscraper.core.session.httpx2.Httpx2Session
-.. autoclass:: aioscraper.core.session.httpx2.Httpx2RequestContextManager
-   :special-members: __aenter__, __aexit__
 .. autofunction:: aioscraper.core.session.factory.get_sessionmaker
+.. autodata:: aioscraper.core.session.factory.SessionMaker
+.. autodata:: aioscraper.core.session.factory.SessionMakerFactory
+.. autodata:: aioscraper.core.session.factory.HttpClient
 .. autoclass:: aioscraper.types.session.Request
 .. autoclass:: aioscraper.types.session.Response
 .. autoclass:: aioscraper.types.session.BasicAuth
@@ -64,10 +61,6 @@ Session
 .. autofunction:: aioscraper.config.converters.parse_exception
 .. autofunction:: aioscraper.config.converters.parse_ssl
 .. autodata:: aioscraper.types.session.ScheduleRequest
-.. autodata:: aioscraper.types.session.SendRequest
-
-   Deprecated alias of :data:`~aioscraper.types.session.ScheduleRequest`, removed in 1.0.
-
 .. autodata:: aioscraper.types.session.QueryParams
 .. autodata:: aioscraper.types.session.RequestCookies
 .. autodata:: aioscraper.types.session.RequestHeaders
@@ -77,7 +70,6 @@ Session
 Pipeline
 --------
 
-.. autoclass:: aioscraper.core.pipeline.PipelineDispatcher
 .. autoclass:: aioscraper.types.pipeline.Pipeline
    :special-members: __call__
 .. autoclass:: aioscraper.types.pipeline.BasePipeline
@@ -88,17 +80,6 @@ Pipeline
 .. autodata:: aioscraper.types.pipeline.ItemHandler
 .. autodata:: aioscraper.types.pipeline.PipelineMiddlewareStage
 .. autodata:: aioscraper.types.pipeline.GlobalPipelineMiddlewareFactory
-
-Execution
----------
-
-.. autoclass:: aioscraper.core.executor.ScraperExecutor
-.. autoclass:: aioscraper.core.request_manager.RequestManager
-.. autoclass:: aioscraper.core.rate_limiter.RateLimitManager
-.. autoclass:: aioscraper.core.rate_limiter.RequestGroup
-.. autoclass:: aioscraper.core.rate_limiter.AdaptiveStrategy
-.. autoclass:: aioscraper.core.rate_limiter.RequestOutcome
-.. autoclass:: aioscraper.core.rate_limiter.AdaptiveMetrics
 
 Middleware
 ----------

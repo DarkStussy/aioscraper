@@ -89,6 +89,8 @@ This gives you the same signal handling and graceful shutdown behavior as the CL
 
 :func:`run_scraper <aioscraper.core.runner.run_scraper>` returns a :class:`RunResult <aioscraper.core.errors.RunResult>` and never acts on it: turning the outcome into an exit code is the caller's decision, and the CLI is one implementation of it. The handlers turn SIGINT/SIGTERM into an event, so ``KeyboardInterrupt`` never reaches the caller — ``result.interrupted`` is how a signaled run is told apart from a clean one.
 
+Overlapping runs share the handlers and each gets the signal; the last one to end restores the previous handlers, except one registered with ``loop.add_signal_handler``, which asyncio does not expose. An application that handles signals itself passes ``install_signal_handlers=False``.
+
 .. _cli-configuration:
 
 Configuration

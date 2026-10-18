@@ -69,7 +69,6 @@ class ScraperExecutor:
         # the entrypoint sender waits for a free admission slot; the callbacks' does not
         self._scraper_dependencies = {
             "schedule_request": self._request_manager.sender,
-            "send_request": self._request_manager.sender,
             **self._dependencies,
         }
 
