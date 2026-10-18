@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0rc1 (2026-10-18)
 
 ### Migrating from 0.16
 - Replace `SendRequest` with `ScheduleRequest` and a `send_request` parameter with `schedule_request`.
