@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from aioscraper._helpers.asyncio import execute_coroutines
+from aioscraper.config import Config, RateLimitConfig, SchedulerConfig, SessionConfig
 from aioscraper.core import AIOScraper
+from aioscraper.exceptions import AIOScraperException
+from aioscraper.types import Request, ScheduleRequest
 
 
 def _scraper(run: Callable[[], Coroutine[Any, Any, None]] | None = None, **kwargs) -> AIOScraper:
@@ -318,3 +322,113 @@ async def test_wait_during_close_reports_errors_recorded_by_teardown():
 
     assert result.error_counts == {"close": 1}
     assert result.ok is False
+
+
+async def test_a_canceled_teardown_still_runs_the_remaining_closes():
+    closed: list[str] = []
+    started = asyncio.Event()
+
+    async def slow_close():
+        started.set()
+        await asyncio.sleep(30)
+
+    async def close(name: str):
+        closed.append(name)
+
+    task = asyncio.create_task(execute_coroutines(slow_close(), close("pipelines"), close("other")))
+    await started.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert closed == ["pipelines", "other"]
+
+
+async def _wait_or_flag_hang(scraper: AIOScraper, hung: list[bool]):
+    "Flagged, not failed: close() would raise the run's error over pytest.fail."
+    try:
+        await asyncio.wait_for(scraper.wait(), timeout=2.0)
+    except TimeoutError:
+        hung.append(True)
+        raise
+
+
+async def test_a_failing_group_by_stops_a_scraper_blocked_on_admission():
+    def group_by(request: Request) -> tuple[str, float, None]:
+        raise ValueError("broken grouping")
+
+    scraper = AIOScraper(
+        config=Config(
+            scheduler=SchedulerConfig(ready_queue_max_size=1),
+            session=SessionConfig(rate_limit=RateLimitConfig(per_group=True)),
+        ),
+        group_by=group_by,
+    )
+    reached_second = asyncio.Event()
+
+    @scraper
+    async def run(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/1"))
+        reached_second.set()
+        await schedule_request(Request(url="https://api.test.com/2"))
+
+    hung: list[bool] = []
+    # close() re-raises the run's error
+    with pytest.raises(AIOScraperException, match="group_by failed") as exc_info:
+        async with scraper:
+            await _wait_or_flag_hang(scraper, hung)
+
+    assert not hung
+    assert reached_second.is_set()
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+async def test_a_failing_group_by_stops_a_scraper_that_never_returns():
+    def group_by(request: Request) -> tuple[str, float, None]:
+        raise ValueError("broken grouping")
+
+    scraper = AIOScraper(
+        config=Config(session=SessionConfig(rate_limit=RateLimitConfig(per_group=True))),
+        group_by=group_by,
+    )
+    canceled = asyncio.Event()
+
+    @scraper
+    async def run(schedule_request: ScheduleRequest):
+        await schedule_request(Request(url="https://api.test.com/1"))
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            canceled.set()
+            raise
+
+    hung: list[bool] = []
+    with pytest.raises(AIOScraperException, match="group_by failed"):
+        async with scraper:
+            await _wait_or_flag_hang(scraper, hung)
+
+    assert not hung
+    assert canceled.is_set()
+
+
+async def test_close_waits_for_scraper_cleanup(caplog: pytest.LogCaptureFixture):
+    scraper = AIOScraper()
+    started = asyncio.Event()
+    cleaned: list[bool] = []
+
+    @scraper
+    async def run():
+        started.set()
+        try:
+            await asyncio.sleep(30)
+        finally:
+            await asyncio.sleep(0.3)
+            cleaned.append(True)
+
+    async with scraper:
+        await started.wait()
+
+    assert cleaned == [True]
+    await asyncio.sleep(0)
+    assert "never retrieved" not in caplog.text

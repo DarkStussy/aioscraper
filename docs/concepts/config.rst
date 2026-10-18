@@ -336,6 +336,10 @@ goes to :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` and not to ``Ra
 
 A policy that leaves ``concurrency`` unset takes ``group_concurrency`` from the config; ``0`` asks for no ceiling on that group.
 
+A ``group_by`` that raises or returns a malformed policy fails the run with
+:class:`~aioscraper.exceptions.AIOScraperException`. An interval of zero or less becomes 10ms; a
+negative concurrency falls back to ``group_concurrency``.
+
 When ``per_group=False`` (default), ``group_by`` is not consulted and ``default_interval`` becomes a single delay between all requests.
 
 .. _adaptive-rate-limiting:

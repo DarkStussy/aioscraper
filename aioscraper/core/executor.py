@@ -19,6 +19,15 @@ from .stats import RunStats
 logger = getLogger(__name__)
 
 
+async def _cancel_gather(gathered: asyncio.Future[Any]):
+    "Cancel and wait until the scrapers' cleanup is over; their outcome is discarded."
+    gathered.cancel()
+    await asyncio.wait((gathered,))
+    if not gathered.cancelled():
+        # otherwise asyncio logs it as never retrieved
+        gathered.exception()
+
+
 class ScraperExecutor:
     "Runs the scraper callables and owns the request manager they send through."
 
@@ -69,14 +78,32 @@ class ScraperExecutor:
         self._request_manager.start_listening()
         try:
             logger.debug("Running %d scraper(s) concurrently", len(self._scrapers))
-            await asyncio.gather(
-                *[scraper(**get_func_kwargs(scraper, **self._scraper_dependencies)) for scraper in self._scrapers],
-            )
+            await self._run_scrapers()
             logger.debug("Waiting for pending requests")
             await self._request_manager.wait()
             logger.info("Executor finished: all scrapers and requests completed")
         finally:
             await self._request_manager.shutdown()
+
+    async def _run_scrapers(self):
+        "Run the scrapers; if the listener stops first, cancel them and raise its error."
+        scrapers = asyncio.gather(
+            *[scraper(**get_func_kwargs(scraper, **self._scraper_dependencies)) for scraper in self._scrapers],
+        )
+        listener = self._request_manager.listener
+        try:
+            await asyncio.wait((scrapers, listener), return_when=asyncio.FIRST_COMPLETED)
+        except BaseException:
+            # asyncio.wait leaves the gather running
+            await _cancel_gather(scrapers)
+            raise
+
+        if scrapers.done():
+            scrapers.result()
+            return
+
+        await _cancel_gather(scrapers)
+        await listener
 
     async def close(self):
         "Close the request manager and the pipelines. A failure to close is recorded, not raised."

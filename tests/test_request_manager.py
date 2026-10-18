@@ -1,4 +1,5 @@
 import asyncio
+import math
 from dataclasses import replace
 from typing import Any
 
@@ -17,7 +18,13 @@ from aioscraper.core.request_manager import RequestManager
 from aioscraper.core.retry import RetryPolicy
 from aioscraper.core.session import BaseRequestContextManager, BaseSession
 from aioscraper.core.session.httpx import HttpxSession
-from aioscraper.exceptions import HTTPException, InvalidRequestData, TransportTimeout, UnsupportedRequestOption
+from aioscraper.exceptions import (
+    AIOScraperException,
+    HTTPException,
+    InvalidRequestData,
+    TransportTimeout,
+    UnsupportedRequestOption,
+)
 from aioscraper.holders import MiddlewareHolder
 from aioscraper.types import File, GroupPolicy, Request, RequestHandler, Response
 from aioscraper.types.session import Attempt
@@ -573,7 +580,8 @@ async def test_retried_request_is_reported_to_adaptive_limiter():
         await asyncio.wait_for(manager.shutdown(), timeout=5.0)
         await manager.close()
 
-    assert manager._completed.is_set()
+    assert manager._task is not None
+    assert manager._task.done()
     assert not manager._delayed_heap
 
 
@@ -789,7 +797,8 @@ async def test_close_stops_queue_processing():
 
     # Session should be closed
     assert manager._session.closed is True  # type: ignore[reportAttributeAccessIssue]
-    assert manager._completed.is_set()
+    assert manager._task is not None
+    assert manager._task.done()
 
 
 @pytest.mark.asyncio
@@ -809,3 +818,188 @@ async def test_a_retry_that_never_reached_the_queue_is_not_counted(base_manager_
     assert manager._stats.requests_retried == 0
 
     await manager.close()
+
+
+def _idle_manager(**kwargs: Any) -> RequestManager:
+    "Listener not started, so the queues hold still."
+    return RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=RateLimitConfig(),
+        retry_config=NO_RETRIES,
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+        **kwargs,
+    )
+
+
+class SlowRequestContextManager(BaseRequestContextManager):
+    async def __aenter__(self) -> Response:
+        await asyncio.sleep(0.002)
+        return make_response(url=self._request.url, method=self._request.method, headers={})
+
+
+class SlowSession(BaseSession):
+    def make_request(self, request: Request) -> SlowRequestContextManager:
+        return SlowRequestContextManager(request)
+
+    async def _close_client(self):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_a_due_delayed_request_competes_by_its_own_priority():
+    sent: list[str] = []
+    delayed_sent = asyncio.Event()
+
+    async def callback(request: Request):
+        sent.append(request.url)
+        if request.url.endswith("/delayed"):
+            delayed_sent.set()
+
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(concurrent_requests=1),
+        rate_limit_config=RateLimitConfig(),
+        retry_config=NO_RETRIES,
+        shutdown_check_interval=0.01,
+        sessionmaker=SlowSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+    )
+    manager.start_listening()
+
+    async def produce():
+        # outpaces the single slot
+        for i in range(2000):
+            if delayed_sent.is_set():
+                return
+
+            await manager.sender(Request(url=f"https://api.test.com/{i}", callback=callback))
+            await asyncio.sleep(0.0005)
+
+        pytest.fail("the delayed request starved behind the producer")
+
+    try:
+        await manager.sender(Request(url="https://api.test.com/delayed", delay=0.05, priority=-1, callback=callback))
+        await asyncio.wait_for(produce(), timeout=10.0)
+    finally:
+        manager._ready_queue = asyncio.PriorityQueue()
+        await manager.close()
+
+    assert "https://api.test.com/delayed" in sent
+
+
+@pytest.mark.asyncio
+async def test_pop_due_delayed_restores_the_request_priority():
+    manager = _idle_manager()
+    request = Request(url="https://api.test.com/delayed", priority=-100)
+    manager._delayed_heap.append(Attempt(priority=0.0, request=request))
+    manager._ready_queue.put_nowait(Attempt(priority=0, request=Request(url="https://api.test.com/normal")))
+
+    await manager._pop_due_delayed()
+
+    first = manager._ready_queue.get_nowait()
+    assert first.request is request
+    assert first.priority == -100
+
+    await manager.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("delay", [math.nan, math.inf, -math.inf, -1.0])
+async def test_a_delay_that_never_comes_due_is_rejected(delay: float):
+    manager = _idle_manager()
+
+    with pytest.raises(InvalidRequestData, match="delay"):
+        await manager.sender(Request(url="https://api.test.com/x", delay=delay))
+
+    assert not manager._delayed_heap
+    assert manager._ready_queue.empty()
+    await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_a_zero_delay_queues_the_request_ready():
+    manager = _idle_manager()
+
+    await manager.sender(Request(url="https://api.test.com/x", delay=0))
+
+    assert not manager._delayed_heap
+    assert manager._ready_queue.qsize() == 1
+    await manager.close()
+
+
+def _broken_group_by(request: Request) -> GroupPolicy:
+    raise ValueError("broken grouping")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("group_by", "message"),
+    [
+        (_broken_group_by, "group_by failed"),
+        (lambda request: ("key", 0.1), "must return"),
+        (lambda request: None, "must return"),
+        (lambda request: ([], 0.1, None), "must return"),
+        (lambda request: ("key", math.nan, None), "invalid interval"),
+        (lambda request: ("key", math.inf, None), "invalid interval"),
+        (lambda request: ("key", "0.1", None), "invalid interval"),
+        (lambda request: ("key", 0.1, "3"), "invalid concurrency"),
+        (lambda request: ("key", 0.1, 2.5), "invalid concurrency"),
+    ],
+    ids=[
+        "raises",
+        "short-tuple",
+        "not-a-tuple",
+        "unhashable-key",
+        "nan",
+        "inf",
+        "str-interval",
+        "str-ceiling",
+        "float-ceiling",
+    ],
+)
+async def test_a_broken_group_by_fails_the_wait_instead_of_hanging(group_by: Any, message: str):
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=RateLimitConfig(per_group=True),
+        retry_config=NO_RETRIES,
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+        group_by=group_by,
+    )
+    manager.start_listening()
+
+    try:
+        await manager.sender(Request(url="https://api.test.com/x"))
+        with pytest.raises(AIOScraperException, match=message):
+            await asyncio.wait_for(manager.wait(), timeout=5.0)
+    finally:
+        await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_a_failing_group_by_keeps_its_cause():
+    manager = RequestManager(
+        scheduler_config=SchedulerConfig(),
+        rate_limit_config=RateLimitConfig(per_group=True),
+        retry_config=NO_RETRIES,
+        shutdown_check_interval=0.01,
+        sessionmaker=FakeSession,
+        dependencies={},
+        middleware_holder=MiddlewareHolder(),
+        group_by=_broken_group_by,
+    )
+    manager.start_listening()
+
+    try:
+        await manager.sender(Request(url="https://api.test.com/x"))
+        with pytest.raises(AIOScraperException) as exc_info:
+            await asyncio.wait_for(manager.wait(), timeout=5.0)
+    finally:
+        await manager.close()
+
+    assert isinstance(exc_info.value.__cause__, ValueError)

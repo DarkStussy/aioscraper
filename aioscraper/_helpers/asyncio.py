@@ -1,3 +1,4 @@
+import asyncio
 from logging import getLogger
 from typing import Any, Callable, Coroutine
 
@@ -7,9 +8,16 @@ ErrorHandler = Callable[[BaseException], None]
 
 
 async def execute_coroutines(*coroutines: Coroutine[Any, Any, None], on_error: ErrorHandler | None = None):
-    "Run coroutines in order, keeping going when one fails."
+    "Run coroutines in order, keeping going when one fails or the caller is canceled."
+    canceled: asyncio.CancelledError | None = None
     for coroutine in coroutines:
-        await execute_coroutine(coroutine, on_error=on_error)
+        try:
+            await execute_coroutine(coroutine, on_error=on_error)
+        except asyncio.CancelledError as exc:
+            canceled = exc
+
+    if canceled is not None:
+        raise canceled
 
 
 async def execute_coroutine(coroutine: Coroutine[Any, Any, None], *, on_error: ErrorHandler | None = None):

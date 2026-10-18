@@ -95,7 +95,8 @@ class Request:
         buffer_body (bool | None): Read the body before the callback runs, which puts a failure
             reading it inside the retry policy; ``None`` uses :attr:`SessionConfig.buffer_body
             <aioscraper.config.models.SessionConfig>`
-        delay (float | None): Seconds to hold the request back before it becomes ready to send
+        delay (float | None): Seconds to hold the request back before it becomes ready to send,
+            finite and non-negative, or :class:`~aioscraper.exceptions.InvalidRequestData` is raised
         retryable (bool | None): Overrides the retry policy's method check; ``None`` defers to
             :attr:`RequestRetryConfig.methods <aioscraper.config.models.RequestRetryConfig.methods>`
         priority (int): Order among requests ready at the same time; the lowest goes first
@@ -153,7 +154,7 @@ class Attempt:
     request object can be sent more than once, and a retry admits a new attempt of it.
 
     Attributes:
-        priority (float): Ordering key; a timestamp for delayed requests.
+        priority (float): Ordering key: the request's priority, or its deadline while on the delayed heap.
         request (Request): The request to send.
         holds_slot (bool): Whether this entry reserved a scheduler admission slot.
         retries (int): How many times this request was already re-admitted by the retry policy.

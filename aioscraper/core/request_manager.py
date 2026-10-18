@@ -141,6 +141,10 @@ def _validate(request: Request):
     if request.timeout is not None and not (isfinite(request.timeout) and request.timeout > 0):
         raise InvalidRequestData(f"Request timeout must be a positive number of seconds, got {request.timeout!r}")
 
+    # a non-finite delay never comes due and keeps the run alive
+    if request.delay is not None and not (isfinite(request.delay) and request.delay >= 0):
+        raise InvalidRequestData(f"Request delay must be a non-negative number of seconds, got {request.delay!r}")
+
     # a codec that does not exist is a broken request, not a backend limitation
     for field in ("auth", "proxy_auth"):
         credentials = getattr(request, field)
@@ -264,7 +268,6 @@ class RequestManager:
         self._retry_policy = RetryPolicy(retry_config, should_retry=should_retry)
         self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
         self._initialized = False
-        self._completed = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
 
     @property
@@ -501,9 +504,11 @@ class RequestManager:
             self._error_collector.record("request", exc)
 
     async def wait(self):
+        """Wait until every queued request has run."""
         logger.debug("Request manager waiting for completion")
         self._initialized = True
-        await self._completed.wait()
+        # a canceled wait must not cancel the listener
+        await asyncio.shield(self._require_listening())
         logger.debug("Request manager wait completed")
 
     async def shutdown(self):
@@ -514,6 +519,17 @@ class RequestManager:
             await self._task
 
         logger.debug("Request manager shutdown completed")
+
+    @property
+    def listener(self) -> asyncio.Task[None]:
+        "The queue listener task."
+        return self._require_listening()
+
+    def _require_listening(self) -> asyncio.Task[None]:
+        if self._task is None:
+            raise RuntimeError("Request manager is not listening: call start_listening() first")
+
+        return self._task
 
     def start_listening(self):
         logger.debug("Request manager starting queue listener")
@@ -545,14 +561,16 @@ class RequestManager:
                 logger.debug("Queue listener canceled")
                 break
 
-        self._completed.set()
         logger.info("Queue listener completed: all requests processed")
 
     async def _pop_due_delayed(self):
         """Pop every due attempt from the delayed heap."""
         now = monotonic()
         while self._delayed_heap and self._delayed_heap[0].priority <= now:
-            await self._ready_queue.put(heapq.heappop(self._delayed_heap))
+            attempt = heapq.heappop(self._delayed_heap)
+            # the heap orders by deadline
+            attempt.priority = attempt.request.priority
+            await self._ready_queue.put(attempt)
 
     def _next_timeout(self) -> float:
         "Capped at the shutdown check interval: the heap can change while the listener waits."

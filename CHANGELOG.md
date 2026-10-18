@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A delayed request or a retry competes by its own `priority` once due. It used its deadline as the priority and starved behind fresh requests.
+- `Request.delay` rejects `NaN`, infinity and negative values with `InvalidRequestData`. A non-finite delay hung the run.
+- A `group_by` that raises or returns a malformed policy fails the run with `AIOScraperException` instead of hanging it; scrapers still running are canceled.
+- A teardown canceled midway still closes the remaining resources, pipelines included, then re-raises the cancellation.
+
 ## 0.16.0 (2026-08-25)
 
 ### Added

@@ -4,13 +4,14 @@ import sys
 from contextlib import suppress
 from dataclasses import dataclass
 from functools import partial
+from math import isfinite
 from time import monotonic
 from typing import Any, Awaitable, Callable, Hashable, Self
 
 from yarl import URL
 
 from aioscraper.config import RateLimitConfig, RequestRetryConfig
-from aioscraper.exceptions import ConnectionFailed, TransportTimeout
+from aioscraper.exceptions import AIOScraperException, ConnectionFailed, TransportTimeout
 from aioscraper.types import GroupBy, GroupPolicy
 from aioscraper.types.session import Attempt, Request
 
@@ -595,8 +596,34 @@ class RateLimitManager:
         if new_interval != group.interval:
             group.set_intervals(interval=new_interval, cleanup_timeout=max(self._cleanup_timeout, new_interval * 2))
 
+    def _resolve_policy(self, request: Request) -> tuple[Hashable, float, int | None]:
+        "Call group_by and validate its result."
+        try:
+            policy = self._group_by(request)
+        except Exception as exc:
+            raise AIOScraperException(f"group_by failed for {request.method} {request.url}") from exc
+
+        try:
+            group_key, interval, concurrency = policy
+            hash(group_key)
+        except (TypeError, ValueError) as exc:
+            raise AIOScraperException(
+                f"group_by must return a (hashable key, interval, concurrency) policy, got {policy!r}",
+            ) from exc
+
+        # bool is an int subclass
+        if isinstance(interval, bool) or not isinstance(interval, int | float) or not isfinite(interval):
+            raise AIOScraperException(f"group_by returned an invalid interval {interval!r} for group {group_key!r}")
+
+        if concurrency is not None and (isinstance(concurrency, bool) or not isinstance(concurrency, int)):
+            raise AIOScraperException(
+                f"group_by returned an invalid concurrency {concurrency!r} for group {group_key!r}",
+            )
+
+        return group_key, interval, concurrency
+
     async def _handle_with_group(self, attempt: Attempt):
-        group_key, interval, concurrency = self._group_by(attempt.request)
+        group_key, interval, concurrency = self._resolve_policy(attempt.request)
 
         # a custom group_by can hand back zero or less, which would spin the group's worker
         if interval <= 0:
