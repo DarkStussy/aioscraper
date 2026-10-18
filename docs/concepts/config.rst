@@ -252,6 +252,11 @@ Proxies
 - ``httpx`` (single proxy) - ``"http://localhost:8000"`` when one proxy handles all schemes.
 - ``httpx`` (per-scheme) - ``{"http": "http://localhost:8000", "https": "http://localhost:8001"}`` to route ``http``/``https`` separately.
 
+Environment proxy variables (``HTTP_PROXY``, ``HTTPS_PROXY``, ``ALL_PROXY``, ``NO_PROXY``) are ignored
+unless ``trust_env=True`` (``SESSION_TRUST_ENV``), on every backend. The flag also turns on what each
+client reads on its own: ``.netrc`` on ``aiohttp``, ``SSL_CERT_FILE`` and ``SSL_CERT_DIR`` on ``httpx``
+and ``httpx2``.
+
 .. warning::
 
    ``httpx`` and ``httpx2`` resolve proxies per transport, so a ``Request`` carrying ``proxy``, ``proxy_auth`` or ``proxy_headers`` raises :class:`UnsupportedRequestOption <aioscraper.exceptions.UnsupportedRequestOption>` rather than being sent without them - set ``SessionConfig.proxy`` instead, with the credentials in its URL. ``aiohttp`` takes all three per request, and ``Request(..., proxy=...)`` takes precedence over ``config.session.proxy``.

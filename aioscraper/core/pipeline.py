@@ -18,6 +18,22 @@ from aioscraper.types.pipeline import (
 logger = getLogger(__name__)
 
 
+async def close_pipelines(pipelines: Mapping[Any, PipelineContainer], error_collector: ErrorCollector):
+    "Close each pipeline once, even if it serves several item types; failures are recorded."
+    closed: set[int] = set()
+    for item_type, pipe_container in pipelines.items():
+        for pipeline in pipe_container.pipelines:
+            if id(pipeline) in closed:
+                continue
+
+            closed.add(id(pipeline))
+            try:
+                await pipeline.close()
+            except Exception as exc:
+                logger.exception("Error closing pipeline for type %s", get_log_name(item_type))
+                error_collector.record("close", exc)
+
+
 class PipelineDispatcher:
     "Routes items through the registered pipeline chain."
 
@@ -123,13 +139,5 @@ class PipelineDispatcher:
 
     async def close(self):
         "Close every registered pipeline. One that fails is recorded and the rest still close."
-        total_pipelines = sum(len(pc.pipelines) for pc in self._pipelines.values())
-        logger.debug("Closing pipeline dispatcher: %d pipeline(s) to close", total_pipelines)
-
-        for item_type, pipe_container in self._pipelines.items():
-            for pipeline in pipe_container.pipelines:
-                try:
-                    await pipeline.close()
-                except Exception as exc:
-                    logger.exception("Error closing pipeline for type %s", get_log_name(item_type))
-                    self._error_collector.record("close", exc)
+        logger.debug("Closing pipeline dispatcher")
+        await close_pipelines(self._pipelines, self._error_collector)

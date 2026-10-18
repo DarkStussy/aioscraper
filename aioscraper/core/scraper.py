@@ -14,7 +14,7 @@ from aioscraper.types import GroupBy, Scraper, ShouldRetry
 
 from .errors import ErrorCollector, RunResult, ScraperError
 from .executor import ScraperExecutor
-from .pipeline import PipelineDispatcher
+from .pipeline import PipelineDispatcher, close_pipelines
 from .session import HttpClient, SessionMakerFactory, get_sessionmaker
 from .stats import RunStats
 
@@ -227,29 +227,35 @@ class AIOScraper:
         self._state = _State.RUNNING
 
     async def _run(self):
-        # before anything is wired: the pipeline middleware factories are handed the same mapping
-        reject_reserved(self.dependencies, RESERVED_DEPENDENCIES, "Dependency names")
         # built here rather than in __init__: the config can still be replaced until the run starts
         self._error_collector = ErrorCollector(self.config.execution.max_retained_errors)
-        executor = ScraperExecutor(
-            config=self.config,
-            scrapers=self.scrapers,
-            dependencies=self.dependencies,
-            middleware_holder=self._middleware_holder,
-            pipeline_dispatcher=PipelineDispatcher(
-                self.config.pipeline,
-                pipelines=self._pipeline_holder.pipelines,
-                global_middleware_factories=self._pipeline_holder.global_middleware_factories,
+        try:
+            # before anything is wired: the pipeline middleware factories are handed the same mapping
+            reject_reserved(self.dependencies, RESERVED_DEPENDENCIES, "Dependency names")
+            executor = ScraperExecutor(
+                config=self.config,
+                scrapers=self.scrapers,
                 dependencies=self.dependencies,
+                middleware_holder=self._middleware_holder,
+                pipeline_dispatcher=PipelineDispatcher(
+                    self.config.pipeline,
+                    pipelines=self._pipeline_holder.pipelines,
+                    global_middleware_factories=self._pipeline_holder.global_middleware_factories,
+                    dependencies=self.dependencies,
+                    error_collector=self._error_collector,
+                    stats=self._stats,
+                ),
+                sessionmaker=self._sessionmaker_factory(self.config.session),
                 error_collector=self._error_collector,
                 stats=self._stats,
-            ),
-            sessionmaker=self._sessionmaker_factory(self.config.session),
-            error_collector=self._error_collector,
-            stats=self._stats,
-            group_by=self.group_by,
-            should_retry=self.should_retry,
-        )
+                group_by=self.group_by,
+                should_retry=self.should_retry,
+            )
+        except BaseException:
+            # no executor to close them
+            await close_pipelines(self._pipeline_holder.pipelines, self._error_collector)
+            raise
+
         try:
             logger.debug("Starting executor")
             await executor.run()

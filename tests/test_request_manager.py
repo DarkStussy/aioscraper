@@ -26,7 +26,7 @@ from aioscraper.exceptions import (
     UnsupportedRequestOption,
 )
 from aioscraper.holders import MiddlewareHolder
-from aioscraper.types import File, GroupPolicy, Request, RequestHandler, Response
+from aioscraper.types import File, GroupPolicy, Request, RequestHandler, RequestMiddleware, Response
 from aioscraper.types.session import Attempt
 from tests.mocks import make_response
 
@@ -1003,3 +1003,30 @@ async def test_a_failing_group_by_keeps_its_cause():
         await manager.close()
 
     assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_a_failing_middleware_factory_leaves_no_session():
+    sessions: list[FakeSession] = []
+
+    def sessionmaker() -> FakeSession:
+        sessions.append(FakeSession())
+        return sessions[-1]
+
+    def broken_factory() -> RequestMiddleware:
+        raise ValueError("broken middleware")
+
+    holder = MiddlewareHolder()
+    holder.add(broken_factory)
+
+    with pytest.raises(AIOScraperException, match="Failed to instantiate"):
+        RequestManager(
+            scheduler_config=SchedulerConfig(),
+            rate_limit_config=RateLimitConfig(),
+            retry_config=NO_RETRIES,
+            shutdown_check_interval=0.01,
+            sessionmaker=sessionmaker,
+            dependencies={},
+            middleware_holder=holder,
+        )
+
+    assert sessions == []

@@ -151,10 +151,11 @@ class AiohttpSession(BaseSession):
         timeout (ClientTimeout | None): Client-wide timeout; ``None`` leaves the aiohttp default.
         connector (TCPConnector | None): Connector carrying the SSL settings and connection pool.
         proxy (str | None): Proxy applied to every request.
+        trust_env (bool): Passed to ``ClientSession``: proxy environment variables and ``.netrc``.
         max_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap.
         client (ClientSession | None): Send through this client instead of creating one. Its own
-            configuration is used as it is, which makes ``timeout``, ``connector`` and ``proxy``
-            inapplicable.
+            configuration is used as it is, which makes ``timeout``, ``connector``, ``proxy`` and
+            ``trust_env`` inapplicable.
         owns_client (bool | None): Close ``client`` on :meth:`close`. Defaults to ``False`` for a
             provided client and ``True`` for one created here.
 
@@ -168,6 +169,7 @@ class AiohttpSession(BaseSession):
         timeout: ClientTimeout | None = None,
         connector: TCPConnector | None = None,
         proxy: str | None = None,
+        trust_env: bool = False,
         max_body_size: int | None = None,
         client: ClientSession | None = None,
         owns_client: bool | None = None,
@@ -175,7 +177,9 @@ class AiohttpSession(BaseSession):
         super().__init__(owns_client=resolve_client_ownership(client, owns_client))
         self._max_body_size = max_body_size
         self._session = (
-            client if client is not None else ClientSession(timeout=timeout, connector=connector, proxy=proxy)
+            client
+            if client is not None
+            else ClientSession(timeout=timeout, connector=connector, proxy=proxy, trust_env=trust_env)
         )
 
     def make_request(self, request: Request) -> AiohttpRequestContextManager:

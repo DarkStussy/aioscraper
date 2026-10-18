@@ -185,6 +185,10 @@ class TestAdaptiveRateLimitConfig:
         with pytest.raises(ConfigValidationError, match=r"max_interval.*minimum is 0.001"):
             AdaptiveRateLimitConfig(max_interval=0.0)
 
+    def test_rejects_min_interval_above_max_interval(self):
+        with pytest.raises(ConfigValidationError, match="exceeds max_interval"):
+            AdaptiveRateLimitConfig(min_interval=10.0, max_interval=1.0)
+
     def test_validates_increase_factor(self):
         with pytest.raises(ConfigValidationError, match=r"increase_factor.*minimum is 1.0"):
             AdaptiveRateLimitConfig(increase_factor=0.5)

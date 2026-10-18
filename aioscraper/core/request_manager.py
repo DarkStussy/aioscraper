@@ -233,7 +233,6 @@ class RequestManager:
             close_timeout=scheduler_config.close_timeout,
         )
         self._shutdown_check_interval = shutdown_check_interval
-        self._session = sessionmaker()
         # A maxsize would deadlock: _pop_due_delayed fills it from its only consumer.
         self._ready_queue: _RequestQueue = asyncio.PriorityQueue()
         self._delayed_heap: _RequestHead = []
@@ -269,6 +268,8 @@ class RequestManager:
         self._middlewares: list[RequestMiddleware] = self._instantiate_middlewares()
         self._initialized = False
         self._task: asyncio.Task[None] | None = None
+        # last: a failure after it would leave it unclosed
+        self._session = sessionmaker()
 
     @property
     def sender(self) -> ScheduleRequest:

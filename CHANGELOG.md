@@ -2,7 +2,19 @@
 
 ## Unreleased
 
+### Added
+- `SessionConfig.trust_env` (`SESSION_TRUST_ENV`), passed to every backend: proxy environment variables everywhere, plus `.netrc` on `aiohttp` and `SSL_CERT_FILE`/`SSL_CERT_DIR` on `httpx`/`httpx2`.
+
+### Changed
+- **BREAKING:** `httpx` and `httpx2` no longer read proxy environment variables, `SSL_CERT_FILE` and `SSL_CERT_DIR` by default, matching `aiohttp`; set `trust_env=True` for the old behavior. With `ALL_PROXY=socks5h://...` in the environment and no `socksio` installed, the httpx session failed to build.
+
 ### Fixed
+- A per-scheme proxy mapping on `httpx`/`httpx2` honors `SessionConfig.ssl`. Its transports were built with default verification.
+- A failed startup closes what it already built: the HTTP session is created after the request middleware factories, and the pipelines are closed when anything before the run fails.
+- A pipeline registered for several item types is closed once.
+- The adaptive rate limiter clamps a `Retry-After` interval to `min_interval`. A `Retry-After` of zero, or a date in the past, removed pacing right after a 429 or 503.
+- A negative numeric `Retry-After` is ignored by the retry policy and the adaptive rate limiter.
+- `AdaptiveRateLimitConfig` rejects `min_interval` above `max_interval`.
 - A delayed request or a retry competes by its own `priority` once due. It used its deadline as the priority and starved behind fresh requests.
 - `Request.delay` rejects `NaN`, infinity and negative values with `InvalidRequestData`. A non-finite delay hung the run.
 - A `group_by` that raises or returns a malformed policy fails the run with `AIOScraperException` instead of hanging it; scrapers still running are canceled.

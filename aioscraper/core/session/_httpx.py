@@ -231,10 +231,12 @@ class BaseHttpxSession(BaseSession):
         verify (SSLContext | bool): SSL handling passed to the client.
         proxy (str | dict[str, str | None] | None): Proxy URL, or a per-scheme mapping mounted on
             separate transports.
+        trust_env (bool): Passed to the client and the mounted transports: proxy environment
+            variables, ``SSL_CERT_FILE`` and ``SSL_CERT_DIR``.
         max_body_size (int | None): Cap on a response body in bytes; ``None`` disables the cap.
         client (HttpxClient | None): Send through this client instead of creating one. Its own
-            configuration is used as it is, which makes ``timeout``, ``verify``, ``proxy`` and the
-            redirect limit inapplicable.
+            configuration is used as it is, which makes ``timeout``, ``verify``, ``proxy``,
+            ``trust_env`` and the redirect limit inapplicable.
         owns_client (bool | None): Close ``client`` on :meth:`close`. Defaults to ``False`` for a
             provided client and ``True`` for one created here.
 
@@ -251,6 +253,7 @@ class BaseHttpxSession(BaseSession):
         timeout: float | None = None,
         verify: SSLContext | bool = True,
         proxy: str | dict[str, str | None] | None = None,
+        trust_env: bool = False,
         max_body_size: int | None = None,
         client: HttpxClient | None = None,
         owns_client: bool | None = None,
@@ -264,8 +267,11 @@ class BaseHttpxSession(BaseSession):
             return
 
         if isinstance(proxy, dict):
+            # a mounted transport takes none of the client's settings
             mounts = {
-                scheme: self._binding.async_http_transport(proxy=proxy) for scheme, proxy in proxy.items() if proxy
+                scheme: self._binding.async_http_transport(proxy=proxy, verify=verify, trust_env=trust_env)
+                for scheme, proxy in proxy.items()
+                if proxy
             } or None
             proxy = None
         else:
@@ -278,6 +284,7 @@ class BaseHttpxSession(BaseSession):
             verify=verify,
             proxy=proxy,
             mounts=mounts,
+            trust_env=trust_env,
             max_redirects=DEFAULT_MAX_REDIRECTS,
         )
 

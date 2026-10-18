@@ -23,14 +23,14 @@ class AdaptiveRateLimitConfig:
 
     Args:
         min_interval (float): Floor for the interval, in seconds.
-        max_interval (float): Ceiling for the interval, in seconds; a ``Retry-After`` is clamped
-            to it too.
+        max_interval (float): Ceiling for the interval, in seconds.
         increase_factor (float): The interval is multiplied by this on a failure.
         decrease_step (float): Seconds taken off after a run of successes.
         success_threshold (int): How many successes in a row it takes to step down.
         ewma_alpha (float): Weight of the newest latency sample, 0 to 1; higher follows the recent
             requests more closely.
-        respect_retry_after (bool): Let a ``Retry-After`` on a 429 or 503 set the interval outright.
+        respect_retry_after (bool): Let a ``Retry-After`` on a 429 or 503 set the interval, within
+            the bounds above.
         inherit_retry_triggers (bool): Also treat what :class:`RequestRetryConfig` retries as
             pushback.
         custom_trigger_statuses (tuple[int, ...]): Statuses that count as pushback on top of the
@@ -49,6 +49,12 @@ class AdaptiveRateLimitConfig:
     inherit_retry_triggers: bool = True
     custom_trigger_statuses: tuple[int, ...] = ()
     custom_trigger_exceptions: tuple[type[BaseException], ...] = ()
+
+    def __post_init__(self):
+        if self.min_interval > self.max_interval:
+            raise ConfigValidationError(
+                f"AdaptiveRateLimitConfig.min_interval: {self.min_interval} exceeds max_interval {self.max_interval}",
+            )
 
 
 @dataclass(slots=True, frozen=True, kw_only=True)
@@ -175,6 +181,8 @@ class SessionConfig:
             the request carries its own; enforced by the framework on every backend
         ssl (ssl.SSLContext | bool): SSL handling; bool toggles verification, SSLContext can carry custom CAs
         proxy (str | dict[str, str | None] | None): Default proxy passed to the HTTP client
+        trust_env (bool): Let the HTTP client read proxy environment variables, plus what its own
+            ``trust_env`` covers: ``.netrc`` on ``aiohttp``, ``SSL_CERT_FILE``/``SSL_CERT_DIR`` on ``httpx``
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``/``httpx2``; ``None`` lets the factory auto-detect
         max_response_body_size (int | None): Cap on a response body in bytes, 32 MiB by default;
             ``None`` disables it. Bounds memory at this value times ``scheduler.concurrent_requests``
@@ -188,6 +196,7 @@ class SessionConfig:
     timeout: float = field(default=60.0, validator=RangeValidator(min_value=0.001))
     ssl: ssl_module.SSLContext | bool = True
     proxy: str | dict[str, str | None] | None = field(default=None, validator=ProxyValidator({"http", "https"}))
+    trust_env: bool = False
     http_backend: HttpBackend | None = None
     max_response_body_size: int | None = field(
         default=DEFAULT_MAX_RESPONSE_BODY_SIZE,

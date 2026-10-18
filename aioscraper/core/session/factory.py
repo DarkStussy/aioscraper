@@ -107,6 +107,7 @@ def _httpx_sessionmaker(config: SessionConfig, session_cls: Callable[..., BaseSe
         timeout=config.timeout,
         verify=config.ssl,
         proxy=config.proxy,
+        trust_env=config.trust_env,
         max_body_size=config.max_response_body_size,
     )
 
@@ -136,6 +137,7 @@ def get_sessionmaker(config: SessionConfig, client: HttpClient | None = None) ->
                 timeout=ClientTimeout(total=config.timeout),
                 connector=TCPConnector(ssl=ssl) if (ssl := config.ssl) is not None else None,
                 proxy=config.proxy if isinstance(config.proxy, str) else None,
+                trust_env=config.trust_env,
                 max_body_size=config.max_response_body_size,
             )
         except ModuleNotFoundError:  # pragma: no cover

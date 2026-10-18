@@ -170,6 +170,13 @@ class TestAdaptiveStrategy:
         new_interval = strategy.calculate_interval("test", current_interval=0.1, outcome=outcome)
         assert new_interval == 3.5  # Should use Retry-After value
 
+    @pytest.mark.parametrize("retry_after", [0.0, -10.0])
+    def test_retry_after_respects_min_bound(self, retry_after: float):
+        strategy = AdaptiveStrategy(min_interval=0.5, max_interval=2.0, respect_retry_after=True)
+        outcome = RequestOutcome(group_key="test", latency=1.0, retry_after=retry_after, status_code=429)
+
+        assert strategy.calculate_interval("test", current_interval=1.0, outcome=outcome) == 0.5
+
     def test_retry_after_respects_max_bound(self):
         """Test that Retry-After is capped at max_interval."""
         strategy = AdaptiveStrategy(

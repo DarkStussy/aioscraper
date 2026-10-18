@@ -43,6 +43,7 @@ def load_config() -> Config:
             timeout=env.parse("SESSION_REQUEST_TIMEOUT", default_config.session.timeout),
             ssl=ssl_ctx,
             proxy=env.parse_proxy("SESSION_PROXY", None),
+            trust_env=env.parse("SESSION_TRUST_ENV", default_config.session.trust_env),
             http_backend=env.parse("SESSION_HTTP_BACKEND", default_config.session.http_backend),
             max_response_body_size=env.parse_body_limit(
                 "SESSION_MAX_RESPONSE_BODY_SIZE",

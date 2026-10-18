@@ -159,7 +159,7 @@ class AdaptiveStrategy:
 
         # what the server asked for beats anything inferred from latency and counts
         if self.respect_retry_after and outcome.retry_after is not None and not success:
-            new_interval = min(self.max_interval, outcome.retry_after)
+            new_interval = max(self.min_interval, min(self.max_interval, outcome.retry_after))
             logger.info(
                 "Adaptive rate limit: Retry-After header for group %r, setting interval to %.4f "
                 "(status=%s, latency=%.4f)",

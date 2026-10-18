@@ -61,8 +61,8 @@ def parse_retry_after(exc: Exception) -> float | None:
     except ValueError:
         pass
     else:
-        # a header is hostile input: NaN and infinity would park the request forever
-        return seconds if isfinite(seconds) else None
+        # hostile input: non-finite values park the request, negative ones drop pacing
+        return seconds if isfinite(seconds) and seconds >= 0 else None
 
     try:
         retry_date = parsedate_to_datetime(retry_after)

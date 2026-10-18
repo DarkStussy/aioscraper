@@ -10,6 +10,7 @@ def test_load_config_reads_env_overrides(monkeypatch):
     monkeypatch.setenv("SESSION_REQUEST_TIMEOUT", "5.5")
     monkeypatch.setenv("SESSION_SSL", "false")
     monkeypatch.setenv("SESSION_PROXY", "http://proxy:8080")
+    monkeypatch.setenv("SESSION_TRUST_ENV", "true")
 
     monkeypatch.setenv("SCHEDULER_CONCURRENT_REQUESTS", "2")
     monkeypatch.setenv("SCHEDULER_PENDING_REQUESTS", "3")
@@ -28,6 +29,7 @@ def test_load_config_reads_env_overrides(monkeypatch):
     assert config.session.timeout == 5.5
     assert config.session.ssl is False
     assert config.session.proxy == "http://proxy:8080"
+    assert config.session.trust_env is True
 
     assert config.scheduler.concurrent_requests == 2
     assert config.scheduler.pending_requests == 3

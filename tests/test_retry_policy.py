@@ -214,7 +214,7 @@ def test_retry_after_is_capped():
     assert _policy().next_delay(Request(url="https://example.com"), error, 0) == 600.0
 
 
-@pytest.mark.parametrize("value", ["nan", "inf"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-10"])
 def test_a_retry_after_that_is_not_a_number_of_seconds_is_ignored(value: str):
     """A header is hostile input: a delay of NaN would park the request forever."""
     error = _http_error(status=429, headers={"Retry-After": value})

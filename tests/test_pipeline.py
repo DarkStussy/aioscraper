@@ -4,8 +4,10 @@ from typing import Any, Callable
 import pytest
 
 from aioscraper.config import PipelineConfig
+from aioscraper.core import AIOScraper
 from aioscraper.core.pipeline import PipelineDispatcher
-from aioscraper.exceptions import PipelineException, StopItemProcessing, StopMiddlewareProcessing
+from aioscraper.exceptions import AIOScraperException, PipelineException, StopItemProcessing, StopMiddlewareProcessing
+from aioscraper.types.middleware import RequestMiddleware
 from aioscraper.types.pipeline import (
     GlobalPipelineMiddleware,
     ItemHandler,
@@ -412,3 +414,71 @@ async def test_pipeline_global_middleware_stop_item_processing_returns_item():
 
     assert item.total == 0
     assert len(item.history) == 0
+
+
+@dataclass
+class OtherItem:
+    value: str
+
+
+def _broken_request_middleware(scraper: AIOScraper):
+    def factory() -> RequestMiddleware:
+        raise ValueError("broken middleware")
+
+    scraper.middleware.add(factory)
+
+
+def _broken_global_pipeline_middleware(scraper: AIOScraper):
+    def factory() -> GlobalPipelineMiddleware[Any]:
+        raise ValueError("broken middleware")
+
+    scraper.pipeline.add_global_middlewares(factory)
+
+
+def _reserved_dependency(scraper: AIOScraper):
+    scraper.dependencies["pipeline"] = object()
+
+
+@pytest.mark.parametrize(
+    ("break_startup", "error"),
+    [
+        pytest.param(_broken_request_middleware, AIOScraperException, id="request-middleware"),
+        pytest.param(_broken_global_pipeline_middleware, PipelineException, id="global-pipeline-middleware"),
+        pytest.param(_reserved_dependency, ValueError, id="reserved-dependency"),
+    ],
+)
+async def test_a_failed_startup_closes_the_pipelines(
+    break_startup: Callable[[AIOScraper], None],
+    error: type[Exception],
+):
+    scraper = AIOScraper()
+    pipeline = RealPipeline("startup")
+    scraper.pipeline.add(RealItem, pipeline)
+    break_startup(scraper)
+
+    with pytest.raises(error):
+        async with scraper:
+            await scraper.wait()
+
+    assert pipeline.closed is True
+
+
+async def test_a_pipeline_serving_two_item_types_is_closed_once():
+    closes: list[str] = []
+
+    class SharedPipeline:
+        async def put_item(self, item: Any) -> Any:
+            return item
+
+        async def close(self):
+            closes.append("close")
+
+    shared = SharedPipeline()
+    dispatcher = PipelineDispatcher(
+        PipelineConfig(),
+        {RealItem: PipelineContainer(pipelines=[shared]), OtherItem: PipelineContainer(pipelines=[shared])},
+    )
+
+    await dispatcher.close()
+
+    assert closes == ["close"]
