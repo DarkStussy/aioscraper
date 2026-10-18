@@ -38,7 +38,7 @@ SessionMaker = Callable[[], BaseSession]
 SessionMakerFactory = Callable[[SessionConfig], SessionMaker]
 
 # a provided client is used as configured, so nothing that builds one can be applied to it
-_IGNORED_FOR_PROVIDED_CLIENT = "timeout, ssl and proxy settings are not applied"
+_IGNORED_FOR_PROVIDED_CLIENT = "timeout, ssl, proxy and trust_env settings are not applied"
 
 
 def _reject_backend_mismatch(config: SessionConfig, backend: HttpBackend):

@@ -22,12 +22,12 @@ body:
       label: Steps to Reproduce
       description: Provide a minimal code example to reproduce the issue.
       placeholder: |
-        from aioscraper import AIOScraper, Request, Response, SendRequest
+        from aioscraper import AIOScraper, Request, Response, ScheduleRequest
 
         scraper = AIOScraper()
 
         @scraper
-        async def scrape(send_request: SendRequest):
+        async def scrape(schedule_request: ScheduleRequest):
             # Your code here
             pass
       render: python
