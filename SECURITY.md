@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-aioscraper is still pre-1.0. Security fixes are released for the latest version only.
+Security fixes are released for the latest version only.
 
 If you found a problem in an older version, please check whether it also affects the
 latest release, if practical.

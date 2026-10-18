@@ -3,9 +3,6 @@ aioscraper
 
 **An async Python framework for collecting data from APIs.**
 
-.. warning::
-   Beta status: APIs and behavior still change between releases, so pin the version.
-
 You write requests and response handlers. aioscraper queues the requests, limits concurrency, and
 retries failed attempts. It has no selectors and no crawling engine - parse the response however you
 like, with BeautifulSoup or anything else.

@@ -96,8 +96,8 @@ Overlapping runs share the handlers and each gets the signal; the last one to en
 Configuration
 -------------
 
-Configuration precedence (when the CLI needs to load a config): CLI flags -> environment variables -> :class:`Config <aioscraper.config.models.Config>` defaults.
-If the resolved :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` already has ``config`` set, the CLI leaves it untouched and CLI flags/env vars are ignored.
+An :class:`AIOScraper <aioscraper.core.scraper.AIOScraper>` built without ``config`` reads it from environment variables, falling back to :class:`Config <aioscraper.config.models.Config>` defaults; one built with ``config`` reads no environment variables.
+CLI flags are applied on top of ``scraper.config`` either way, so they override both.
 
 See :doc:`/concepts/config` for detailed configuration options and examples.
 

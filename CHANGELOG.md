@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Migrating from 0.16
+- Replace `SendRequest` with `ScheduleRequest` and a `send_request` parameter with `schedule_request`.
+- `ScraperExecutor`, `RequestManager`, `RateLimitManager`, `RequestGroup`, `AdaptiveStrategy`, `RequestOutcome`, `AdaptiveMetrics`, `PipelineDispatcher` and the backend request context managers are internal and have no public replacement.
+- On `httpx`/`httpx2`, set `SessionConfig(trust_env=True)` (`SESSION_TRUST_ENV=true`) to keep reading proxy environment variables, `SSL_CERT_FILE` and `SSL_CERT_DIR`.
+- A `Request.delay` that is negative or not finite now raises `InvalidRequestData`.
+- A `group_by` must return a hashable key, a finite interval and an `int` or `None` concurrency; anything else fails the run.
+- `AdaptiveRateLimitConfig` with `min_interval` above `max_interval` now raises `ConfigValidationError`.
+
 ### Added
 - `run_scraper(install_signal_handlers=False)` leaves signals to the embedding application.
 - `SessionConfig.trust_env` (`SESSION_TRUST_ENV`), passed to every backend: proxy environment variables everywhere, plus `.netrc` on `aiohttp` and `SSL_CERT_FILE`/`SSL_CERT_DIR` on `httpx`/`httpx2`.
@@ -14,12 +22,12 @@
 ### Fixed
 - `run_scraper` restores the SIGINT/SIGTERM handlers it replaced once the last run on the loop ends. It left its own installed, bound to the finished run. Overlapping runs share the handlers, and a signal reaches each of them; before, only the latest run got it.
 - A per-scheme proxy mapping on `httpx`/`httpx2` honors `SessionConfig.ssl`. Its transports were built with default verification.
-- A failed startup closes what it already built: the HTTP session is created after the request middleware factories, and the pipelines are closed when anything before the run fails.
+- Pipelines are closed if startup fails. The HTTP session is created only after middleware setup succeeds.
 - A pipeline registered for several item types is closed once.
 - The adaptive rate limiter clamps a `Retry-After` interval to `min_interval`. A `Retry-After` of zero, or a date in the past, removed pacing right after a 429 or 503.
 - A negative numeric `Retry-After` is ignored by the retry policy and the adaptive rate limiter.
 - `AdaptiveRateLimitConfig` rejects `min_interval` above `max_interval`.
-- A delayed request or a retry competes by its own `priority` once due. It used its deadline as the priority and starved behind fresh requests.
+- Delayed requests and retries use `Request.priority` when they become ready. They used their deadline as the priority and starved behind fresh requests.
 - `Request.delay` rejects `NaN`, infinity and negative values with `InvalidRequestData`. A non-finite delay hung the run.
 - A `group_by` that raises or returns a malformed policy fails the run with `AIOScraperException` instead of hanging it; scrapers still running are canceled.
 - A teardown canceled midway still closes the remaining resources, pipelines included, then re-raises the cancellation.

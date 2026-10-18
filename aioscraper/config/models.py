@@ -185,7 +185,7 @@ class SessionConfig:
             ``trust_env`` covers: ``.netrc`` on ``aiohttp``, ``SSL_CERT_FILE``/``SSL_CERT_DIR`` on ``httpx``
         http_backend (HttpBackend | None): Force ``aiohttp``/``httpx``/``httpx2``; ``None`` lets the factory auto-detect
         max_response_body_size (int | None): Cap on a response body in bytes, 32 MiB by default;
-            ``None`` disables it. Bounds memory at this value times ``scheduler.concurrent_requests``
+            ``None`` disables it
         max_error_body_size (int): Bytes of a failed response read into the ``HTTPException`` message
         buffer_body (bool): Whether to read a response body before the callback runs;
             ``Request.buffer_body`` overrides it per request

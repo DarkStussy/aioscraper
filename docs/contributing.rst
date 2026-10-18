@@ -74,4 +74,5 @@ Submitting changes
 ------------------
 
 - Open an issue first if you’re proposing a larger change.
+- By submitting a contribution, you agree to license it under the project's `MIT License <https://github.com/darkstussy/aioscraper/blob/main/LICENSE>`_.
 - Keep commits focused and include a brief description of motivation and behavior.

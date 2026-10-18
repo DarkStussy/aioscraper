@@ -23,8 +23,6 @@ It is worth reaching for when one process has to keep hundreds or thousands of r
 and you would otherwise be writing that machinery yourself. For a handful of requests, use
 `aiohttp` or `httpx` directly.
 
-> **Beta:** APIs and behavior still change between releases. Pin the version.
-
 ## Installation
 
 The core ships without an HTTP client, so pick one:
